@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>审计分析 - 智能审计决策系统</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        .nav-link { color: #fff !important; }
+        .audit-card { margin: 20px 0; }
+        .risk-high { color: #dc3545; font-weight: bold; }
+        .risk-medium { color: #ffc107; font-weight: bold; }
+        .risk-low { color: #28a745; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+        <div class="container">
+            <a class="navbar-brand" href="/">
+                <i class="fas fa-shield-alt me-2"></i>
+                智能审计决策系统
+            </a>
+            <div class="navbar-nav ms-auto">
+                <a class="nav-link" href="/">首页</a>
+                <a class="nav-link" href="/chat">智能对话</a>
+                <a class="nav-link active" href="/audit">审计分析</a>
+                <a class="nav-link" href="/knowledge">知识管理</a>
+                <a class="nav-link" href="/training">模型训练</a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mt-4">
+        <h2><i class="fas fa-search me-2"></i>审计分析</h2>
+
+        <!-- 审计项目配置 -->
+        <div class="card audit-card">
+            <div class="card-header">
+                <h5><i class="fas fa-cogs me-2"></i>审计项目配置</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label class="form-label">审计项目</label>
+                            <input type="text" class="form-control" id="auditItem" placeholder="例如：ERP系统">
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label class="form-label">审计类型</label>
+                            <select class="form-select" id="auditType">
+                                <option value="安全审计">安全审计</option>
+                                <option value="合规性审计">合规性审计</option>
+                                <option value="风险评估">风险评估</option>
+                                <option value="内部控制审计">内部控制审计</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label class="form-label">参考标准</label>
+                            <select class="form-select" id="standardType">
+                                <option value="">请选择...</option>
+                                <option value="COBIT">COBIT</option>
+                                <option value="ISO27001">ISO27001</option>
+                                <option value="SOX">SOX</option>
+                                <option value="数据安全法">数据安全法</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label class="form-label">风险等级</label>
+                            <select class="form-select" id="riskLevel">
+                                <option value="高">高</option>
+                                <option value="中">中</option>
+                                <option value="低">低</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                <button class="btn btn-primary" onclick="startAudit()">
+                    <i class="fas fa-search me-2"></i>开始审计分析
+                </button>
+            </div>
+        </div>
+
+        <!-- 审计结果 -->
+        <div class="card audit-card">
+            <div class="card-header">
+                <h5><i class="fas fa-clipboard-list me-2"></i>审计结果</h5>
+            </div>
+            <div class="card-body" id="auditResults">
+                <p class="text-muted">请配置并开始审计分析</p>
+            </div>
+        </div>
+
+        <!-- 风险评估 -->
+        <div class="card audit-card">
+            <div class="card-header">
+                <h5><i class="fas fa-exclamation-triangle me-2"></i>风险评估</h5>
+            </div>
+            <div class="card-body" id="riskAssessment">
+                <p class="text-muted">风险评估结果将显示在这里</p>
+            </div>
+        </div>
+
+        <!-- 合规性检查 -->
+        <div class="card audit-card">
+            <div class="card-header">
+                <h5><i class="fas fa-check-circle me-2"></i>合规性检查</h5>
+            </div>
+            <div class="card-body" id="complianceCheck">
+                <p class="text-muted">合规性检查结果将显示在这里</p>
+            </div>
+        </div>
+
+        <!-- 整改建议 -->
+        <div class="card audit-card">
+            <div class="card-header">
+                <h5><i class="fas fa-lightbulb me-2"></i>整改建议</h5>
+            </div>
+            <div class="card-body" id="recommendations">
+                <p class="text-muted">审计完成后将提供整改建议</p>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        async function startAudit() {
+            const auditItem = document.getElementById('auditItem').value;
+            const auditType = document.getElementById('auditType').value;
+            const standardType = document.getElementById('standardType').value;
+            const riskLevel = document.getElementById('riskLevel').value;
+
+            if (!auditItem) {
+                alert('请输入审计项目');
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/audit', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        audit_item: auditItem,
+                        audit_type: auditType,
+                        standard_type: standardType,
+                        risk_level: riskLevel
+                    })
+                });
+
+                const data = await response.json();
+                if (data.success) {
+                    displayAuditResults(data.result);
+                } else {
+                    alert('审计分析失败: ' + data.error);
+                }
+            } catch (error) {
+                alert('审计分析失败: ' + error);
+            }
+        }
+
+        function displayAuditResults(result) {
+            // 显示审计结果
+            const auditResultsDiv = document.getElementById('auditResults');
+            auditResultsDiv.innerHTML = `
+                <h6>审计项目：${result.audit_item}</h6>
+                <p>${result.response}</p>
+            `;
+
+            // 显示风险评估
+            if (result.risk_assessment) {
+                const riskDiv = document.getElementById('riskAssessment');
+                const riskLevel = result.risk_assessment.risk_level;
+                const riskClass = riskLevel === '高' ? 'risk-high' : riskLevel === '中' ? 'risk-medium' : 'risk-low';
+
+                riskDiv.innerHTML = `
+                    <p><span class="${riskClass}">风险等级：${riskLevel}</span></p>
+                    <p>风险评分：${result.risk_assessment.risk_score}</p>
+                `;
+            }
+
+            // 显示合规性检查
+            if (result.compliance_check) {
+                const complianceDiv = document.getElementById('complianceCheck');
+                complianceDiv.innerHTML = `
+                    <p>合规性评分：${result.compliance_check.compliance_score}</p>
+                    <p>合规性等级：${result.compliance_check.compliance_level}</p>
+                `;
+            }
+
+            // 显示整改建议
+            if (result.recommendations && result.recommendations.length > 0) {
+                const recsDiv = document.getElementById('recommendations');
+                recsDiv.innerHTML = result.recommendations.map(rec => `
+                    <div class="alert alert-info">
+                        <h6>${rec.type}</h6>
+                        <p>${rec.description}</p>
+                    </div>
+                `).join('');
+            }
+        }
+    </script>
+</body>
+</html>
+
