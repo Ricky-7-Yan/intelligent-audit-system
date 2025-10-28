@@ -17,8 +17,8 @@ PROJECT_ROOT = Path(__file__).parent
 MYSQL_CONFIG = {
     'host': os.getenv('MYSQL_HOST', 'localhost'),
     'port': int(os.getenv('MYSQL_PORT', 3306)),
-    'user': os.getenv('MYSQL_USER', 'root'),
-    'password': os.getenv('MYSQL_PASSWORD', '123456'),
+    'user': os.getenv('MYSQL_USER', 'your-username'),
+    'password': os.getenv('MYSQL_PASSWORD', 'your-password'),
     'database': os.getenv('MYSQL_DATABASE', 'audit_system'),
     'charset': 'utf8mb4'
 }
@@ -26,8 +26,8 @@ MYSQL_CONFIG = {
 # Neo4j配置
 NEO4J_CONFIG = {
     'uri': os.getenv('NEO4J_URI', 'bolt://localhost:7687'),
-    'user': os.getenv('NEO4J_USER', 'neo4j'),
-    'password': os.getenv('NEO4J_PASSWORD', '12345678')
+    'user': os.getenv('NEO4J_USER', 'your-username'),
+    'password': os.getenv('NEO4J_PASSWORD', 'your-password')
 }
 
 # LLM配置
@@ -79,5 +79,6 @@ TRAINING_CONFIG = {
     'save_steps': 500,
     'eval_steps': 100
 }
+
 
 
