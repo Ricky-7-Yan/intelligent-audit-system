@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>智能审计决策系统</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        .hero-section {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 100px 0;
+        }
+        .feature-card {
+            transition: transform 0.3s ease;
+            border: none;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        .feature-card:hover {
+            transform: translateY(-5px);
+        }
+        .navbar-brand {
+            font-weight: bold;
+            font-size: 1.5rem;
+        }
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border: none;
+        }
+        .btn-primary:hover {
+            background: linear-gradient(135deg, #5a6fd8 0%, #6a4190 100%);
+        }
+        .stats-section {
+            background-color: #f8f9fa;
+            padding: 80px 0;
+        }
+        .stat-item {
+            text-align: center;
+            padding: 20px;
+        }
+        .stat-number {
+            font-size: 3rem;
+            font-weight: bold;
+            color: #667eea;
+        }
+        .footer {
+            background-color: #343a40;
+            color: white;
+            padding: 40px 0;
+        }
+    </style>
+</head>
+<body>
+    <!-- 导航栏 -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+        <div class="container">
+            <a class="navbar-brand" href="/">
+                <i class="fas fa-shield-alt me-2"></i>
+                智能审计决策系统
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" href="/">首页</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/chat">智能对话</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/audit">审计分析</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/knowledge">知识管理</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/training">模型训练</a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <!-- 英雄区域 -->
+    <section class="hero-section">
+        <div class="container">
+            <div class="row align-items-center">
+                <div class="col-lg-6">
+                    <h1 class="display-4 fw-bold mb-4">智能审计决策系统</h1>
+                    <p class="lead mb-4">
+                        基于大语言模型的智能审计决策系统，集成知识图谱、RAG检索增强生成、
+                        强化学习等前沿技术，为审计工作提供智能化支持。
+                    </p>
+                    <div class="d-flex gap-3">
+                        <a href="/chat" class="btn btn-primary btn-lg">
+                            <i class="fas fa-comments me-2"></i>
+                            开始对话
+                        </a>
+                        <a href="/audit" class="btn btn-outline-light btn-lg">
+                            <i class="fas fa-search me-2"></i>
+                            审计分析
+                        </a>
+                    </div>
+                </div>
+                <div class="col-lg-6 text-center">
+                    <i class="fas fa-brain" style="font-size: 200px; opacity: 0.3;"></i>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- 功能特性 -->
+    <section class="py-5">
+        <div class="container">
+            <div class="row">
+                <div class="col-lg-12 text-center mb-5">
+                    <h2 class="display-5 fw-bold">核心功能</h2>
+                    <p class="lead text-muted">集成多种前沿技术，提供全面的审计支持</p>
+                </div>
+            </div>
+            <div class="row g-4">
+                <div class="col-lg-4 col-md-6">
+                    <div class="card feature-card h-100">
+                        <div class="card-body text-center p-4">
+                            <i class="fas fa-robot text-primary mb-3" style="font-size: 3rem;"></i>
+                            <h5 class="card-title">智能对话Agent</h5>
+                            <p class="card-text">
+                                基于LangGraph的智能审计Agent，支持多轮对话式审计决策，
+                                能够理解复杂的审计需求并提供专业建议。
+                            </p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-lg-4 col-md-6">
+                    <div class="card feature-card h-100">
+                        <div class="card-body text-center p-4">
+                            <i class="fas fa-project-diagram text-success mb-3" style="font-size: 3rem;"></i>
+                            <h5 class="card-title">知识图谱</h5>
+                            <p class="card-text">
+                                构建审计领域的知识图谱，整合COBIT、ISO27001、SOX等标准，
+                                支持实体识别和关系抽取。
+                            </p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-lg-4 col-md-6">
+                    <div class="card feature-card h-100">
+                        <div class="card-body text-center p-4">
+                            <i class="fas fa-search text-info mb-3" style="font-size: 3rem;"></i>
+                            <h5 class="card-title">Agentic RAG</h5>
+                            <p class="card-text">
+                                智能检索增强生成系统，结合向量数据库和语义搜索，
+                                提供准确的知识检索和回答生成。
+                            </p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-lg-4 col-md-6">
+                    <div class="card feature-card h-100">
+                        <div class="card-body text-center p-4">
+                            <i class="fas fa-chart-line text-warning mb-3" style="font-size: 3rem;"></i>
+                            <h5 class="card-title">风险评估</h5>
+                            <p class="card-text">
+                                智能风险评估系统，能够识别和评估各种审计风险，
+                                提供风险等级和缓解建议。
+                            </p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-lg-4 col-md-6">
+                    <div class="card feature-card h-100">
+                        <div class="card-body text-center p-4">
+                            <i class="fas fa-check-circle text-danger mb-3" style="font-size: 3rem;"></i>
+                            <h5 class="card-title">合规检查</h5>
+                            <p class="card-text">
+                                自动合规性检查，对照相关标准和法规，
+                                识别合规问题并提供整改建议。
+                            </p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-lg-4 col-md-6">
+                    <div class="card feature-card h-100">
+                        <div class="card-body text-center p-4">
+                            <i class="fas fa-graduation-cap text-secondary mb-3" style="font-size: 3rem;"></i>
+                            <h5 class="card-title">模型训练</h5>
+                            <p class="card-text">
+                                支持SFT、RLHF等训练方法，提供benchmark测评，
+                                持续优化模型性能。
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- 统计数据 -->
+    <section class="stats-section">
+        <div class="container">
+            <div class="row">
+                <div class="col-lg-12 text-center mb-5">
+                    <h2 class="display-5 fw-bold">系统统计</h2>
+                    <p class="lead text-muted">实时系统运行状态</p>
+                </div>
+            </div>
+            <div class="row">
+                <div class="col-lg-3 col-md-6">
+                    <div class="stat-item">
+                        <div class="stat-number" id="total-documents">0</div>
+                        <h5>知识文档</h5>
+                        <p class="text-muted">已加载的知识文档数量</p>
+                    </div>
+                </div>
+                <div class="col-lg-3 col-md-6">
+                    <div class="stat-item">
+                        <div class="stat-number" id="total-sessions">0</div>
+                        <h5>对话会话</h5>
+                        <p class="text-muted">活跃的对话会话数量</p>
+                    </div>
+                </div>
+                <div class="col-lg-3 col-md-6">
+                    <div class="stat-item">
+                        <div class="stat-number" id="total-audits">0</div>
+                        <h5>审计项目</h5>
+                        <p class="text-muted">已完成的审计项目数量</p>
+                    </div>
+                </div>
+                <div class="col-lg-3 col-md-6">
+                    <div class="stat-item">
+                        <div class="stat-number" id="model-score">0</div>
+                        <h5>模型评分</h5>
+                        <p class="text-muted">当前模型性能评分</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- 技术架构 -->
+    <section class="py-5">
+        <div class="container">
+            <div class="row">
+                <div class="col-lg-12 text-center mb-5">
+                    <h2 class="display-5 fw-bold">技术架构</h2>
+                    <p class="lead text-muted">基于前沿技术的系统架构</p>
+                </div>
+            </div>
+            <div class="row">
+                <div class="col-lg-6">
+                    <h4>核心技术栈</h4>
+                    <ul class="list-unstyled">
+                        <li><i class="fas fa-check text-success me-2"></i>LangGraph - 智能Agent框架</li>
+                        <li><i class="fas fa-check text-success me-2"></i>LangChain - 大语言模型应用框架</li>
+                        <li><i class="fas fa-check text-success me-2"></i>Neo4j - 知识图谱数据库</li>
+                        <li><i class="fas fa-check text-success me-2"></i>ChromaDB - 向量数据库</li>
+                        <li><i class="fas fa-check text-success me-2"></i>Transformers - 预训练模型</li>
+                        <li><i class="fas fa-check text-success me-2"></i>FastAPI - Web框架</li>
+                    </ul>
+                </div>
+                <div class="col-lg-6">
+                    <h4>训练技术</h4>
+                    <ul class="list-unstyled">
+                        <li><i class="fas fa-check text-success me-2"></i>SFT - 监督微调</li>
+                        <li><i class="fas fa-check text-success me-2"></i>RLHF - 强化学习人类反馈</li>
+                        <li><i class="fas fa-check text-success me-2"></i>LoRA - 低秩适应</li>
+                        <li><i class="fas fa-check text-success me-2"></i>PPO - 近端策略优化</li>
+                        <li><i class="fas fa-check text-success me-2"></i>Benchmark - 基准测试</li>
+                        <li><i class="fas fa-check text-success me-2"></i>Evaluation - 模型评估</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- 页脚 -->
+    <footer class="footer">
+        <div class="container">
+            <div class="row">
+                <div class="col-lg-6">
+                    <h5>智能审计决策系统</h5>
+                    <p class="text-muted">
+                        基于大语言模型的智能审计决策系统，集成多种前沿技术，
+                        为审计工作提供智能化支持。
+                    </p>
+                </div>
+                <div class="col-lg-6">
+                    <h5>快速链接</h5>
+                    <ul class="list-unstyled">
+                        <li><a href="/chat" class="text-muted">智能对话</a></li>
+                        <li><a href="/audit" class="text-muted">审计分析</a></li>
+                        <li><a href="/knowledge" class="text-muted">知识管理</a></li>
+                        <li><a href="/training" class="text-muted">模型训练</a></li>
+                    </ul>
+                </div>
+            </div>
+            <hr class="my-4">
+            <div class="row">
+                <div class="col-lg-12 text-center">
+                    <p class="text-muted mb-0">
+                        &copy; 2024 智能审计决策系统. 保留所有权利.
+                    </p>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // 加载统计数据
+        async function loadStats() {
+            try {
+                const response = await fetch('/api/knowledge/stats');
+                const data = await response.json();
+
+                if (data.success) {
+                    document.getElementById('total-documents').textContent =
+                        data.stats.vectorstore_stats?.total_documents || 0;
+                }
+            } catch (error) {
+                console.error('加载统计数据失败:', error);
+            }
+        }
+
+        // 页面加载完成后执行
+        document.addEventListener('DOMContentLoaded', function() {
+            loadStats();
+
+            // 模拟其他统计数据
+            document.getElementById('total-sessions').textContent = '156';
+            document.getElementById('total-audits').textContent = '89';
+            document.getElementById('model-score').textContent = '0.85';
+        });
+    </script>
+</body>
+</html>
+

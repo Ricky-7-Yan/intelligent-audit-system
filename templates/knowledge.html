@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>知识管理 - 智能审计决策系统</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        .nav-link { color: #fff !important; }
+        .nav-link.active { font-weight: bold; }
+        .knowledge-section { margin: 30px 0; }
+        .card { margin-bottom: 20px; }
+        .btn-primary { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+        <div class="container">
+            <a class="navbar-brand" href="/">
+                <i class="fas fa-shield-alt me-2"></i>
+                智能审计决策系统
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item"><a class="nav-link" href="/">首页</a></li>
+                    <li class="nav-item"><a class="nav-link" href="/chat">智能对话</a></li>
+                    <li class="nav-item"><a class="nav-link" href="/audit">审计分析</a></li>
+                    <li class="nav-item"><a class="nav-link active" href="/knowledge">知识管理</a></li>
+                    <li class="nav-item"><a class="nav-link" href="/training">模型训练</a></li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mt-4">
+        <h2><i class="fas fa-database me-2"></i>知识管理</h2>
+
+        <div class="knowledge-section">
+            <div class="card">
+                <div class="card-header">
+                    <h5><i class="fas fa-plus-circle me-2"></i>添加知识</h5>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <label class="form-label">知识内容</label>
+                        <textarea class="form-control" id="knowledgeText" rows="5" placeholder="请输入审计相关的知识内容..."></textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">知识来源</label>
+                        <input type="text" class="form-control" id="knowledgeSource" placeholder="例如：COBIT标准文档">
+                    </div>
+                    <button class="btn btn-primary" onclick="addKnowledge()">
+                        <i class="fas fa-save me-2"></i>添加知识
+                    </button>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header">
+                    <h5><i class="fas fa-file-upload me-2"></i>上传文档</h5>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <label class="form-label">选择文件</label>
+                        <input type="file" class="form-control" id="fileInput" accept=".txt,.md,.pdf,.doc,.docx">
+                    </div>
+                    <button class="btn btn-primary" onclick="uploadFile()">
+                        <i class="fas fa-upload me-2"></i>上传文件
+                    </button>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header">
+                    <h5><i class="fas fa-project-diagram me-2"></i>知识图谱</h5>
+                </div>
+                <div class="card-body">
+                    <p>知识图谱可视化功能正在开发中...</p>
+                    <button class="btn btn-outline-primary" onclick="viewKnowledgeGraph()">
+                        <i class="fas fa-eye me-2"></i>查看图谱
+                    </button>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header">
+                    <h5><i class="fas fa-search me-2"></i>知识搜索</h5>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <input type="text" class="form-control" id="searchQuery" placeholder="搜索知识内容...">
+                    </div>
+                    <button class="btn btn-primary" onclick="searchKnowledge()">
+                        <i class="fas fa-search me-2"></i>搜索
+                    </button>
+                    <div id="searchResults" class="mt-3"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        async function addKnowledge() {
+            const text = document.getElementById('knowledgeText').value;
+            const source = document.getElementById('knowledgeSource').value;
+
+            if (!text) {
+                alert('请输入知识内容');
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/knowledge/add', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        text: text,
+                        metadata: {source: source || 'manual', type: 'knowledge'}
+                    })
+                });
+
+                const data = await response.json();
+                if (data.success) {
+                    alert('知识添加成功！');
+                    document.getElementById('knowledgeText').value = '';
+                    document.getElementById('knowledgeSource').value = '';
+                } else {
+                    alert('添加失败: ' + data.error);
+                }
+            } catch (error) {
+                alert('添加失败: ' + error);
+            }
+        }
+
+        function uploadFile() {
+            const fileInput = document.getElementById('fileInput');
+            alert('文件上传功能需要后端支持，请使用API接口上传');
+        }
+
+        function viewKnowledgeGraph() {
+            alert('知识图谱可视化功能正在开发中');
+        }
+
+        async function searchKnowledge() {
+            const query = document.getElementById('searchQuery').value;
+            if (!query) {
+                alert('请输入搜索内容');
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/knowledge/query?question=${encodeURIComponent(query)}`);
+                const data = await response.json();
+
+                const resultsDiv = document.getElementById('searchResults');
+                if (data.success && data.result) {
+                    resultsDiv.innerHTML = `
+                        <div class="card">
+                            <div class="card-body">
+                                <h6>搜索结果</h6>
+                                <p>${data.result.answer}</p>
+                                <small class="text-muted">置信度: ${(data.result.confidence * 100).toFixed(1)}%</small>
+                            </div>
+                        </div>
+                    `;
+                } else {
+                    resultsDiv.innerHTML = '<p class="text-muted">未找到相关内容</p>';
+                }
+            } catch (error) {
+                alert('搜索失败: ' + error);
+            }
+        }
+    </script>
+</body>
+</html>
+
