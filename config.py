@@ -32,7 +32,7 @@ NEO4J_CONFIG = {
 
 # LLM配置
 LLM_CONFIG = {
-    'api_key': os.getenv('QWEN_API_KEY', 'sk-484fb339d2274307b3aa3fd6400964ae'),
+    'api_key': os.getenv('QWEN_API_KEY', 'your-api-key'),
     'base_url': os.getenv('QWEN_BASE_URL', 'https://dashscope.aliyuncs.com/compatible-mode/v1'),
     'model': 'qwen-turbo',
     'max_tokens': int(os.getenv('MAX_TOKENS', 4096)),
@@ -79,4 +79,5 @@ TRAINING_CONFIG = {
     'save_steps': 500,
     'eval_steps': 100
 }
+
 
