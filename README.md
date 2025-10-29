@@ -226,14 +226,14 @@ intelligent-audit-system/
 # MySQL配置
 MYSQL_HOST=localhost
 MYSQL_PORT=3306
-MYSQL_USER=root
-MYSQL_PASSWORD=123456
+MYSQL_USER=your-username
+MYSQL_PASSWORD=your-password
 MYSQL_DATABASE=audit_system
 
 # Neo4j配置
 NEO4J_URI=bolt://localhost:7687
-NEO4J_USER=neo4j
-NEO4J_PASSWORD=12345678
+NEO4J_USER=your-username
+NEO4J_PASSWORD=your-password
 
 # LLM API配置
 QWEN_API_KEY=your_api_key
@@ -321,3 +321,4 @@ python web/main.py
 Made with ❤️ by Intelligent Audit Team
 
 </div>
+
