@@ -318,9 +318,10 @@ python web/main.py
 
 **⭐ 如果这个项目对你有帮助，请给它一个星星！**
 
-Made with ❤️ by Intelligent Audit Team
+Made with ❤️ by AutoAudit Team
 
 </div>
+
 
 
 
