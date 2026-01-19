@@ -6,8 +6,6 @@
 ![FastAPI](https://img.shields.io/badge/FastAPI-0.104+-green.svg)
 ![License](https://img.shields.io/badge/License-MIT-yellow.svg)
 
-<a href="https://trendshift.io/repositories/15520" target="_blank"><img src="https://trendshift.io/api/badge/repositories/15520" alt="datawhalechina%2Fhello-agents | Trendshift" style="width: 250px; height: 55px;" width="250" height="55"/></a>
-
 **基于大语言模型的智能审计平台 | 集成知识图谱、RAG、强化学习等前沿技术**
 
 [功能特性](#-功能特性) • [快速开始](#-快速开始) • [技术架构](#-技术架构) • [文档](Project_Summary.md)
@@ -323,6 +321,7 @@ python web/main.py
 Made with ❤️ by AutoAudit Team
 
 </div>
+
 
 
 
