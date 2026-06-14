@@ -26,6 +26,8 @@ data/chroma_db/
 data/**/*.sqlite
 data/**/*.sqlite3
 data/**/*.db
+data/audit_runs/
+data/uploads/
 
 # Large local model artifacts
 models/

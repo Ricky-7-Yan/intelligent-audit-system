@@ -12,7 +12,7 @@ from typing import Any, Dict, List, Optional
 
 from fastapi import Depends, FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel, Field
@@ -20,6 +20,7 @@ from pydantic import BaseModel, Field
 from agents.audit_agent import AuditAgent, CONTROL_LIBRARY
 from config import PATHS, WEB_CONFIG
 from knowledge_graph.builder import KnowledgeGraphBuilder
+from services.audit_repository import AuditRunRepository
 
 
 logger = logging.getLogger(__name__)
@@ -28,6 +29,7 @@ audit_agent: Optional[AuditAgent] = None
 rag_pipeline = None
 kg_builder: Optional[KnowledgeGraphBuilder] = None
 evaluator = None
+audit_repository = AuditRunRepository()
 
 
 @asynccontextmanager
@@ -47,7 +49,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="智能审计 Agent 平台",
     description="面向审计场景的 Agentic RAG、风险评估和合规分析系统",
-    version="2.1.0",
+    version="2.2.0",
     lifespan=lifespan,
 )
 
@@ -84,6 +86,12 @@ class KnowledgeRequest(BaseModel):
 class EvaluationRequest(BaseModel):
     model_path: str = "current-agent"
     test_cases: Optional[List[Dict[str, Any]]] = None
+
+
+class ReviewRequest(BaseModel):
+    reviewer: str = "复核人"
+    decision: str = Field(..., pattern="^(approve|reject|need_evidence)$")
+    comment: str = Field("", max_length=4000)
 
 
 def init_rag_lazy():
@@ -162,8 +170,10 @@ async def audit_api(request: AuditRequest, agent: AuditAgent = Depends(get_audit
     if request.risk_level:
         audit_query += f"，关注{request.risk_level}风险"
     result = agent.process_audit_query(audit_query)
+    run = audit_repository.create_run(request.model_dump(), result)
     return {
         "success": True,
+        "run_id": run["run_id"],
         "audit_item": request.audit_item,
         "audit_type": request.audit_type,
         "result": result,
@@ -174,6 +184,39 @@ async def audit_api(request: AuditRequest, agent: AuditAgent = Depends(get_audit
 @app.get("/api/audit/controls")
 async def audit_controls_api():
     return {"success": True, "controls": CONTROL_LIBRARY, "timestamp": datetime.now().isoformat()}
+
+
+@app.get("/api/audit/runs")
+async def audit_runs_api(limit: int = 20):
+    return {"success": True, "runs": audit_repository.list_runs(limit=limit), "timestamp": datetime.now().isoformat()}
+
+
+@app.get("/api/audit/runs/{run_id}")
+async def audit_run_detail_api(run_id: str):
+    record = audit_repository.get_run(run_id)
+    if not record:
+        raise HTTPException(status_code=404, detail="审计运行记录不存在")
+    return {"success": True, "run": record, "timestamp": datetime.now().isoformat()}
+
+
+@app.post("/api/audit/runs/{run_id}/review")
+async def audit_run_review_api(run_id: str, request: ReviewRequest):
+    record = audit_repository.add_review(run_id, request.reviewer, request.decision, request.comment)
+    if not record:
+        raise HTTPException(status_code=404, detail="审计运行记录不存在")
+    return {"success": True, "run": record, "timestamp": datetime.now().isoformat()}
+
+
+@app.get("/api/audit/runs/{run_id}/report.md", response_class=PlainTextResponse)
+async def audit_run_report_api(run_id: str):
+    report = audit_repository.render_markdown_report(run_id)
+    if report is None:
+        raise HTTPException(status_code=404, detail="审计运行记录不存在")
+    return PlainTextResponse(
+        report,
+        media_type="text/markdown; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{run_id}.md"'},
+    )
 
 
 @app.post("/api/knowledge/add")
@@ -187,7 +230,6 @@ async def upload_knowledge_file(file: UploadFile = File(...), rag=Depends(get_ra
     suffix = Path(file.filename or "").suffix.lower()
     if suffix not in {".txt", ".md", ".csv", ".json", ".log"}:
         raise HTTPException(status_code=400, detail="当前上传接口支持 .txt、.md、.csv、.json、.log 文本文件")
-
     target = PATHS["uploads"] / f"{uuid.uuid4().hex}{suffix}"
     content = await file.read()
     target.write_bytes(content)
@@ -245,7 +287,7 @@ async def health_check(agent: AuditAgent = Depends(get_audit_agent), rag=Depends
         content={
             "status": "healthy",
             "timestamp": datetime.now().isoformat(),
-            "version": "2.1.0",
+            "version": "2.2.0",
             "services": {**agent.get_service_status(), "rag_documents": rag.get_statistics().get("total_documents", 0)},
         }
     )

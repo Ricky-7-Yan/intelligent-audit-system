@@ -80,10 +80,33 @@
         <h2 class="panel-title">整改行动计划</h2>
         <div id="recommendations" class="grid grid-3"><p class="muted">等待结果</p></div>
       </section>
+
+      <section class="grid layout-2 mt-16">
+        <div class="panel">
+          <h2 class="panel-title">审计档案</h2>
+          <div class="toolbar">
+            <button class="btn" id="refreshRuns">刷新历史</button>
+            <a class="btn" id="downloadReport" href="#" target="_blank">下载当前报告</a>
+          </div>
+          <div id="runHistory" class="list dense mt-16"><p class="muted">暂无历史</p></div>
+        </div>
+        <div class="panel">
+          <h2 class="panel-title">人工复核</h2>
+          <div class="grid grid-2">
+            <div class="field"><label>复核人</label><input id="reviewer" value="审计经理"></div>
+            <div class="field"><label>结论</label><select id="reviewDecision"><option value="approve">通过</option><option value="need_evidence">补充证据</option><option value="reject">退回整改</option></select></div>
+          </div>
+          <div class="field mt-12"><label>复核意见</label><textarea id="reviewComment" rows="4" placeholder="记录人工判断、证据缺口或整改要求"></textarea></div>
+          <button class="btn primary mt-16" id="submitReview">提交复核</button>
+          <div id="reviewResult" class="muted mt-12"></div>
+        </div>
+      </section>
     </main>
   </div>
   <script src="/static/app.js"></script>
   <script>
+    let currentRunId = null;
+
     function statusBadge(status) {
       return el("span", { class: `badge ${status}`, text: status });
     }
@@ -165,6 +188,47 @@
       });
     }
 
+    async function loadRuns() {
+      const node = qs("#runHistory");
+      clearNode(node);
+      try {
+        const data = await apiFetch("/api/audit/runs?limit=10");
+        if (!data.runs.length) {
+          node.appendChild(el("p", { class: "muted", text: "暂无历史" }));
+          return;
+        }
+        data.runs.forEach((run) => {
+          const item = el("div", { class: "item compact" }, [
+            el("strong", { text: `${run.run_id} · ${run.audit_item || ""}` }),
+            el("div", { class: "muted", text: `${run.status} · 风险 ${run.risk_level || "-"} · 合规 ${run.compliance_score ?? "-"} · 质量 ${run.quality_confidence ?? "-"}` }),
+            el("div", { class: "mt-12", text: run.created_at || "" })
+          ]);
+          item.addEventListener("click", () => loadRunDetail(run.run_id));
+          node.appendChild(item);
+        });
+      } catch (error) {
+        node.appendChild(el("p", { class: "muted", text: `加载失败：${error.message}` }));
+      }
+    }
+
+    async function loadRunDetail(runId) {
+      const data = await apiFetch(`/api/audit/runs/${encodeURIComponent(runId)}`);
+      const result = data.run.result;
+      currentRunId = runId;
+      qs("#downloadReport").href = `/api/audit/runs/${encodeURIComponent(runId)}/report.md`;
+      setText("#auditResult", result.response);
+      setText("#riskLevelCard", result.risk_assessment.risk_level);
+      setText("#riskScoreCard", result.risk_assessment.risk_score);
+      setText("#complianceCard", result.compliance_check.compliance_score);
+      setText("#qualityCard", result.quality_gate.confidence);
+      setText("#controlsCard", result.control_matrix.length);
+      renderTaskPlan(result.task_plan || []);
+      renderEvidence(result.evidence_pack || []);
+      renderQuality(result.quality_gate || {});
+      renderMatrix(result.control_matrix || []);
+      renderRecommendations(result.recommendations || []);
+    }
+
     qs("#runAudit").addEventListener("click", async () => {
       setText("#auditResult", "正在运行 Agent 工作流...");
       try {
@@ -179,6 +243,8 @@
           })
         });
         const result = data.result;
+        currentRunId = data.run_id;
+        qs("#downloadReport").href = `/api/audit/runs/${encodeURIComponent(currentRunId)}/report.md`;
         setText("#auditResult", result.response);
         setText("#riskLevelCard", result.risk_assessment.risk_level);
         setText("#riskScoreCard", result.risk_assessment.risk_score);
@@ -190,6 +256,7 @@
         renderQuality(result.quality_gate || {});
         renderMatrix(result.control_matrix || []);
         renderRecommendations(result.recommendations || []);
+        loadRuns();
       } catch (error) {
         setText("#auditResult", `分析失败：${error.message}`);
       }
@@ -206,6 +273,31 @@
         status: control.objective
       })));
     });
+
+    qs("#refreshRuns").addEventListener("click", loadRuns);
+    qs("#submitReview").addEventListener("click", async () => {
+      if (!currentRunId) {
+        setText("#reviewResult", "请先运行或选择一条审计档案");
+        return;
+      }
+      try {
+        await apiFetch(`/api/audit/runs/${encodeURIComponent(currentRunId)}/review`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            reviewer: qs("#reviewer").value,
+            decision: qs("#reviewDecision").value,
+            comment: qs("#reviewComment").value
+          })
+        });
+        setText("#reviewResult", "复核已保存");
+        loadRuns();
+      } catch (error) {
+        setText("#reviewResult", `复核失败：${error.message}`);
+      }
+    });
+
+    loadRuns();
   </script>
 </body>
 </html>
