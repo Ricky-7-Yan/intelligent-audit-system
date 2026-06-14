@@ -12,11 +12,12 @@
       <div class="brand"><div class="brand-icon">审</div><span>智能审计</span></div>
       <nav class="nav-list">
         <a class="nav-link" href="/">⌂ <span>总览</span></a>
-        <a class="nav-link" href="/chat">💬 <span>审计对话</span></a>
+        <a class="nav-link" href="/chat">● <span>审计对话</span></a>
         <a class="nav-link" href="/audit">⌕ <span>审计分析</span></a>
         <a class="nav-link" href="/knowledge">▦ <span>知识库</span></a>
         <a class="nav-link active" href="/training">□ <span>评估</span></a>
       </nav>
+      <div class="sidebar-note">线上只运行轻量评估；大模型微调建议走离线任务。</div>
     </aside>
     <main class="main">
       <div class="topbar">
@@ -29,15 +30,16 @@
 
       <section class="panel">
         <h2 class="panel-title">评估任务</h2>
-        <p class="muted">线上环境只运行轻量评估。SFT/RLHF 等大模型训练应作为离线任务执行，避免阻塞 Web 服务。</p>
+        <p class="muted">该评估会调用当前 Agent，检查回答是否包含审计专业术语、可执行动作、合规依据和关键证据。</p>
         <button class="btn primary" id="runEval">运行评估</button>
       </section>
 
-      <section class="grid grid-4 mt-16">
+      <section class="kpi-row mt-16">
         <div class="card metric"><div class="metric-value" id="overallScore">-</div><div class="metric-label">总体得分</div></div>
         <div class="card metric"><div class="metric-value" id="totalTests">-</div><div class="metric-label">测试用例</div></div>
         <div class="card metric"><div class="metric-value">离线</div><div class="metric-label">训练模式</div></div>
         <div class="card metric"><div class="metric-value">Agent</div><div class="metric-label">评估对象</div></div>
+        <div class="card metric"><div class="metric-value">2.1</div><div class="metric-label">架构版本</div></div>
       </section>
 
       <section class="panel mt-16">

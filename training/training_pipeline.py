@@ -198,9 +198,10 @@ class BenchmarkEvaluator:
         metrics = {
             "accuracy": self._calculate_overlap(response, expected),
             "completeness": min(len(response) / max(len(expected) * 2, 1), 1.0),
-            "professionalism": self._keyword_score(response, ["审计", "风险", "控制", "合规", "证据", "标准", "复核", "权限"]),
+            "professionalism": self._keyword_score(response, ["审计", "风险", "控制", "合规", "证据", "标准", "质量门", "权限"]),
             "practicality": self._keyword_score(response, ["检查", "建立", "复核", "记录", "审批", "整改", "监控", "证据"]),
             "compliance": self._keyword_score(response, ["COBIT", "ISO", "SOX", "法规", "标准", "要求", "合规", "控制"]),
+            "agentic_capability": self._keyword_score(response, ["任务", "证据", "控制", "质量门", "置信度", "整改", "成熟度", "复核"]),
         }
         return {key: value for key, value in metrics.items() if not criteria or key in criteria}
 

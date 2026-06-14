@@ -1,9 +1,8 @@
-"""
-FastAPI web application for the Intelligent Audit System.
-"""
+"""FastAPI web application for the Intelligent Audit System."""
 
 from __future__ import annotations
 
+import json
 import logging
 import uuid
 from contextlib import asynccontextmanager
@@ -18,7 +17,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel, Field
 
-from agents.audit_agent import AuditAgent
+from agents.audit_agent import AuditAgent, CONTROL_LIBRARY
 from config import PATHS, WEB_CONFIG
 from knowledge_graph.builder import KnowledgeGraphBuilder
 
@@ -48,7 +47,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="智能审计 Agent 平台",
     description="面向审计场景的 Agentic RAG、风险评估和合规分析系统",
-    version="2.0.0",
+    version="2.1.0",
     lifespan=lifespan,
 )
 
@@ -152,12 +151,7 @@ async def training_page(request: Request):
 async def chat_api(request: ChatRequest, agent: AuditAgent = Depends(get_audit_agent)):
     session_id = request.session_id or str(uuid.uuid4())
     result = agent.process_audit_query(request.message, session_id=session_id)
-    return {
-        "success": True,
-        "session_id": session_id,
-        "timestamp": datetime.now().isoformat(),
-        **result,
-    }
+    return {"success": True, "session_id": session_id, "timestamp": datetime.now().isoformat(), **result}
 
 
 @app.post("/api/audit")
@@ -167,7 +161,6 @@ async def audit_api(request: AuditRequest, agent: AuditAgent = Depends(get_audit
         audit_query += f"，参考{request.standard_type}标准"
     if request.risk_level:
         audit_query += f"，关注{request.risk_level}风险"
-
     result = agent.process_audit_query(audit_query)
     return {
         "success": True,
@@ -176,6 +169,11 @@ async def audit_api(request: AuditRequest, agent: AuditAgent = Depends(get_audit
         "result": result,
         "timestamp": datetime.now().isoformat(),
     }
+
+
+@app.get("/api/audit/controls")
+async def audit_controls_api():
+    return {"success": True, "controls": CONTROL_LIBRARY, "timestamp": datetime.now().isoformat()}
 
 
 @app.post("/api/knowledge/add")
@@ -201,8 +199,6 @@ async def upload_knowledge_file(file: UploadFile = File(...), rag=Depends(get_ra
 async def query_knowledge_api(question: str, context: Optional[str] = None, rag=Depends(get_rag_pipeline)):
     context_dict = None
     if context:
-        import json
-
         try:
             context_dict = json.loads(context)
         except json.JSONDecodeError as exc:
@@ -249,11 +245,8 @@ async def health_check(agent: AuditAgent = Depends(get_audit_agent), rag=Depends
         content={
             "status": "healthy",
             "timestamp": datetime.now().isoformat(),
-            "version": "2.0.0",
-            "services": {
-                **agent.get_service_status(),
-                "rag_documents": rag.get_statistics().get("total_documents", 0),
-            },
+            "version": "2.1.0",
+            "services": {**agent.get_service_status(), "rag_documents": rag.get_statistics().get("total_documents", 0)},
         }
     )
 

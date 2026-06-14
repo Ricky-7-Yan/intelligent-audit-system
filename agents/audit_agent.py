@@ -1,9 +1,9 @@
 """
-Audit agent orchestration.
+Enterprise-style audit agent orchestration.
 
-The agent follows a pragmatic planner -> retrieval -> risk/compliance ->
-response workflow. External systems are optional: when the LLM, MySQL, Neo4j or
-RAG store are unavailable, deterministic audit heuristics keep the app usable.
+The agent uses a planner -> retrieval -> control mapping -> risk scoring ->
+quality gate -> report generation workflow. It keeps the system deployable even
+when LLM, MySQL, Neo4j or vector embeddings are unavailable.
 """
 
 from __future__ import annotations
@@ -36,7 +36,7 @@ logger = logging.getLogger(__name__)
 AUDIT_STANDARDS: Dict[str, Dict[str, Any]] = {
     "COBIT": {
         "name": "COBIT 2019",
-        "focus": "IT 治理、价值交付、风险优化和资源优化",
+        "focus": "IT治理、价值交付、风险优化、资源优化和绩效度量",
         "controls": ["治理目标映射", "流程责任矩阵", "绩效指标", "风险场景管理"],
     },
     "ISO27001": {
@@ -56,16 +56,84 @@ AUDIT_STANDARDS: Dict[str, Dict[str, Any]] = {
     },
 }
 
+
 RISK_KEYWORDS: Dict[str, Dict[str, Any]] = {
-    "权限": {"score": 0.82, "risk": "权限滥用或职责分离不足", "controls": ["最小权限", "定期复核", "强制审批"]},
-    "账号": {"score": 0.78, "risk": "账号生命周期管理不足", "controls": ["入离转调流程", "多因素认证", "异常登录监控"]},
-    "财务": {"score": 0.86, "risk": "财务数据完整性和审批链路风险", "controls": ["凭证校验", "职责分离", "管理层复核"]},
-    "变更": {"score": 0.74, "risk": "系统变更未经充分测试或审批", "controls": ["变更委员会", "回退方案", "上线后复核"]},
-    "备份": {"score": 0.68, "risk": "备份不可用或恢复目标不清晰", "controls": ["恢复演练", "异地备份", "RPO/RTO 定义"]},
-    "日志": {"score": 0.65, "risk": "审计日志不完整或不可追溯", "controls": ["集中日志", "防篡改存储", "告警规则"]},
-    "数据": {"score": 0.76, "risk": "敏感数据泄露或使用不合规", "controls": ["分类分级", "脱敏", "加密", "访问审计"]},
-    "接口": {"score": 0.7, "risk": "接口调用缺少鉴权、限流或监控", "controls": ["鉴权签名", "速率限制", "接口台账"]},
+    "权限": {"score": 0.84, "risk": "权限滥用、越权访问或职责分离不足", "domain": "访问控制"},
+    "账号": {"score": 0.78, "risk": "账号生命周期和特权账号管理不足", "domain": "身份治理"},
+    "财务": {"score": 0.86, "risk": "财务数据完整性、审批链路和报表可靠性风险", "domain": "财务内控"},
+    "变更": {"score": 0.75, "risk": "系统变更未经充分审批、测试或上线复核", "domain": "变更管理"},
+    "备份": {"score": 0.69, "risk": "备份不可恢复或恢复目标不清晰", "domain": "业务连续性"},
+    "日志": {"score": 0.66, "risk": "审计日志不完整、不可追溯或缺少告警", "domain": "监控审计"},
+    "数据": {"score": 0.77, "risk": "敏感数据泄露、过度使用或共享不合规", "domain": "数据安全"},
+    "接口": {"score": 0.71, "risk": "接口鉴权、限流、对账和监控不足", "domain": "接口安全"},
 }
+
+
+CONTROL_LIBRARY: List[Dict[str, Any]] = [
+    {
+        "id": "AC-01",
+        "domain": "访问控制",
+        "keywords": ["权限", "账号", "访问", "ERP", "身份"],
+        "objective": "确保用户仅拥有完成岗位职责所需的最小权限。",
+        "test_procedure": "抽样检查用户权限、角色授权、审批记录和最近一次权限复核结果。",
+        "evidence_required": ["权限清单", "授权审批单", "角色矩阵", "定期复核记录"],
+        "standards": ["ISO27001", "SOX", "COBIT"],
+    },
+    {
+        "id": "AC-02",
+        "domain": "职责分离",
+        "keywords": ["权限", "财务", "职责", "审批", "制单"],
+        "objective": "防止同一人员同时拥有发起、审批和复核关键交易的权限。",
+        "test_procedure": "识别互斥权限组合，核查例外审批和补偿性控制。",
+        "evidence_required": ["职责分离规则", "冲突权限报表", "例外审批", "补偿性控制记录"],
+        "standards": ["SOX", "COBIT"],
+    },
+    {
+        "id": "CM-01",
+        "domain": "变更管理",
+        "keywords": ["变更", "上线", "发布", "系统"],
+        "objective": "确保生产变更经过授权、测试、回退设计和上线后复核。",
+        "test_procedure": "抽样检查变更单、测试证据、审批链、上线记录和回退方案。",
+        "evidence_required": ["变更单", "测试报告", "上线审批", "回退方案", "上线后复核"],
+        "standards": ["ISO27001", "SOX", "COBIT"],
+    },
+    {
+        "id": "BC-01",
+        "domain": "业务连续性",
+        "keywords": ["备份", "恢复", "灾备", "RPO", "RTO"],
+        "objective": "确保关键系统和数据可在既定恢复目标内恢复。",
+        "test_procedure": "检查备份策略、备份成功率、恢复演练记录和问题整改闭环。",
+        "evidence_required": ["备份策略", "备份日志", "恢复演练报告", "RPO/RTO定义"],
+        "standards": ["ISO27001", "COBIT"],
+    },
+    {
+        "id": "LOG-01",
+        "domain": "监控审计",
+        "keywords": ["日志", "监控", "告警", "审计轨迹"],
+        "objective": "确保关键操作可记录、可追溯、可告警。",
+        "test_procedure": "检查日志范围、留存周期、防篡改机制、告警规则和处置记录。",
+        "evidence_required": ["日志策略", "日志样本", "告警规则", "事件处置单"],
+        "standards": ["ISO27001", "数据安全法"],
+    },
+    {
+        "id": "DATA-01",
+        "domain": "数据安全",
+        "keywords": ["数据", "敏感", "个人信息", "加密", "脱敏"],
+        "objective": "确保敏感数据分类分级、授权使用、加密脱敏和共享审批。",
+        "test_procedure": "检查数据目录、分类分级、访问授权、加密脱敏和共享审批记录。",
+        "evidence_required": ["数据目录", "分类分级规则", "访问授权", "加密配置", "共享审批"],
+        "standards": ["数据安全法", "ISO27001"],
+    },
+    {
+        "id": "API-01",
+        "domain": "接口安全",
+        "keywords": ["接口", "API", "对账", "鉴权", "限流"],
+        "objective": "确保接口调用有鉴权、限流、监控、对账和异常处置。",
+        "test_procedure": "检查接口台账、密钥管理、调用日志、限流策略和对账记录。",
+        "evidence_required": ["接口台账", "鉴权配置", "调用日志", "限流规则", "对账记录"],
+        "standards": ["ISO27001", "COBIT"],
+    },
+]
 
 
 @dataclass
@@ -77,8 +145,6 @@ class ServiceStatus:
 
 
 class OptionalAuditTools:
-    """Connects to external audit data sources only when they are available."""
-
     def __init__(self) -> None:
         self.mysql_connection = None
         self.neo4j_driver = None
@@ -93,7 +159,7 @@ class OptionalAuditTools:
             self.mysql_connection = pymysql.connect(**MYSQL_CONFIG)
             self.status.mysql = True
         except Exception as exc:
-            logger.info("MySQL unavailable, falling back to built-in standards: %s", exc)
+            logger.info("MySQL unavailable, using built-in standards: %s", exc)
 
     def _connect_neo4j(self) -> None:
         if not GraphDatabase or not NEO4J_CONFIG.get("password"):
@@ -107,7 +173,7 @@ class OptionalAuditTools:
             self.neo4j_driver.verify_connectivity()
             self.status.neo4j = True
         except Exception as exc:
-            logger.info("Neo4j unavailable, falling back to heuristic graph lookup: %s", exc)
+            logger.info("Neo4j unavailable, using local graph fallback: %s", exc)
             self.neo4j_driver = None
 
     def close(self) -> None:
@@ -119,7 +185,6 @@ class OptionalAuditTools:
     def query_knowledge_graph(self, query: str) -> List[Dict[str, Any]]:
         if not self.neo4j_driver:
             return []
-
         cypher = """
         MATCH (n)-[r]->(m)
         WHERE toLower(coalesce(n.text, n.name, '')) CONTAINS toLower($query)
@@ -179,14 +244,17 @@ class OptionalAuditTools:
 
 
 class AuditAgent:
-    """High-level agent used by the FastAPI layer."""
-
     def __init__(self, rag_pipeline: Any = None) -> None:
         self.tools = OptionalAuditTools()
         self.rag_pipeline = rag_pipeline
         self.session_memory: Dict[str, List[BaseMessage]] = {}
         self.llm = self._init_llm()
-        logger.info("AuditAgent initialized. LLM=%s MySQL=%s Neo4j=%s", bool(self.llm), self.tools.status.mysql, self.tools.status.neo4j)
+        logger.info(
+            "AuditAgent initialized. LLM=%s MySQL=%s Neo4j=%s",
+            bool(self.llm),
+            self.tools.status.mysql,
+            self.tools.status.neo4j,
+        )
 
     def _init_llm(self) -> Any:
         if not LLM_CONFIG.get("enabled"):
@@ -211,12 +279,32 @@ class AuditAgent:
         self.session_memory[session_id].append(HumanMessage(content=user_input))
         self._trim_session(session_id)
 
+        trace: List[Dict[str, Any]] = []
         audit_context = self._extract_context(user_input)
+        task_plan = self._create_task_plan(audit_context)
+        trace.append(self._trace("planner", "generated", f"{len(task_plan)} audit tasks"))
+
         retrieved = self._retrieve_context(user_input, audit_context)
-        risk_assessment = self._assess_risk(user_input, audit_context, retrieved)
-        compliance_check = self._check_compliance(audit_context, risk_assessment)
-        recommendations = self._generate_recommendations(risk_assessment, compliance_check)
-        response = self._compose_response(user_input, audit_context, retrieved, risk_assessment, compliance_check, recommendations)
+        evidence_pack = self._build_evidence_pack(retrieved, audit_context)
+        trace.append(self._trace("retriever", "completed", f"{len(evidence_pack)} evidence items"))
+
+        control_matrix = self._build_control_matrix(user_input, audit_context, evidence_pack)
+        trace.append(self._trace("control_mapper", "completed", f"{len(control_matrix)} controls mapped"))
+
+        risk_assessment = self._assess_risk(user_input, audit_context, retrieved, control_matrix)
+        compliance_check = self._check_compliance(audit_context, risk_assessment, control_matrix)
+        quality_gate = self._quality_gate(evidence_pack, control_matrix, risk_assessment, compliance_check)
+        recommendations = self._generate_recommendations(risk_assessment, compliance_check, control_matrix, quality_gate)
+        response = self._compose_response(
+            user_input,
+            audit_context,
+            retrieved,
+            risk_assessment,
+            compliance_check,
+            recommendations,
+            quality_gate,
+        )
+        trace.append(self._trace("quality_gate", quality_gate["status"], f"confidence={quality_gate['confidence']}"))
 
         self.session_memory[session_id].append(AIMessage(content=response))
         self._trim_session(session_id)
@@ -225,20 +313,29 @@ class AuditAgent:
             "session_id": session_id,
             "response": response,
             "audit_context": audit_context,
+            "task_plan": task_plan,
             "retrieval": retrieved,
+            "evidence_pack": evidence_pack,
+            "control_matrix": control_matrix,
             "risk_assessment": risk_assessment,
             "compliance_check": compliance_check,
+            "quality_gate": quality_gate,
             "recommendations": recommendations,
+            "execution_trace": trace,
             "service_status": self.get_service_status(),
         }
+
+    def _trace(self, stage: str, status: str, detail: str) -> Dict[str, Any]:
+        return {"stage": stage, "status": status, "detail": detail, "at": datetime.now().isoformat()}
 
     def _trim_session(self, session_id: str) -> None:
         max_messages = AUDIT_CONFIG["max_session_messages"]
         self.session_memory[session_id] = self.session_memory[session_id][-max_messages:]
 
     def _extract_context(self, text: str) -> Dict[str, Any]:
-        standards = [key for key in AUDIT_STANDARDS if key.lower() in text.lower()]
-        if "ISO" in text.upper() and "ISO27001" not in standards:
+        normalized = text.upper()
+        standards = [key for key in AUDIT_STANDARDS if key.upper() in normalized]
+        if "ISO" in normalized and "ISO27001" not in standards:
             standards.append("ISO27001")
 
         audit_types = []
@@ -247,21 +344,18 @@ class AuditAgent:
                 audit_types.append(keyword)
 
         item = self._guess_audit_item(text)
+        topics = [key for key in RISK_KEYWORDS if key in text or key in item]
         return {
             "audit_item": item,
             "audit_types": audit_types or ["综合审计分析"],
             "standards": standards or self._infer_standards(text),
-            "key_risk_topics": [key for key in RISK_KEYWORDS if key in text],
+            "key_risk_topics": topics,
+            "business_domain": self._business_domain(text, topics),
             "generated_at": datetime.now().isoformat(),
         }
 
     def _guess_audit_item(self, text: str) -> str:
-        patterns = [
-            r"对(.+?)进行",
-            r"评估(.+?)的",
-            r"检查(.+?)是否",
-            r"分析(.+?)的",
-        ]
+        patterns = [r"对(.+?)进行", r"评估(.+?)的", r"检查(.+?)是否", r"分析(.+?)的"]
         for pattern in patterns:
             match = re.search(pattern, text)
             if match:
@@ -283,12 +377,32 @@ class AuditAgent:
             inferred.append("数据安全法")
         return inferred or ["ISO27001", "COBIT"]
 
+    def _business_domain(self, text: str, topics: List[str]) -> str:
+        if "财务" in text or "SOX" in text.upper():
+            return "财务内控"
+        if "数据" in text or "个人信息" in text:
+            return "数据安全"
+        if "权限" in topics or "账号" in topics:
+            return "访问治理"
+        return "IT治理"
+
+    def _create_task_plan(self, audit_context: Dict[str, Any]) -> List[Dict[str, Any]]:
+        item = audit_context["audit_item"]
+        standards = "、".join(audit_context["standards"])
+        return [
+            {"id": "T1", "name": "识别审计范围", "objective": f"确认{item}的边界、关键流程和责任人", "owner": "审计经理", "status": "done"},
+            {"id": "T2", "name": "检索制度与标准", "objective": f"检索{standards}及知识库证据", "owner": "RAG检索器", "status": "done"},
+            {"id": "T3", "name": "映射关键控制", "objective": "将风险主题映射到控制目标和测试程序", "owner": "控制映射器", "status": "done"},
+            {"id": "T4", "name": "评估风险与合规", "objective": "形成风险等级、合规评分和缺口", "owner": "风险评估器", "status": "done"},
+            {"id": "T5", "name": "生成整改计划", "objective": "输出责任角色、时限、证据和验收指标", "owner": "计划生成器", "status": "done"},
+        ]
+
     def _retrieve_context(self, question: str, audit_context: Dict[str, Any]) -> Dict[str, Any]:
         kg_results = self.tools.query_knowledge_graph(audit_context["audit_item"])
         rag_result = None
         if self.rag_pipeline:
             try:
-                rag_result = self.rag_pipeline.query(question, audit_context, k=5)
+                rag_result = self.rag_pipeline.query(question, audit_context, k=6)
             except Exception as exc:
                 logger.warning("RAG retrieval failed: %s", exc)
 
@@ -296,13 +410,111 @@ class AuditAgent:
         for standard in audit_context["standards"]:
             standards.extend(self.tools.get_standards(standard))
 
-        return {
-            "knowledge_graph": kg_results,
-            "rag": rag_result,
-            "standards": standards,
-        }
+        return {"knowledge_graph": kg_results, "rag": rag_result, "standards": standards}
 
-    def _assess_risk(self, text: str, audit_context: Dict[str, Any], retrieved: Dict[str, Any]) -> Dict[str, Any]:
+    def _build_evidence_pack(self, retrieved: Dict[str, Any], audit_context: Dict[str, Any]) -> List[Dict[str, Any]]:
+        evidence = []
+        for index, standard in enumerate(retrieved.get("standards") or [], start=1):
+            evidence.append(
+                {
+                    "id": f"STD-{index:02d}",
+                    "type": "standard",
+                    "source": standard.get("name") or standard.get("type"),
+                    "summary": standard.get("focus") or standard.get("description") or "审计标准要求",
+                    "relevance": 0.82,
+                    "usage": "作为控制设计和合规评分依据",
+                }
+            )
+
+        rag_sources = (retrieved.get("rag") or {}).get("sources") or []
+        for index, source in enumerate(rag_sources, start=1):
+            evidence.append(
+                {
+                    "id": f"RAG-{index:02d}",
+                    "type": "knowledge",
+                    "source": source.get("source", "knowledge_base"),
+                    "summary": source.get("content", "")[:220],
+                    "relevance": round(float(source.get("score", 0.0)), 3),
+                    "usage": "作为审计事实和建议的背景证据",
+                }
+            )
+
+        for index, relation in enumerate(retrieved.get("knowledge_graph") or [], start=1):
+            evidence.append(
+                {
+                    "id": f"KG-{index:02d}",
+                    "type": "graph",
+                    "source": relation.get("source"),
+                    "summary": f"{relation.get('source')} -{relation.get('relation')}- {relation.get('target')}",
+                    "relevance": 0.7,
+                    "usage": "作为实体关系补充证据",
+                }
+            )
+
+        if not evidence:
+            evidence.append(
+                {
+                    "id": "HEU-01",
+                    "type": "heuristic",
+                    "source": "内置审计控制库",
+                    "summary": f"基于{audit_context['business_domain']}和风险主题生成审计假设。",
+                    "relevance": 0.45,
+                    "usage": "证据不足时的初步审计假设，需要现场取证验证",
+                }
+            )
+        return evidence[:10]
+
+    def _build_control_matrix(self, text: str, audit_context: Dict[str, Any], evidence_pack: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        standards = set(audit_context["standards"])
+        query = f"{text} {audit_context['audit_item']} {' '.join(audit_context['key_risk_topics'])}"
+        matrix = []
+        for control in CONTROL_LIBRARY:
+            keyword_hit = any(keyword.lower() in query.lower() for keyword in control["keywords"])
+            standard_hit = bool(standards.intersection(control["standards"]))
+            if not keyword_hit and not standard_hit:
+                continue
+            evidence_refs = [item["id"] for item in evidence_pack[:3]]
+            maturity = 2 if keyword_hit else 3
+            if len(evidence_pack) >= 4:
+                maturity += 1
+            matrix.append(
+                {
+                    "control_id": control["id"],
+                    "domain": control["domain"],
+                    "objective": control["objective"],
+                    "test_procedure": control["test_procedure"],
+                    "evidence_required": control["evidence_required"],
+                    "evidence_refs": evidence_refs,
+                    "maturity_level": min(maturity, 5),
+                    "status": "需要取证" if evidence_pack[0]["type"] == "heuristic" else "待现场验证",
+                    "risk_reduction": 0.16 if keyword_hit else 0.09,
+                }
+            )
+
+        if not matrix:
+            base = CONTROL_LIBRARY[0]
+            matrix.append(
+                {
+                    "control_id": base["id"],
+                    "domain": base["domain"],
+                    "objective": base["objective"],
+                    "test_procedure": base["test_procedure"],
+                    "evidence_required": base["evidence_required"],
+                    "evidence_refs": [item["id"] for item in evidence_pack[:2]],
+                    "maturity_level": 2,
+                    "status": "需要取证",
+                    "risk_reduction": 0.08,
+                }
+            )
+        return matrix[:6]
+
+    def _assess_risk(
+        self,
+        text: str,
+        audit_context: Dict[str, Any],
+        retrieved: Dict[str, Any],
+        control_matrix: List[Dict[str, Any]],
+    ) -> Dict[str, Any]:
         matched = []
         scores = []
         for keyword, definition in RISK_KEYWORDS.items():
@@ -310,89 +522,125 @@ class AuditAgent:
                 matched.append(
                     {
                         "topic": keyword,
+                        "domain": definition["domain"],
                         "risk": definition["risk"],
                         "score": definition["score"],
-                        "controls": definition["controls"],
                     }
                 )
                 scores.append(definition["score"])
 
         if not matched:
-            matched.append(
-                {
-                    "topic": "通用控制",
-                    "risk": "审计范围、证据链或控制责任未完全明确",
-                    "score": 0.52,
-                    "controls": ["明确控制责任人", "补齐审计证据", "建立例行复核"],
-                }
-            )
+            matched.append({"topic": "通用控制", "domain": audit_context["business_domain"], "risk": "审计范围、证据链或控制责任未完全明确", "score": 0.52})
             scores.append(0.52)
 
-        if retrieved.get("knowledge_graph"):
-            scores.append(0.05 + max(scores))
-        rag_result = retrieved.get("rag") or {}
-        if rag_result.get("confidence", 0) > 0.65:
-            scores.append(min(0.95, max(scores) + 0.04))
-
-        risk_score = min(sum(scores) / len(scores), 1.0)
+        control_reduction = min(sum(item["risk_reduction"] for item in control_matrix), 0.28)
+        evidence_boost = 0.03 if (retrieved.get("rag") or {}).get("confidence", 0) > 0.5 else 0
+        raw_score = min(sum(scores) / len(scores) + evidence_boost, 1.0)
+        residual_score = max(raw_score - control_reduction / 2, 0.05)
         high = AUDIT_CONFIG["risk_threshold_high"]
         medium = AUDIT_CONFIG["risk_threshold_medium"]
-        risk_level = "高" if risk_score >= high else "中" if risk_score >= medium else "低"
+        risk_level = "高" if residual_score >= high else "中" if residual_score >= medium else "低"
 
         return {
             "audit_item": audit_context["audit_item"],
-            "risk_score": round(risk_score, 2),
+            "inherent_risk_score": round(raw_score, 2),
+            "risk_score": round(residual_score, 2),
             "risk_level": risk_level,
+            "control_reduction": round(control_reduction, 2),
             "identified_risks": matched,
             "assessment_date": datetime.now().isoformat(),
         }
 
-    def _check_compliance(self, audit_context: Dict[str, Any], risk_assessment: Dict[str, Any]) -> Dict[str, Any]:
+    def _check_compliance(
+        self,
+        audit_context: Dict[str, Any],
+        risk_assessment: Dict[str, Any],
+        control_matrix: List[Dict[str, Any]],
+    ) -> Dict[str, Any]:
         standards = audit_context["standards"]
         details = []
+        avg_maturity = sum(item["maturity_level"] for item in control_matrix) / max(len(control_matrix), 1)
         for standard in standards:
             definition = AUDIT_STANDARDS.get(standard, {})
-            controls = definition.get("controls", [])
-            coverage = max(0.45, 1.0 - risk_assessment["risk_score"] / 2)
+            related_controls = [item for item in control_matrix if standard in next((c["standards"] for c in CONTROL_LIBRARY if c["id"] == item["control_id"]), [])]
             details.append(
                 {
                     "standard": definition.get("name", standard),
                     "focus": definition.get("focus", "审计控制要求"),
-                    "suggested_controls": controls,
-                    "coverage_estimate": round(coverage, 2),
+                    "mapped_controls": [item["control_id"] for item in related_controls] or [item["control_id"] for item in control_matrix[:2]],
+                    "coverage_estimate": round(min(0.95, 0.45 + len(related_controls) * 0.12 + avg_maturity * 0.06), 2),
                 }
             )
 
-        score = int(max(35, min(95, 100 - risk_assessment["risk_score"] * 45 + len(details) * 3)))
+        score = int(max(35, min(96, 48 + avg_maturity * 8 + len(control_matrix) * 3 - risk_assessment["risk_score"] * 18)))
         return {
             "audit_item": audit_context["audit_item"],
             "standards": standards,
             "compliance_score": score,
             "compliance_level": "高" if score >= 80 else "中" if score >= 60 else "低",
+            "control_maturity_avg": round(avg_maturity, 2),
             "compliance_details": details,
             "check_date": datetime.now().isoformat(),
         }
 
-    def _generate_recommendations(self, risk_assessment: Dict[str, Any], compliance_check: Dict[str, Any]) -> List[Dict[str, Any]]:
+    def _quality_gate(
+        self,
+        evidence_pack: List[Dict[str, Any]],
+        control_matrix: List[Dict[str, Any]],
+        risk_assessment: Dict[str, Any],
+        compliance_check: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        evidence_quality = min(sum(item["relevance"] for item in evidence_pack) / max(len(evidence_pack), 1), 1.0)
+        control_coverage = min(len(control_matrix) / 5, 1.0)
+        completeness = 0.25 + evidence_quality * 0.35 + control_coverage * 0.25 + min(compliance_check["control_maturity_avg"] / 5, 1) * 0.15
+        confidence = round(min(completeness, 0.98), 2)
+        missing = []
+        for control in control_matrix:
+            missing.extend(control["evidence_required"][:2])
+        missing = sorted(set(missing))[:8]
+        status = "pass" if confidence >= 0.72 else "review" if confidence >= 0.52 else "blocked"
+        return {
+            "status": status,
+            "confidence": confidence,
+            "groundedness": round(evidence_quality, 2),
+            "control_coverage": round(control_coverage, 2),
+            "missing_evidence": missing,
+            "escalation_required": risk_assessment["risk_level"] == "高" or status != "pass",
+            "review_note": "证据充分，可进入现场验证。" if status == "pass" else "需要补充审计证据后再形成最终结论。",
+        }
+
+    def _generate_recommendations(
+        self,
+        risk_assessment: Dict[str, Any],
+        compliance_check: Dict[str, Any],
+        control_matrix: List[Dict[str, Any]],
+        quality_gate: Dict[str, Any],
+    ) -> List[Dict[str, Any]]:
         recommendations = []
         priority = "高" if risk_assessment["risk_level"] == "高" else "中"
-        for risk in risk_assessment["identified_risks"]:
+        for control in control_matrix[:4]:
             recommendations.append(
                 {
-                    "type": "风险控制",
+                    "type": "控制整改",
                     "priority": priority,
-                    "description": f"针对“{risk['risk']}”建立可验证的控制闭环。",
-                    "action_items": risk["controls"],
+                    "description": f"围绕{control['domain']}补齐控制设计和运行有效性证据。",
+                    "action_items": control["evidence_required"][:3],
+                    "owner_role": "控制责任人",
+                    "due_days": 14 if priority == "高" else 30,
+                    "success_metric": f"{control['control_id']} 关键证据齐备且抽样无重大例外",
                 }
             )
 
-        if compliance_check["compliance_score"] < 80:
+        if quality_gate["missing_evidence"]:
             recommendations.append(
                 {
-                    "type": "合规整改",
-                    "priority": "中",
-                    "description": "补齐控制证据、审批记录和例外处理说明，形成可审计轨迹。",
-                    "action_items": ["建立证据清单", "明确责任人和整改期限", "复核关键控制执行记录"],
+                    "type": "证据补强",
+                    "priority": "高" if quality_gate["escalation_required"] else "中",
+                    "description": "补齐质量门识别的缺失证据，提升结论可审计性。",
+                    "action_items": quality_gate["missing_evidence"][:4],
+                    "owner_role": "审计项目经理",
+                    "due_days": 7,
+                    "success_metric": "质量门置信度达到 0.72 以上",
                 }
             )
 
@@ -400,8 +648,11 @@ class AuditAgent:
             {
                 "type": "持续监控",
                 "priority": "低",
-                "description": "将高频风险点纳入周期性监控和复盘。",
-                "action_items": ["设置关键风险指标", "按月复核异常", "沉淀审计知识库"],
+                "description": "将高频风险点沉淀为持续监控指标和知识库条目。",
+                "action_items": ["设置关键风险指标", "按月复核异常", "更新审计知识库"],
+                "owner_role": "内控与审计团队",
+                "due_days": 45,
+                "success_metric": "关键风险指标有监控、有阈值、有处置记录",
             }
         )
         return recommendations[:6]
@@ -414,22 +665,33 @@ class AuditAgent:
         risk_assessment: Dict[str, Any],
         compliance_check: Dict[str, Any],
         recommendations: List[Dict[str, Any]],
+        quality_gate: Dict[str, Any],
     ) -> str:
         if self.llm:
-            llm_response = self._compose_with_llm(user_input, audit_context, retrieved, risk_assessment, compliance_check, recommendations)
+            llm_response = self._compose_with_llm(
+                user_input,
+                audit_context,
+                retrieved,
+                risk_assessment,
+                compliance_check,
+                recommendations,
+                quality_gate,
+            )
             if llm_response:
                 return llm_response
 
         standards = "、".join(compliance_check["standards"])
         top_risks = "；".join(risk["risk"] for risk in risk_assessment["identified_risks"])
-        actions = "；".join(recommendations[0]["action_items"]) if recommendations else "补齐审计证据"
+        first_action = recommendations[0]["description"] if recommendations else "补齐审计证据。"
         return (
             f"审计对象：{audit_context['audit_item']}。\n\n"
-            f"初步判断：当前风险等级为{risk_assessment['risk_level']}，风险评分 {risk_assessment['risk_score']}。"
-            f"主要风险包括：{top_risks}。\n\n"
-            f"合规视角：建议按 {standards} 对控制设计和运行有效性取证，当前合规评分约为 "
-            f"{compliance_check['compliance_score']}，等级为{compliance_check['compliance_level']}。\n\n"
-            f"优先整改：{actions}。同时保留审批、日志、抽样记录和复核结论，便于形成完整审计证据链。"
+            f"结论摘要：当前剩余风险等级为{risk_assessment['risk_level']}，风险评分 {risk_assessment['risk_score']}，"
+            f"控制抵减约 {risk_assessment['control_reduction']}。主要风险包括：{top_risks}。\n\n"
+            f"合规视角：建议按 {standards} 取证，当前合规评分约为 {compliance_check['compliance_score']}，"
+            f"控制成熟度均值 {compliance_check['control_maturity_avg']}。\n\n"
+            f"质量门：状态 {quality_gate['status']}，置信度 {quality_gate['confidence']}，"
+            f"{quality_gate['review_note']}\n\n"
+            f"优先动作：{first_action}"
         )
 
     def _compose_with_llm(
@@ -440,16 +702,18 @@ class AuditAgent:
         risk_assessment: Dict[str, Any],
         compliance_check: Dict[str, Any],
         recommendations: List[Dict[str, Any]],
+        quality_gate: Dict[str, Any],
     ) -> Optional[str]:
         system = (
-            "你是企业智能审计 Agent。请基于给定结构化事实回答，不要编造不存在的制度条款。"
-            "输出应包含：结论、风险、合规依据、整改动作和需要补充的证据。"
+            "你是企业智能审计 Agent。必须基于结构化事实回答，不编造证据。"
+            "输出包含结论、风险、合规依据、证据缺口、整改动作和需要人工复核的点。"
         )
         payload = {
             "audit_context": audit_context,
             "retrieved": retrieved,
             "risk_assessment": risk_assessment,
             "compliance_check": compliance_check,
+            "quality_gate": quality_gate,
             "recommendations": recommendations,
         }
         try:
@@ -467,16 +731,14 @@ class AuditAgent:
 
     def get_session_history(self, session_id: str) -> List[Dict[str, Any]]:
         messages = self.session_memory.get(session_id, [])
-        history = []
-        for msg in messages:
-            history.append(
-                {
-                    "type": "human" if isinstance(msg, HumanMessage) else "ai",
-                    "content": msg.content,
-                    "timestamp": datetime.now().isoformat(),
-                }
-            )
-        return history
+        return [
+            {
+                "type": "human" if isinstance(msg, HumanMessage) else "ai",
+                "content": msg.content,
+                "timestamp": datetime.now().isoformat(),
+            }
+            for msg in messages
+        ]
 
     def get_service_status(self) -> Dict[str, bool]:
         return {

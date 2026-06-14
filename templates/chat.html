@@ -12,11 +12,12 @@
       <div class="brand"><div class="brand-icon">审</div><span>智能审计</span></div>
       <nav class="nav-list">
         <a class="nav-link" href="/">⌂ <span>总览</span></a>
-        <a class="nav-link active" href="/chat">💬 <span>审计对话</span></a>
+        <a class="nav-link active" href="/chat">● <span>审计对话</span></a>
         <a class="nav-link" href="/audit">⌕ <span>审计分析</span></a>
         <a class="nav-link" href="/knowledge">▦ <span>知识库</span></a>
         <a class="nav-link" href="/training">□ <span>评估</span></a>
       </nav>
+      <div class="sidebar-note">对话结果会同步给出上下文、风险、质量门和证据缺口。</div>
     </aside>
     <main class="main">
       <div class="topbar">
@@ -37,7 +38,7 @@
           <div class="chat-box mt-16" id="chatBox">
             <div class="message ai">你好，我是智能审计 Agent。请输入审计对象、标准或风险场景，我会给出结构化审计建议。</div>
           </div>
-          <div class="toolbar mt-16">
+          <div class="toolbar stretch mt-16">
             <input id="messageInput" placeholder="例如：请对ERP系统权限管理进行安全审计，参考ISO27001">
             <button class="btn primary" id="sendBtn">发送</button>
           </div>
@@ -57,7 +58,7 @@
             <div id="auditContext" class="list"><p class="muted">暂无上下文</p></div>
           </section>
           <section class="panel">
-            <h2 class="panel-title">风险评估</h2>
+            <h2 class="panel-title">风险与质量门</h2>
             <div id="riskPanel" class="list"><p class="muted">暂无风险评估</p></div>
           </section>
         </aside>
@@ -80,21 +81,34 @@
       const node = qs("#auditContext");
       clearNode(node);
       Object.entries(context || {}).forEach(([key, value]) => {
-        node.appendChild(el("div", { class: "item" }, [el("strong", { text: key }), el("div", { class: "muted", text: Array.isArray(value) ? value.join("、") : String(value) })]));
+        node.appendChild(el("div", { class: "item" }, [
+          el("strong", { text: key }),
+          el("div", { class: "muted", text: Array.isArray(value) ? value.join("、") : String(value) })
+        ]));
       });
       if (!node.childElementCount) node.appendChild(el("p", { class: "muted", text: "暂无上下文" }));
     }
 
-    function renderRisk(risk) {
+    function renderRisk(result) {
       const node = qs("#riskPanel");
       clearNode(node);
+      const risk = result.risk_assessment;
+      const quality = result.quality_gate;
       if (!risk) {
         node.appendChild(el("p", { class: "muted", text: "暂无风险评估" }));
         return;
       }
-      const header = el("div", { class: "item" }, [riskBadge(risk.risk_level), el("div", { class: "mt-12", text: `风险评分：${risk.risk_score}` })]);
-      node.appendChild(header);
-      (risk.identified_risks || []).forEach((item) => node.appendChild(el("div", { class: "item", text: item.risk })));
+      node.appendChild(el("div", { class: "item" }, [
+        riskBadge(risk.risk_level),
+        el("div", { class: "mt-12", text: `风险评分：${risk.risk_score}` }),
+        el("div", { class: "muted", text: `控制抵减：${risk.control_reduction || 0}` })
+      ]));
+      if (quality) {
+        node.appendChild(el("div", { class: "item" }, [
+          el("strong", { text: `质量门：${quality.status}` }),
+          el("div", { class: "muted", text: `置信度：${quality.confidence}；缺失证据：${(quality.missing_evidence || []).join("、") || "无"}` })
+        ]));
+      }
     }
 
     async function sendMessage() {
@@ -103,7 +117,7 @@
       if (!message) return;
       addMessage(message, "user");
       input.value = "";
-      addMessage("正在分析审计上下文、检索知识库并评估风险...", "ai");
+      addMessage("正在规划任务、检索证据、映射控制并评估风险...", "ai");
       try {
         const data = await apiFetch("/api/chat", {
           method: "POST",
@@ -113,7 +127,7 @@
         qs("#chatBox").lastChild.remove();
         addMessage(data.response, "ai");
         renderContext(data.audit_context);
-        renderRisk(data.risk_assessment);
+        renderRisk(data);
         messageCount += 2;
         setText("#messageCount", messageCount);
       } catch (error) {
