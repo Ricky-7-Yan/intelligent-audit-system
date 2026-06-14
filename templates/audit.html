@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>审计分析 - 智能审计 Agent 平台</title>
+  <link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="brand"><div class="brand-icon">审</div><span>智能审计</span></div>
+      <nav class="nav-list">
+        <a class="nav-link" href="/">⌂ <span>总览</span></a>
+        <a class="nav-link" href="/chat">💬 <span>审计对话</span></a>
+        <a class="nav-link active" href="/audit">⌕ <span>审计分析</span></a>
+        <a class="nav-link" href="/knowledge">▦ <span>知识库</span></a>
+        <a class="nav-link" href="/training">□ <span>评估</span></a>
+      </nav>
+    </aside>
+    <main class="main">
+      <div class="topbar">
+        <div class="page-title">
+          <h1>审计分析</h1>
+          <p>输入审计范围后生成风险评分、合规评分、引用知识和整改建议。</p>
+        </div>
+        <div class="status-pill"><span class="status-dot"></span><span id="healthText">加载状态中</span></div>
+      </div>
+
+      <section class="panel">
+        <div class="grid grid-4">
+          <div class="field"><label>审计对象</label><input id="auditItem" value="ERP系统权限管理"></div>
+          <div class="field"><label>审计类型</label><select id="auditType"><option>安全审计</option><option>合规审计</option><option>风险评估</option><option>内部控制审计</option></select></div>
+          <div class="field"><label>参考标准</label><select id="standardType"><option>ISO27001</option><option>COBIT</option><option>SOX</option><option>数据安全法</option></select></div>
+          <div class="field"><label>关注风险</label><select id="riskLevel"><option>高</option><option>中</option><option>低</option></select></div>
+        </div>
+        <button class="btn primary mt-16" id="runAudit">开始分析</button>
+      </section>
+
+      <section class="grid layout-2 mt-16">
+        <div class="panel">
+          <h2 class="panel-title">审计结论</h2>
+          <div id="auditResult" class="prewrap muted">等待分析结果</div>
+        </div>
+        <div class="grid">
+          <div class="panel"><h2 class="panel-title">风险评估</h2><div id="riskResult" class="list muted">等待结果</div></div>
+          <div class="panel"><h2 class="panel-title">合规检查</h2><div id="complianceResult" class="list muted">等待结果</div></div>
+        </div>
+      </section>
+
+      <section class="panel mt-16">
+        <h2 class="panel-title">整改建议</h2>
+        <div id="recommendations" class="grid grid-3"><p class="muted">等待结果</p></div>
+      </section>
+    </main>
+  </div>
+  <script src="/static/app.js"></script>
+  <script>
+    function renderList(selector, items) {
+      const node = qs(selector);
+      clearNode(node);
+      items.forEach((item) => node.appendChild(item));
+    }
+
+    qs("#runAudit").addEventListener("click", async () => {
+      setText("#auditResult", "正在执行审计分析...");
+      try {
+        const data = await apiFetch("/api/audit", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            audit_item: qs("#auditItem").value,
+            audit_type: qs("#auditType").value,
+            standard_type: qs("#standardType").value,
+            risk_level: qs("#riskLevel").value
+          })
+        });
+        const result = data.result;
+        setText("#auditResult", result.response);
+        renderList("#riskResult", [
+          el("div", { class: "item" }, [riskBadge(result.risk_assessment.risk_level), el("div", { class: "mt-12", text: `评分：${result.risk_assessment.risk_score}` })]),
+          ...result.risk_assessment.identified_risks.map((risk) => el("div", { class: "item", text: risk.risk }))
+        ]);
+        renderList("#complianceResult", [
+          el("div", { class: "item", text: `合规评分：${result.compliance_check.compliance_score}` }),
+          el("div", { class: "item", text: `合规等级：${result.compliance_check.compliance_level}` }),
+          el("div", { class: "item", text: `标准：${result.compliance_check.standards.join("、")}` })
+        ]);
+        renderList("#recommendations", result.recommendations.map((rec) => el("div", { class: "card" }, [
+          el("strong", { text: `${rec.type} · ${rec.priority}` }),
+          el("p", { class: "muted", text: rec.description }),
+          el("div", { text: rec.action_items.join("；") })
+        ])));
+      } catch (error) {
+        setText("#auditResult", `分析失败：${error.message}`);
+      }
+    });
+  </script>
+</body>
+</html>

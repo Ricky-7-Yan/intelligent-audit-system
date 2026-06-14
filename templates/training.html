@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>评估 - 智能审计 Agent 平台</title>
+  <link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="brand"><div class="brand-icon">审</div><span>智能审计</span></div>
+      <nav class="nav-list">
+        <a class="nav-link" href="/">⌂ <span>总览</span></a>
+        <a class="nav-link" href="/chat">💬 <span>审计对话</span></a>
+        <a class="nav-link" href="/audit">⌕ <span>审计分析</span></a>
+        <a class="nav-link" href="/knowledge">▦ <span>知识库</span></a>
+        <a class="nav-link active" href="/training">□ <span>评估</span></a>
+      </nav>
+    </aside>
+    <main class="main">
+      <div class="topbar">
+        <div class="page-title">
+          <h1>Agent 评估</h1>
+          <p>运行轻量 Benchmark，评估当前审计 Agent 在治理、风险、合规和安全问题上的回答质量。</p>
+        </div>
+        <div class="status-pill"><span class="status-dot"></span><span id="healthText">加载状态中</span></div>
+      </div>
+
+      <section class="panel">
+        <h2 class="panel-title">评估任务</h2>
+        <p class="muted">线上环境只运行轻量评估。SFT/RLHF 等大模型训练应作为离线任务执行，避免阻塞 Web 服务。</p>
+        <button class="btn primary" id="runEval">运行评估</button>
+      </section>
+
+      <section class="grid grid-4 mt-16">
+        <div class="card metric"><div class="metric-value" id="overallScore">-</div><div class="metric-label">总体得分</div></div>
+        <div class="card metric"><div class="metric-value" id="totalTests">-</div><div class="metric-label">测试用例</div></div>
+        <div class="card metric"><div class="metric-value">离线</div><div class="metric-label">训练模式</div></div>
+        <div class="card metric"><div class="metric-value">Agent</div><div class="metric-label">评估对象</div></div>
+      </section>
+
+      <section class="panel mt-16">
+        <h2 class="panel-title">评估结果</h2>
+        <div id="evalResults" class="list"><p class="muted">尚未运行评估</p></div>
+      </section>
+    </main>
+  </div>
+  <script src="/static/app.js"></script>
+  <script>
+    qs("#runEval").addEventListener("click", async () => {
+      const node = qs("#evalResults");
+      clearNode(node);
+      node.appendChild(el("p", { class: "muted", text: "评估运行中..." }));
+      try {
+        const data = await apiFetch("/api/training/evaluate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ model_path: "current-agent" })
+        });
+        const metrics = data.results.overall_metrics || {};
+        setText("#overallScore", metrics.overall_score ?? "-");
+        setText("#totalTests", metrics.total_tests ?? "-");
+        clearNode(node);
+        Object.entries(metrics.category_scores || {}).forEach(([category, score]) => {
+          node.appendChild(el("div", { class: "item" }, [el("strong", { text: category }), el("div", { class: "muted", text: `得分：${score}` })]));
+        });
+        (data.results.results || []).forEach((item) => {
+          node.appendChild(el("div", { class: "item" }, [
+            el("strong", { text: item.question }),
+            el("p", { class: "muted", text: `类别：${item.category}` }),
+            el("div", { class: "prewrap", text: item.actual_answer })
+          ]));
+        });
+      } catch (error) {
+        clearNode(node);
+        node.appendChild(el("p", { class: "muted", text: `评估失败：${error.message}` }));
+      }
+    });
+  </script>
+</body>
+</html>

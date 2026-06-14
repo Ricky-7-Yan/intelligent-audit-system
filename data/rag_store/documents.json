@@ -1,0 +1,37 @@
+{
+  "chunks": [
+    {
+      "id": "7f5b6182d64588a6ea06e9b5",
+      "content": "COBIT 2019 关注企业 IT 治理和管理目标，强调价值交付、风险优化、资源优化、绩效度量和责任分工。审计时应将业务目标映射到治理目标，并检查流程责任、关键控制、指标和证据。",
+      "metadata": {
+        "source": "builtin:COBIT2019",
+        "type": "standard"
+      }
+    },
+    {
+      "id": "4ed56d225eabe3f067605ea5",
+      "content": "ISO/IEC 27001 要求组织建立信息安全管理体系，围绕风险评估、控制选择、运行监控和持续改进形成闭环。常见审计证据包括资产清单、访问权限复核、风险处置计划、事件记录和管理评审。",
+      "metadata": {
+        "source": "builtin:ISO27001",
+        "type": "standard"
+      }
+    },
+    {
+      "id": "a82c70e1cfb29ff0772d75be",
+      "content": "SOX 审计重点关注财务报告相关内部控制，包括职责分离、变更管理、访问控制、日志留存、接口对账和管理层复核。审计结论需要能追溯到抽样、审批和复核证据。",
+      "metadata": {
+        "source": "builtin:SOX",
+        "type": "standard"
+      }
+    },
+    {
+      "id": "7a29cd3a5f595f13adb7de7c",
+      "content": "数据安全审计应检查数据分类分级、敏感数据访问授权、传输和存储加密、脱敏处理、共享审批、日志审计和应急处置机制，确保数据处理活动有制度、有记录、可追溯。",
+      "metadata": {
+        "source": "builtin:DataSecurity",
+        "type": "standard"
+      }
+    }
+  ],
+  "updated_at": "2026-06-15T00:30:19.773733"
+}

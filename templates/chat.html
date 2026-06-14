@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>审计对话 - 智能审计 Agent 平台</title>
+  <link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="brand"><div class="brand-icon">审</div><span>智能审计</span></div>
+      <nav class="nav-list">
+        <a class="nav-link" href="/">⌂ <span>总览</span></a>
+        <a class="nav-link active" href="/chat">💬 <span>审计对话</span></a>
+        <a class="nav-link" href="/audit">⌕ <span>审计分析</span></a>
+        <a class="nav-link" href="/knowledge">▦ <span>知识库</span></a>
+        <a class="nav-link" href="/training">□ <span>评估</span></a>
+      </nav>
+    </aside>
+    <main class="main">
+      <div class="topbar">
+        <div class="page-title">
+          <h1>审计对话</h1>
+          <p>围绕审计对象进行多轮分析，系统会同步给出风险、合规和整改信息。</p>
+        </div>
+        <div class="status-pill"><span class="status-dot"></span><span id="healthText">加载状态中</span></div>
+      </div>
+
+      <div class="grid layout-2">
+        <section class="panel">
+          <div class="toolbar">
+            <button class="btn" data-quick="请对ERP系统权限管理进行安全审计，参考ISO27001">ERP 权限审计</button>
+            <button class="btn" data-quick="检查财务报告流程是否符合SOX要求">SOX 财务控制</button>
+            <button class="btn" data-quick="分析数据备份流程的合规性和恢复风险">备份恢复风险</button>
+          </div>
+          <div class="chat-box mt-16" id="chatBox">
+            <div class="message ai">你好，我是智能审计 Agent。请输入审计对象、标准或风险场景，我会给出结构化审计建议。</div>
+          </div>
+          <div class="toolbar mt-16">
+            <input id="messageInput" placeholder="例如：请对ERP系统权限管理进行安全审计，参考ISO27001">
+            <button class="btn primary" id="sendBtn">发送</button>
+          </div>
+        </section>
+
+        <aside class="grid">
+          <section class="panel">
+            <h2 class="panel-title">会话</h2>
+            <div class="list">
+              <div class="item"><span class="muted">会话 ID</span><div id="sessionId"></div></div>
+              <div class="item"><span class="muted">消息数</span><div id="messageCount">0</div></div>
+            </div>
+            <button class="btn mt-12" id="clearBtn">清空对话</button>
+          </section>
+          <section class="panel">
+            <h2 class="panel-title">审计上下文</h2>
+            <div id="auditContext" class="list"><p class="muted">暂无上下文</p></div>
+          </section>
+          <section class="panel">
+            <h2 class="panel-title">风险评估</h2>
+            <div id="riskPanel" class="list"><p class="muted">暂无风险评估</p></div>
+          </section>
+        </aside>
+      </div>
+    </main>
+  </div>
+  <script src="/static/app.js"></script>
+  <script>
+    let sessionId = `session_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+    let messageCount = 0;
+    setText("#sessionId", sessionId);
+
+    function addMessage(content, type) {
+      const box = qs("#chatBox");
+      box.appendChild(el("div", { class: `message ${type}`, text: content }));
+      box.scrollTop = box.scrollHeight;
+    }
+
+    function renderContext(context) {
+      const node = qs("#auditContext");
+      clearNode(node);
+      Object.entries(context || {}).forEach(([key, value]) => {
+        node.appendChild(el("div", { class: "item" }, [el("strong", { text: key }), el("div", { class: "muted", text: Array.isArray(value) ? value.join("、") : String(value) })]));
+      });
+      if (!node.childElementCount) node.appendChild(el("p", { class: "muted", text: "暂无上下文" }));
+    }
+
+    function renderRisk(risk) {
+      const node = qs("#riskPanel");
+      clearNode(node);
+      if (!risk) {
+        node.appendChild(el("p", { class: "muted", text: "暂无风险评估" }));
+        return;
+      }
+      const header = el("div", { class: "item" }, [riskBadge(risk.risk_level), el("div", { class: "mt-12", text: `风险评分：${risk.risk_score}` })]);
+      node.appendChild(header);
+      (risk.identified_risks || []).forEach((item) => node.appendChild(el("div", { class: "item", text: item.risk })));
+    }
+
+    async function sendMessage() {
+      const input = qs("#messageInput");
+      const message = input.value.trim();
+      if (!message) return;
+      addMessage(message, "user");
+      input.value = "";
+      addMessage("正在分析审计上下文、检索知识库并评估风险...", "ai");
+      try {
+        const data = await apiFetch("/api/chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ message, session_id: sessionId })
+        });
+        qs("#chatBox").lastChild.remove();
+        addMessage(data.response, "ai");
+        renderContext(data.audit_context);
+        renderRisk(data.risk_assessment);
+        messageCount += 2;
+        setText("#messageCount", messageCount);
+      } catch (error) {
+        qs("#chatBox").lastChild.remove();
+        addMessage(`请求失败：${error.message}`, "ai");
+      }
+    }
+
+    qs("#sendBtn").addEventListener("click", sendMessage);
+    qs("#messageInput").addEventListener("keydown", (event) => { if (event.key === "Enter") sendMessage(); });
+    qs("#clearBtn").addEventListener("click", () => location.reload());
+    qsa("[data-quick]").forEach((button) => button.addEventListener("click", () => { qs("#messageInput").value = button.dataset.quick; sendMessage(); }));
+  </script>
+</body>
+</html>

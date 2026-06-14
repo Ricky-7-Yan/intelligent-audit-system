@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>智能审计 Agent 平台</title>
+  <link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="brand"><div class="brand-icon">审</div><span>智能审计</span></div>
+      <nav class="nav-list">
+        <a class="nav-link active" href="/">⌂ <span>总览</span></a>
+        <a class="nav-link" href="/chat">💬 <span>审计对话</span></a>
+        <a class="nav-link" href="/audit">⌕ <span>审计分析</span></a>
+        <a class="nav-link" href="/knowledge">▦ <span>知识库</span></a>
+        <a class="nav-link" href="/training">□ <span>评估</span></a>
+      </nav>
+    </aside>
+    <main class="main">
+      <div class="topbar">
+        <div class="page-title">
+          <h1>智能审计 Agent 平台</h1>
+          <p>面向企业审计的 Agentic RAG、风险评估、合规检查和知识沉淀工作台。</p>
+        </div>
+        <div class="status-pill"><span class="status-dot"></span><span id="healthText">加载状态中</span></div>
+      </div>
+
+      <section class="grid grid-4">
+        <div class="card metric"><div class="metric-value" id="docCount">0</div><div class="metric-label">知识切片</div></div>
+        <div class="card metric"><div class="metric-value" id="ragMode">-</div><div class="metric-label">检索模式</div></div>
+        <div class="card metric"><div class="metric-value">4</div><div class="metric-label">内置审计标准</div></div>
+        <div class="card metric"><div class="metric-value">2.0</div><div class="metric-label">当前版本</div></div>
+      </section>
+
+      <section class="grid grid-3 mt-16">
+        <a class="panel" href="/chat">
+          <h2 class="panel-title">审计对话</h2>
+          <p class="muted">通过多轮对话获得审计结论、风险等级、合规评分和整改动作。</p>
+        </a>
+        <a class="panel" href="/audit">
+          <h2 class="panel-title">审计分析</h2>
+          <p class="muted">输入审计对象、类型和标准，生成结构化分析结果。</p>
+        </a>
+        <a class="panel" href="/knowledge">
+          <h2 class="panel-title">知识库</h2>
+          <p class="muted">补充制度、流程、底稿和标准文本，RAG 会自动切块并检索。</p>
+        </a>
+      </section>
+
+      <section class="panel mt-16">
+        <h2 class="panel-title">当前架构</h2>
+        <div class="grid grid-3">
+          <div class="item"><strong>Agent 编排</strong><p class="muted">计划、检索、风险评估、合规检查、整改建议分阶段执行。</p></div>
+          <div class="item"><strong>混合 RAG</strong><p class="muted">优先语义向量检索，模型不可用时自动使用 TF-IDF 检索。</p></div>
+          <div class="item"><strong>可降级部署</strong><p class="muted">LLM、MySQL、Neo4j 不可用时仍可返回确定性审计建议。</p></div>
+        </div>
+      </section>
+    </main>
+  </div>
+  <script src="/static/app.js"></script>
+  <script>
+    apiFetch("/api/knowledge/stats").then((data) => {
+      const stats = data.stats || {};
+      setText("#docCount", stats.total_documents || 0);
+      setText("#ragMode", stats.semantic_retrieval ? "向量" : "TF-IDF");
+    }).catch(() => {});
+  </script>
+</body>
+</html>

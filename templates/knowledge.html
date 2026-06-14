@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>知识库 - 智能审计 Agent 平台</title>
+  <link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="brand"><div class="brand-icon">审</div><span>智能审计</span></div>
+      <nav class="nav-list">
+        <a class="nav-link" href="/">⌂ <span>总览</span></a>
+        <a class="nav-link" href="/chat">💬 <span>审计对话</span></a>
+        <a class="nav-link" href="/audit">⌕ <span>审计分析</span></a>
+        <a class="nav-link active" href="/knowledge">▦ <span>知识库</span></a>
+        <a class="nav-link" href="/training">□ <span>评估</span></a>
+      </nav>
+    </aside>
+    <main class="main">
+      <div class="topbar">
+        <div class="page-title">
+          <h1>知识库</h1>
+          <p>维护审计制度、底稿、标准和流程文本，供 RAG 检索增强使用。</p>
+        </div>
+        <div class="status-pill"><span class="status-dot"></span><span id="healthText">加载状态中</span></div>
+      </div>
+
+      <section class="grid layout-2">
+        <div class="panel">
+          <h2 class="panel-title">添加知识</h2>
+          <div class="field"><label>知识内容</label><textarea id="knowledgeText" rows="8" placeholder="粘贴审计制度、控制描述、标准条款或审计底稿摘要"></textarea></div>
+          <div class="grid grid-2 mt-12">
+            <div class="field"><label>来源</label><input id="knowledgeSource" placeholder="例如：权限管理制度 V1.2"></div>
+            <div class="field"><label>类型</label><input id="knowledgeType" value="manual"></div>
+          </div>
+          <button class="btn primary mt-16" id="addKnowledge">写入知识库</button>
+          <div id="addResult" class="muted mt-12"></div>
+        </div>
+        <div class="panel">
+          <h2 class="panel-title">上传文本文件</h2>
+          <input type="file" id="fileInput" accept=".txt,.md,.csv,.json,.log">
+          <button class="btn mt-16" id="uploadFile">上传并切块</button>
+          <div id="uploadResult" class="muted mt-12"></div>
+          <div class="item mt-16">
+            <strong>知识库统计</strong>
+            <p class="muted" id="statsText">加载中</p>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel mt-16">
+        <h2 class="panel-title">检索测试</h2>
+        <div class="toolbar">
+          <input id="searchQuery" placeholder="例如：SOX 财务系统内部控制重点">
+          <button class="btn primary" id="searchBtn">检索</button>
+        </div>
+        <div id="searchResults" class="list mt-16"><p class="muted">输入问题后查看 RAG 答案和来源。</p></div>
+      </section>
+    </main>
+  </div>
+  <script src="/static/app.js"></script>
+  <script>
+    async function refreshStats() {
+      const data = await apiFetch("/api/knowledge/stats");
+      const stats = data.stats;
+      setText("#statsText", `${stats.total_documents} 个切片 · ${stats.semantic_retrieval ? "语义向量" : "TF-IDF"} 检索 · 切块 ${stats.chunk_size}/${stats.chunk_overlap}`);
+    }
+
+    qs("#addKnowledge").addEventListener("click", async () => {
+      const text = qs("#knowledgeText").value.trim();
+      if (!text) return setText("#addResult", "请输入知识内容");
+      try {
+        const data = await apiFetch("/api/knowledge/add", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ text, metadata: { source: qs("#knowledgeSource").value || "manual", type: qs("#knowledgeType").value || "manual" } })
+        });
+        setText("#addResult", `已新增 ${data.result.added_chunks} 个切片`);
+        qs("#knowledgeText").value = "";
+        refreshStats();
+      } catch (error) {
+        setText("#addResult", `写入失败：${error.message}`);
+      }
+    });
+
+    qs("#uploadFile").addEventListener("click", async () => {
+      const file = qs("#fileInput").files[0];
+      if (!file) return setText("#uploadResult", "请选择文件");
+      const form = new FormData();
+      form.append("file", file);
+      try {
+        const data = await apiFetch("/api/knowledge/upload", { method: "POST", body: form });
+        setText("#uploadResult", `已上传 ${data.file}，新增 ${data.result.added_chunks} 个切片`);
+        refreshStats();
+      } catch (error) {
+        setText("#uploadResult", `上传失败：${error.message}`);
+      }
+    });
+
+    qs("#searchBtn").addEventListener("click", async () => {
+      const question = qs("#searchQuery").value.trim();
+      if (!question) return;
+      const node = qs("#searchResults");
+      clearNode(node);
+      node.appendChild(el("p", { class: "muted", text: "检索中..." }));
+      try {
+        const data = await apiFetch(`/api/knowledge/query?question=${encodeURIComponent(question)}`);
+        clearNode(node);
+        node.appendChild(el("div", { class: "item prewrap", text: data.result.answer }));
+        (data.result.sources || []).forEach((source) => node.appendChild(el("div", { class: "item" }, [
+          el("strong", { text: source.source }),
+          el("p", { class: "muted", text: `score ${source.score}` }),
+          el("div", { text: source.content })
+        ])));
+      } catch (error) {
+        clearNode(node);
+        node.appendChild(el("p", { class: "muted", text: `检索失败：${error.message}` }));
+      }
+    });
+
+    refreshStats().catch(() => setText("#statsText", "统计加载失败"));
+  </script>
+</body>
+</html>
