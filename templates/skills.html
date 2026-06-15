@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Skills / MCP - 智能审计 Agent 平台</title>
+  <link rel="stylesheet" href="../static/app.css">
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="brand"><div class="brand-icon">审</div><span>智能审计</span></div>
+      <nav class="nav-list">
+        <a class="nav-link" href="/">⌂ <span>总览</span></a>
+        <a class="nav-link" href="/chat">● <span>审计对话</span></a>
+        <a class="nav-link" href="/audit">⌕ <span>审计分析</span></a>
+        <a class="nav-link" href="/knowledge">▦ <span>知识库</span></a>
+        <a class="nav-link" href="/training">□ <span>评估</span></a>
+        <a class="nav-link active" href="/skills">◇ <span>Skills</span></a>
+      </nav>
+      <div class="sidebar-note">Skill 和 MCP 工具描述用于展示企业 Agent 平台化能力。</div>
+    </aside>
+    <main class="main">
+      <div class="topbar">
+        <div class="page-title">
+          <h1>Skills / MCP 工具层</h1>
+          <p>以可注册、可描述、可审计的方式管理 Agent 能力，接近企业 Agent 平台的工具协议化实践。</p>
+        </div>
+        <div class="status-pill"><span class="status-dot"></span><span id="healthText">加载状态中</span></div>
+      </div>
+
+      <section class="grid layout-2">
+        <div class="panel">
+          <h2 class="panel-title">Skill 列表</h2>
+          <div id="skillList" class="list dense"><p class="muted">加载中</p></div>
+        </div>
+        <div class="panel">
+          <h2 class="panel-title">执行 Skill</h2>
+          <div class="field"><label>Skill 名称</label><input id="skillName" value="audit.scope_planner"></div>
+          <div class="field mt-12"><label>输入 JSON</label><textarea id="skillInput" rows="8">{"audit_item":"ERP系统权限管理","standard":"ISO27001","risk_topics":["权限","日志"]}</textarea></div>
+          <button class="btn primary mt-16" id="runSkill">执行</button>
+          <pre id="skillOutput" class="item prewrap mt-16">等待执行</pre>
+        </div>
+      </section>
+
+      <section class="grid grid-2 mt-16">
+        <div class="panel">
+          <h2 class="panel-title">MCP Tools 描述</h2>
+          <div id="mcpTools" class="list dense"><p class="muted">加载中</p></div>
+        </div>
+        <div class="panel">
+          <h2 class="panel-title">Skill 调用日志</h2>
+          <button class="btn" id="refreshRuns">刷新日志</button>
+          <div id="skillRuns" class="list dense mt-16"><p class="muted">暂无日志</p></div>
+        </div>
+      </section>
+    </main>
+  </div>
+  <script src="../static/app.js"></script>
+  <script>
+    async function loadSkills() {
+      const data = await apiFetch("/api/skills");
+      const node = qs("#skillList");
+      clearNode(node);
+      data.skills.forEach((skill) => node.appendChild(el("div", { class: "item compact" }, [
+        el("strong", { text: `${skill.name} · ${skill.title}` }),
+        el("p", { class: "muted", text: skill.description }),
+        el("div", { text: `权限：${skill.permissions.join("、")}` })
+      ])));
+    }
+
+    async function loadMcpTools() {
+      const data = await apiFetch("/api/mcp/tools");
+      const node = qs("#mcpTools");
+      clearNode(node);
+      data.tools.forEach((tool) => node.appendChild(el("div", { class: "item compact" }, [
+        el("strong", { text: tool.name }),
+        el("p", { class: "muted", text: tool.description }),
+        el("pre", { class: "prewrap", text: JSON.stringify(tool.inputSchema, null, 2) })
+      ])));
+    }
+
+    async function loadRuns() {
+      const data = await apiFetch("/api/skills/runs");
+      const node = qs("#skillRuns");
+      clearNode(node);
+      if (!data.runs.length) return node.appendChild(el("p", { class: "muted", text: "暂无日志" }));
+      data.runs.forEach((run) => node.appendChild(el("div", { class: "item compact" }, [
+        el("strong", { text: `${run.run_id} · ${run.skill} · ${run.status}` }),
+        el("p", { class: "muted", text: run.finished_at }),
+        el("pre", { class: "prewrap", text: JSON.stringify(run.output, null, 2) })
+      ])));
+    }
+
+    qs("#runSkill").addEventListener("click", async () => {
+      try {
+        const input = JSON.parse(qs("#skillInput").value || "{}");
+        const name = qs("#skillName").value.trim();
+        const data = await apiFetch(`/api/skills/${encodeURIComponent(name)}/run`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ input })
+        });
+        qs("#skillOutput").textContent = JSON.stringify(data.run, null, 2);
+        loadRuns();
+      } catch (error) {
+        qs("#skillOutput").textContent = `执行失败：${error.message}`;
+      }
+    });
+
+    qs("#refreshRuns").addEventListener("click", loadRuns);
+    loadSkills();
+    loadMcpTools();
+    loadRuns();
+  </script>
+</body>
+</html>

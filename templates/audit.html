@@ -1,97 +1,97 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>审计分析 - 智能审计 Agent 平台</title>
+  <title>瀹¤鍒嗘瀽 - 鏅鸿兘瀹¤ Agent 骞冲彴</title>
   <link rel="stylesheet" href="../static/app.css">
 </head>
 <body>
   <div class="app-shell">
     <aside class="sidebar">
-      <div class="brand"><div class="brand-icon">审</div><span>智能审计</span></div>
+      <div class="brand"><div class="brand-icon">瀹?/div><span>鏅鸿兘瀹¤</span></div>
       <nav class="nav-list">
-        <a class="nav-link" href="/">⌂ <span>总览</span></a>
-        <a class="nav-link" href="/chat">● <span>审计对话</span></a>
-        <a class="nav-link active" href="/audit">⌕ <span>审计分析</span></a>
-        <a class="nav-link" href="/knowledge">▦ <span>知识库</span></a>
-        <a class="nav-link" href="/training">□ <span>评估</span></a>
+        <a class="nav-link" href="/">鈱?<span>鎬昏</span></a>
+        <a class="nav-link" href="/chat">鈼?<span>瀹¤瀵硅瘽</span></a>
+        <a class="nav-link active" href="/audit">鈱?<span>瀹¤鍒嗘瀽</span></a>
+        <a class="nav-link" href="/knowledge">鈻?<span>鐭ヨ瘑搴?/span></a>
+        <a class="nav-link" href="/training">鈻?<span>璇勪及</span></a>
       </nav>
-      <div class="sidebar-note">Agent 工作流：任务规划、证据检索、控制映射、风险评分、质量门、整改计划。</div>
+      <div class="sidebar-note">Agent 宸ヤ綔娴侊細浠诲姟瑙勫垝銆佽瘉鎹绱€佹帶鍒舵槧灏勩€侀闄╄瘎鍒嗐€佽川閲忛棬銆佹暣鏀硅鍒掋€?/div>
     </aside>
     <main class="main">
       <div class="topbar">
         <div class="page-title">
-          <h1>审计分析</h1>
-          <p>将审计对象转化为控制矩阵、证据包、风险结论、审计程序、抽样计划和整改闭环。</p>
+          <h1>瀹¤鍒嗘瀽</h1>
+          <p>灏嗗璁″璞¤浆鍖栦负鎺у埗鐭╅樀銆佽瘉鎹寘銆侀闄╃粨璁恒€佸璁＄▼搴忋€佹娊鏍疯鍒掑拰鏁存敼闂幆銆?/p>
         </div>
-        <div class="status-pill"><span class="status-dot"></span><span id="healthText">加载状态中</span></div>
+        <div class="status-pill"><span class="status-dot"></span><span id="healthText">鍔犺浇鐘舵€佷腑</span></div>
       </div>
 
       <section class="panel">
         <div class="grid grid-4">
-          <div class="field"><label>审计对象</label><input id="auditItem" value="ERP系统权限管理"></div>
-          <div class="field"><label>审计类型</label><select id="auditType"><option>安全审计</option><option>合规审计</option><option>风险评估</option><option>内部控制审计</option></select></div>
-          <div class="field"><label>参考标准</label><select id="standardType"><option>ISO27001</option><option>COBIT</option><option>SOX</option><option>数据安全法</option></select></div>
-          <div class="field"><label>关注风险</label><select id="riskLevel"><option>高</option><option>中</option><option>低</option></select></div>
+          <div class="field"><label>瀹¤瀵硅薄</label><input id="auditItem" value="ERP绯荤粺鏉冮檺绠＄悊"></div>
+          <div class="field"><label>瀹¤绫诲瀷</label><select id="auditType"><option>瀹夊叏瀹¤</option><option>鍚堣瀹¤</option><option>椋庨櫓璇勪及</option><option>鍐呴儴鎺у埗瀹¤</option></select></div>
+          <div class="field"><label>鍙傝€冩爣鍑?/label><select id="standardType"><option>ISO27001</option><option>COBIT</option><option>SOX</option><option>鏁版嵁瀹夊叏娉?/option></select></div>
+          <div class="field"><label>鍏虫敞椋庨櫓</label><select id="riskLevel"><option>楂?/option><option>涓?/option><option>浣?/option></select></div>
         </div>
         <div class="toolbar mt-16">
-          <button class="btn primary" id="runAudit">运行 Agent 审计</button>
-          <button class="btn" id="loadControls">查看控制库</button>
+          <button class="btn primary" id="runAudit">杩愯 Agent 瀹¤</button>
+          <button class="btn" id="loadControls">鏌ョ湅鎺у埗搴?/button>
         </div>
       </section>
 
       <section class="kpi-row mt-16">
-        <div class="card metric"><div class="metric-value" id="riskLevelCard">-</div><div class="metric-label">剩余风险</div></div>
-        <div class="card metric"><div class="metric-value" id="riskScoreCard">-</div><div class="metric-label">风险评分</div></div>
-        <div class="card metric"><div class="metric-value" id="complianceCard">-</div><div class="metric-label">合规评分</div></div>
-        <div class="card metric"><div class="metric-value" id="qualityCard">-</div><div class="metric-label">质量门置信度</div></div>
-        <div class="card metric"><div class="metric-value" id="controlsCard">-</div><div class="metric-label">映射控制</div></div>
+        <div class="card metric"><div class="metric-value" id="riskLevelCard">-</div><div class="metric-label">鍓╀綑椋庨櫓</div></div>
+        <div class="card metric"><div class="metric-value" id="riskScoreCard">-</div><div class="metric-label">椋庨櫓璇勫垎</div></div>
+        <div class="card metric"><div class="metric-value" id="complianceCard">-</div><div class="metric-label">鍚堣璇勫垎</div></div>
+        <div class="card metric"><div class="metric-value" id="qualityCard">-</div><div class="metric-label">璐ㄩ噺闂ㄧ疆淇″害</div></div>
+        <div class="card metric"><div class="metric-value" id="controlsCard">-</div><div class="metric-label">鏄犲皠鎺у埗</div></div>
       </section>
 
       <section class="grid layout-2 mt-16">
-        <div class="panel"><h2 class="panel-title">审计结论</h2><div id="auditResult" class="prewrap muted">等待分析结果</div></div>
-        <div class="panel"><h2 class="panel-title">质量门</h2><div id="qualityPanel" class="muted">等待结果</div></div>
+        <div class="panel"><h2 class="panel-title">瀹¤缁撹</h2><div id="auditResult" class="prewrap muted">绛夊緟鍒嗘瀽缁撴灉</div></div>
+        <div class="panel"><h2 class="panel-title">璐ㄩ噺闂?/h2><div id="qualityPanel" class="muted">绛夊緟缁撴灉</div></div>
       </section>
 
       <section class="grid grid-2 mt-16">
-        <div class="panel"><h2 class="panel-title">任务计划</h2><div id="taskPlan" class="timeline"><p class="muted">等待结果</p></div></div>
-        <div class="panel"><h2 class="panel-title">证据包</h2><div id="evidencePack" class="list dense"><p class="muted">等待结果</p></div></div>
+        <div class="panel"><h2 class="panel-title">浠诲姟璁″垝</h2><div id="taskPlan" class="timeline"><p class="muted">绛夊緟缁撴灉</p></div></div>
+        <div class="panel"><h2 class="panel-title">璇佹嵁鍖?/h2><div id="evidencePack" class="list dense"><p class="muted">绛夊緟缁撴灉</p></div></div>
       </section>
 
-      <section class="panel mt-16"><h2 class="panel-title">控制矩阵</h2><div id="controlMatrix" class="matrix muted">等待结果</div></section>
+      <section class="panel mt-16"><h2 class="panel-title">鎺у埗鐭╅樀</h2><div id="controlMatrix" class="matrix muted">绛夊緟缁撴灉</div></section>
 
       <section class="grid grid-2 mt-16">
-        <div class="panel"><h2 class="panel-title">审计程序</h2><div id="auditProgram" class="list dense"><p class="muted">等待结果</p></div></div>
-        <div class="panel"><h2 class="panel-title">抽样计划</h2><div id="samplingPlan" class="list dense"><p class="muted">等待结果</p></div></div>
+        <div class="panel"><h2 class="panel-title">瀹¤绋嬪簭</h2><div id="auditProgram" class="list dense"><p class="muted">绛夊緟缁撴灉</p></div></div>
+        <div class="panel"><h2 class="panel-title">鎶芥牱璁″垝</h2><div id="samplingPlan" class="list dense"><p class="muted">绛夊緟缁撴灉</p></div></div>
       </section>
 
-      <section class="panel mt-16"><h2 class="panel-title">审计发现草稿</h2><div id="findings" class="grid grid-2"><p class="muted">等待结果</p></div></section>
+      <section class="panel mt-16"><h2 class="panel-title">瀹¤鍙戠幇鑽夌</h2><div id="findings" class="grid grid-2"><p class="muted">绛夊緟缁撴灉</p></div></section>
 
-      <section class="panel mt-16"><h2 class="panel-title">整改行动计划</h2><div id="recommendations" class="grid grid-3"><p class="muted">等待结果</p></div></section>
+      <section class="panel mt-16"><h2 class="panel-title">鏁存敼琛屽姩璁″垝</h2><div id="recommendations" class="grid grid-3"><p class="muted">绛夊緟缁撴灉</p></div></section>
 
       <section class="panel mt-16">
-        <h2 class="panel-title">整改任务跟踪</h2>
-        <div id="remediationTasks" class="list dense"><p class="muted">等待结果</p></div>
+        <h2 class="panel-title">鏁存敼浠诲姟璺熻釜</h2>
+        <div id="remediationTasks" class="list dense"><p class="muted">绛夊緟缁撴灉</p></div>
       </section>
 
       <section class="grid layout-2 mt-16">
         <div class="panel">
-          <h2 class="panel-title">审计档案</h2>
+          <h2 class="panel-title">瀹¤妗ｆ</h2>
           <div class="toolbar">
-            <button class="btn" id="refreshRuns">刷新历史</button>
-            <a class="btn" id="downloadReport" href="#" target="_blank">下载当前报告</a>
+            <button class="btn" id="refreshRuns">鍒锋柊鍘嗗彶</button>
+            <a class="btn" id="downloadReport" href="#" target="_blank">涓嬭浇褰撳墠鎶ュ憡</a>
           </div>
-          <div id="runHistory" class="list dense mt-16"><p class="muted">暂无历史</p></div>
+          <div id="runHistory" class="list dense mt-16"><p class="muted">鏆傛棤鍘嗗彶</p></div>
         </div>
         <div class="panel">
-          <h2 class="panel-title">人工复核</h2>
+          <h2 class="panel-title">浜哄伐澶嶆牳</h2>
           <div class="grid grid-2">
-            <div class="field"><label>复核人</label><input id="reviewer" value="审计经理"></div>
-            <div class="field"><label>结论</label><select id="reviewDecision"><option value="approve">通过</option><option value="need_evidence">补充证据</option><option value="reject">退回整改</option></select></div>
+            <div class="field"><label>澶嶆牳浜?/label><input id="reviewer" value="瀹¤缁忕悊"></div>
+            <div class="field"><label>缁撹</label><select id="reviewDecision"><option value="approve">閫氳繃</option><option value="need_evidence">琛ュ厖璇佹嵁</option><option value="reject">閫€鍥炴暣鏀?/option></select></div>
           </div>
-          <div class="field mt-12"><label>复核意见</label><textarea id="reviewComment" rows="4" placeholder="记录人工判断、证据缺口或整改要求"></textarea></div>
-          <button class="btn primary mt-16" id="submitReview">提交复核</button>
+          <div class="field mt-12"><label>澶嶆牳鎰忚</label><textarea id="reviewComment" rows="4" placeholder="璁板綍浜哄伐鍒ゆ柇銆佽瘉鎹己鍙ｆ垨鏁存敼瑕佹眰"></textarea></div>
+          <button class="btn primary mt-16" id="submitReview">鎻愪氦澶嶆牳</button>
           <div id="reviewResult" class="muted mt-12"></div>
         </div>
       </section>
@@ -113,7 +113,7 @@
         el("div", { class: "item compact" }, [
           el("strong", { text: task.name }),
           el("div", { class: "muted", text: task.objective }),
-          el("div", { class: "mt-12", text: `负责人：${task.owner}` })
+          el("div", { class: "mt-12", text: `璐熻矗浜猴細${task.owner}` })
         ])
       ])));
     }
@@ -122,9 +122,9 @@
       const node = qs("#evidencePack");
       clearNode(node);
       items.forEach((item) => node.appendChild(el("div", { class: "item compact" }, [
-        el("strong", { text: `${item.id} · ${item.source}` }),
+        el("strong", { text: `${item.id} 路 ${item.source}` }),
         el("p", { class: "muted", text: item.summary }),
-        el("div", { text: `用途：${item.usage}` })
+        el("div", { text: `鐢ㄩ€旓細${item.usage}` })
       ])));
     }
 
@@ -139,8 +139,8 @@
         el("div", {}, [
           statusBadge(quality.status || "review"),
           el("p", { class: "muted", text: quality.review_note || "" }),
-          el("div", { text: `证据扎实度：${quality.groundedness || 0} · 控制覆盖：${quality.control_coverage || 0}` }),
-          el("div", { class: "mt-12 muted", text: `缺失证据：${(quality.missing_evidence || []).join("、") || "无"}` })
+          el("div", { text: `璇佹嵁鎵庡疄搴︼細${quality.groundedness || 0} 路 鎺у埗瑕嗙洊锛?{quality.control_coverage || 0}` }),
+          el("div", { class: "mt-12 muted", text: `缂哄け璇佹嵁锛?{(quality.missing_evidence || []).join("銆?) || "鏃?}` })
         ])
       ]));
     }
@@ -149,13 +149,13 @@
       const node = qs("#controlMatrix");
       clearNode(node);
       const table = el("table");
-      table.appendChild(el("thead", {}, [el("tr", {}, ["控制", "领域", "测试程序", "证据要求", "成熟度", "状态"].map((text) => el("th", { text })))]));
+      table.appendChild(el("thead", {}, [el("tr", {}, ["鎺у埗", "棰嗗煙", "娴嬭瘯绋嬪簭", "璇佹嵁瑕佹眰", "鎴愮啛搴?, "鐘舵€?].map((text) => el("th", { text })))]));
       const body = el("tbody");
       rows.forEach((row) => body.appendChild(el("tr", {}, [
         el("td", { text: row.control_id || row.id }),
         el("td", { text: row.domain }),
         el("td", { text: row.test_procedure }),
-        el("td", { text: (row.evidence_required || []).join("、") }),
+        el("td", { text: (row.evidence_required || []).join("銆?) }),
         el("td", { text: String(row.maturity_level ?? "-") }),
         el("td", { text: row.status || row.objective || "" })
       ])));
@@ -166,33 +166,33 @@
     function renderAuditProgram(items) {
       const node = qs("#auditProgram");
       clearNode(node);
-      if (!items.length) return node.appendChild(el("p", { class: "muted", text: "暂无审计程序" }));
+      if (!items.length) return node.appendChild(el("p", { class: "muted", text: "鏆傛棤瀹¤绋嬪簭" }));
       items.forEach((item) => node.appendChild(el("div", { class: "item compact" }, [
-        el("strong", { text: `${item.step_id} · ${item.control_id}` }),
+        el("strong", { text: `${item.step_id} 路 ${item.control_id}` }),
         el("div", { class: "muted", text: item.procedure }),
-        el("div", { class: "mt-12", text: `认定：${item.assertion}` }),
-        el("div", { class: "muted", text: `底稿：${item.workpaper_ref}` })
+        el("div", { class: "mt-12", text: `璁ゅ畾锛?{item.assertion}` }),
+        el("div", { class: "muted", text: `搴曠锛?{item.workpaper_ref}` })
       ])));
     }
 
     function renderSamplingPlan(plan) {
       const node = qs("#samplingPlan");
       clearNode(node);
-      if (!plan || !plan.population) return node.appendChild(el("p", { class: "muted", text: "暂无抽样计划" }));
-      [["总体", plan.population], ["期间", plan.period], ["方法", plan.method], ["样本量", plan.sample_size], ["分层", (plan.strata || []).join("、")], ["例外处理", plan.exception_handling]]
+      if (!plan || !plan.population) return node.appendChild(el("p", { class: "muted", text: "鏆傛棤鎶芥牱璁″垝" }));
+      [["鎬讳綋", plan.population], ["鏈熼棿", plan.period], ["鏂规硶", plan.method], ["鏍锋湰閲?, plan.sample_size], ["鍒嗗眰", (plan.strata || []).join("銆?)], ["渚嬪澶勭悊", plan.exception_handling]]
         .forEach(([label, value]) => node.appendChild(el("div", { class: "item compact" }, [el("strong", { text: label }), el("div", { class: "muted", text: String(value || "") })])));
     }
 
     function renderFindings(items) {
       const node = qs("#findings");
       clearNode(node);
-      if (!items.length) return node.appendChild(el("p", { class: "muted", text: "当前未形成重大审计发现草稿" }));
+      if (!items.length) return node.appendChild(el("p", { class: "muted", text: "褰撳墠鏈舰鎴愰噸澶у璁″彂鐜拌崏绋? }));
       items.forEach((finding) => node.appendChild(el("div", { class: "card" }, [
-        el("strong", { text: `${finding.finding_id} · ${finding.title}` }),
-        el("p", { class: "muted", text: `严重程度：${finding.severity}` }),
+        el("strong", { text: `${finding.finding_id} 路 ${finding.title}` }),
+        el("p", { class: "muted", text: `涓ラ噸绋嬪害锛?{finding.severity}` }),
         el("div", { text: finding.condition }),
-        el("p", { class: "muted", text: `影响：${finding.effect}` }),
-        el("div", { text: `建议：${finding.recommendation}` })
+        el("p", { class: "muted", text: `褰卞搷锛?{finding.effect}` }),
+        el("div", { text: `寤鸿锛?{finding.recommendation}` })
       ])));
     }
 
@@ -200,32 +200,32 @@
       const node = qs("#recommendations");
       clearNode(node);
       items.forEach((rec) => node.appendChild(el("div", { class: "card" }, [
-        el("strong", { text: `${rec.type} · ${rec.priority}` }),
+        el("strong", { text: `${rec.type} 路 ${rec.priority}` }),
         el("p", { class: "muted", text: rec.description }),
-        el("div", { text: rec.action_items.join("；") }),
-        el("div", { class: "mt-12 muted", text: `责任角色：${rec.owner_role} · ${rec.due_days}天 · ${rec.success_metric}` })
+        el("div", { text: rec.action_items.join("锛?) }),
+        el("div", { class: "mt-12 muted", text: `璐ｄ换瑙掕壊锛?{rec.owner_role} 路 ${rec.due_days}澶?路 ${rec.success_metric}` })
       ])));
     }
 
     function renderTasks(tasks) {
       const node = qs("#remediationTasks");
       clearNode(node);
-      if (!tasks || !tasks.length) return node.appendChild(el("p", { class: "muted", text: "暂无整改任务" }));
+      if (!tasks || !tasks.length) return node.appendChild(el("p", { class: "muted", text: "鏆傛棤鏁存敼浠诲姟" }));
       tasks.forEach((task) => {
         const status = el("select");
-        ["未开始", "进行中", "待验证", "已完成", "已关闭"].forEach((value) => {
+        ["鏈紑濮?, "杩涜涓?, "寰呴獙璇?, "宸插畬鎴?, "宸插叧闂?].forEach((value) => {
           const option = el("option", { value, text: value });
           if (value === task.status) option.selected = true;
           status.appendChild(option);
         });
-        const owner = el("input", { value: task.owner || "", placeholder: "责任人" });
-        const note = el("input", { placeholder: "更新备注" });
-        const save = el("button", { class: "btn", text: "更新" });
+        const owner = el("input", { value: task.owner || "", placeholder: "璐ｄ换浜? });
+        const note = el("input", { placeholder: "鏇存柊澶囨敞" });
+        const save = el("button", { class: "btn", text: "鏇存柊" });
         save.addEventListener("click", () => updateTask(task.task_id, status.value, owner.value, note.value));
         node.appendChild(el("div", { class: "item" }, [
-          el("strong", { text: `${task.task_id} · ${task.title} · ${task.priority}` }),
+          el("strong", { text: `${task.task_id} 路 ${task.title} 路 ${task.priority}` }),
           el("p", { class: "muted", text: task.description }),
-          el("div", { text: `验收指标：${task.success_metric}` }),
+          el("div", { text: `楠屾敹鎸囨爣锛?{task.success_metric}` }),
           el("div", { class: "grid grid-4 mt-12" }, [status, owner, note, save])
         ]));
       });
@@ -258,18 +258,18 @@
       clearNode(node);
       try {
         const data = await apiFetch("/api/audit/runs?limit=10");
-        if (!data.runs.length) return node.appendChild(el("p", { class: "muted", text: "暂无历史" }));
+        if (!data.runs.length) return node.appendChild(el("p", { class: "muted", text: "鏆傛棤鍘嗗彶" }));
         data.runs.forEach((run) => {
           const item = el("div", { class: "item compact" }, [
-            el("strong", { text: `${run.run_id} · ${run.audit_item || ""}` }),
-            el("div", { class: "muted", text: `${run.status} · 风险 ${run.risk_level || "-"} · 合规 ${run.compliance_score ?? "-"} · 质量 ${run.quality_confidence ?? "-"}` }),
+            el("strong", { text: `${run.run_id} 路 ${run.audit_item || ""}` }),
+            el("div", { class: "muted", text: `${run.status} 路 椋庨櫓 ${run.risk_level || "-"} 路 鍚堣 ${run.compliance_score ?? "-"} 路 璐ㄩ噺 ${run.quality_confidence ?? "-"}` }),
             el("div", { class: "mt-12", text: run.created_at || "" })
           ]);
           item.addEventListener("click", () => loadRunDetail(run.run_id));
           node.appendChild(item);
         });
       } catch (error) {
-        node.appendChild(el("p", { class: "muted", text: `加载失败：${error.message}` }));
+        node.appendChild(el("p", { class: "muted", text: `鍔犺浇澶辫触锛?{error.message}` }));
       }
     }
 
@@ -281,7 +281,7 @@
     }
 
     qs("#runAudit").addEventListener("click", async () => {
-      setText("#auditResult", "正在运行 Agent 工作流...");
+      setText("#auditResult", "姝ｅ湪杩愯 Agent 宸ヤ綔娴?..");
       try {
         const data = await apiFetch("/api/audit", {
           method: "POST",
@@ -299,7 +299,7 @@
         loadRunDetail(currentRunId);
         loadRuns();
       } catch (error) {
-        setText("#auditResult", `分析失败：${error.message}`);
+        setText("#auditResult", `鍒嗘瀽澶辫触锛?{error.message}`);
       }
     });
 
@@ -310,17 +310,17 @@
 
     qs("#refreshRuns").addEventListener("click", loadRuns);
     qs("#submitReview").addEventListener("click", async () => {
-      if (!currentRunId) return setText("#reviewResult", "请先运行或选择一条审计档案");
+      if (!currentRunId) return setText("#reviewResult", "璇峰厛杩愯鎴栭€夋嫨涓€鏉″璁℃。妗?);
       try {
         await apiFetch(`/api/audit/runs/${encodeURIComponent(currentRunId)}/review`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ reviewer: qs("#reviewer").value, decision: qs("#reviewDecision").value, comment: qs("#reviewComment").value })
         });
-        setText("#reviewResult", "复核已保存");
+        setText("#reviewResult", "澶嶆牳宸蹭繚瀛?);
         loadRuns();
       } catch (error) {
-        setText("#reviewResult", `复核失败：${error.message}`);
+        setText("#reviewResult", `澶嶆牳澶辫触锛?{error.message}`);
       }
     });
 
@@ -335,7 +335,7 @@
         renderRunRecord(data.run);
         loadRuns();
       } catch (error) {
-        setText("#reviewResult", `任务更新失败：${error.message}`);
+        setText("#reviewResult", `浠诲姟鏇存柊澶辫触锛?{error.message}`);
       }
     }
 
@@ -343,3 +343,4 @@
   </script>
 </body>
 </html>
+

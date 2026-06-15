@@ -22,6 +22,7 @@ from config import PATHS, WEB_CONFIG
 from knowledge_graph.builder import KnowledgeGraphBuilder
 from services.audit_repository import AuditRunRepository
 from services.rag_evaluator import RAGEvaluator
+from services.skill_registry import SkillRegistry
 
 
 logger = logging.getLogger(__name__)
@@ -31,6 +32,7 @@ rag_pipeline = None
 kg_builder: Optional[KnowledgeGraphBuilder] = None
 evaluator = None
 audit_repository = AuditRunRepository()
+skill_registry = SkillRegistry()
 
 
 @asynccontextmanager
@@ -91,6 +93,10 @@ class EvaluationRequest(BaseModel):
 
 class RAGEvaluationRequest(BaseModel):
     cases: Optional[List[Dict[str, Any]]] = None
+
+
+class SkillRunRequest(BaseModel):
+    input: Dict[str, Any] = Field(default_factory=dict)
 
 
 class ReviewRequest(BaseModel):
@@ -166,6 +172,11 @@ async def training_page(request: Request):
     return templates.TemplateResponse("training.html", {"request": request})
 
 
+@app.get("/skills", response_class=HTMLResponse)
+async def skills_page(request: Request):
+    return templates.TemplateResponse("skills.html", {"request": request})
+
+
 @app.post("/api/chat")
 async def chat_api(request: ChatRequest, agent: AuditAgent = Depends(get_audit_agent)):
     session_id = request.session_id or str(uuid.uuid4())
@@ -204,6 +215,8 @@ async def agent_capabilities_api():
         "capabilities": {
             "agent_architecture": [
                 "任务规划",
+                "Skill 注册与执行",
+                "MCP 风格工具描述",
                 "工具调用",
                 "Agentic RAG",
                 "控制矩阵映射",
@@ -217,6 +230,30 @@ async def agent_capabilities_api():
         },
         "timestamp": datetime.now().isoformat(),
     }
+
+
+@app.get("/api/skills")
+async def skills_api():
+    return {"success": True, "skills": skill_registry.list_skills(), "timestamp": datetime.now().isoformat()}
+
+
+@app.get("/api/mcp/tools")
+async def mcp_tools_api():
+    return {"success": True, "tools": skill_registry.mcp_tools(), "timestamp": datetime.now().isoformat()}
+
+
+@app.post("/api/skills/{skill_name}/run")
+async def skill_run_api(skill_name: str, request: SkillRunRequest):
+    try:
+        record = skill_registry.execute(skill_name, request.input)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail="Skill 不存在") from exc
+    return {"success": record["status"] == "success", "run": record, "timestamp": datetime.now().isoformat()}
+
+
+@app.get("/api/skills/runs")
+async def skill_runs_api(limit: int = 20):
+    return {"success": True, "runs": skill_registry.recent_runs(limit), "timestamp": datetime.now().isoformat()}
 
 
 @app.get("/api/audit/runs")

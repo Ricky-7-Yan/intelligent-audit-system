@@ -8,12 +8,15 @@
 | --- | --- |
 | LLM 应用开发 | FastAPI + 可选 Qwen/OpenAI 兼容接口，支持 LLM 不可用时降级 |
 | Agent 架构 | 任务规划、工具调用、证据检索、控制映射、质量门、人工复核 |
+| Skill / 插件化能力 | `/api/skills` 注册审计范围规划、证据清单、发现草稿、RAG 查询等 Skill |
+| MCP / 工具协议 | `/api/mcp/tools` 输出 MCP 风格工具描述、输入 Schema、权限和版本 |
 | RAG | 文档切块、持久化知识库、查询扩展、混合检索、来源引用 |
 | RAG 评测 | `/api/evaluation/rag` 支持基准用例和自定义用例评估 |
 | 工具使用 | MySQL、Neo4j、RAG、审计控制库、报告导出、任务状态更新 |
 | 业务落地 | 审计程序、抽样计划、审计发现草稿、整改任务跟踪 |
 | 工程化 | Dockerfile、docker-compose、健康检查、配置模板、git 版本管理 |
 | 可观测与质量 | execution trace、quality gate、confidence、groundedness、control coverage |
+| 工具安全 | Skill 级权限声明、调用日志、运行记录持久化 |
 | 数据安全 | 本地 `config.env`、模型、日志、运行数据均通过 `.gitignore` 保护 |
 
 ## 推荐演示路径
@@ -25,6 +28,7 @@
 5. 下载 Markdown 审计报告。
 6. 打开 `/training` 运行 Agent 评估。
 7. 调用 `/api/evaluation/rag` 展示 RAG 检索评估能力。
+8. 打开 `/skills` 展示 Skill Registry、MCP tools 和技能调用日志。
 
 ## 后续可扩展方向
 
@@ -33,3 +37,4 @@
 - 将整改任务同步到 Jira、飞书或企业微信。
 - 增加更严格的 RAG faithfulness / answer relevance 评测。
 - 增加多 Agent 协作：审计经理、证据检索员、控制测试员、复核员。
+- 将本地 MCP-style facade 对接真实 MCP server/client。
