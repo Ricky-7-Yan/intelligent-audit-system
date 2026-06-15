@@ -1,0 +1,11 @@
+services:
+  audit-agent:
+    build: .
+    ports:
+      - "8000:8000"
+    env_file:
+      - config.env
+    volumes:
+      - ./data:/app/data
+      - ./logs:/app/logs
+    restart: unless-stopped

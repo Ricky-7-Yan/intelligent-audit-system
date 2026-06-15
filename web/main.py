@@ -21,6 +21,7 @@ from agents.audit_agent import AuditAgent, CONTROL_LIBRARY
 from config import PATHS, WEB_CONFIG
 from knowledge_graph.builder import KnowledgeGraphBuilder
 from services.audit_repository import AuditRunRepository
+from services.rag_evaluator import RAGEvaluator
 
 
 logger = logging.getLogger(__name__)
@@ -86,6 +87,10 @@ class KnowledgeRequest(BaseModel):
 class EvaluationRequest(BaseModel):
     model_path: str = "current-agent"
     test_cases: Optional[List[Dict[str, Any]]] = None
+
+
+class RAGEvaluationRequest(BaseModel):
+    cases: Optional[List[Dict[str, Any]]] = None
 
 
 class ReviewRequest(BaseModel):
@@ -192,6 +197,28 @@ async def audit_controls_api():
     return {"success": True, "controls": CONTROL_LIBRARY, "timestamp": datetime.now().isoformat()}
 
 
+@app.get("/api/agent/capabilities")
+async def agent_capabilities_api():
+    return {
+        "success": True,
+        "capabilities": {
+            "agent_architecture": [
+                "任务规划",
+                "工具调用",
+                "Agentic RAG",
+                "控制矩阵映射",
+                "风险与合规评分",
+                "质量门",
+                "人工复核闭环",
+            ],
+            "rag": ["混合检索", "查询扩展", "来源引用", "降级检索", "RAG 评测"],
+            "engineering": ["FastAPI", "持久化审计档案", "报告导出", "健康检查", "Docker 部署"],
+            "audit_business": ["审计程序", "抽样计划", "审计发现草稿", "整改任务跟踪"],
+        },
+        "timestamp": datetime.now().isoformat(),
+    }
+
+
 @app.get("/api/audit/runs")
 async def audit_runs_api(limit: int = 20):
     return {"success": True, "runs": audit_repository.list_runs(limit=limit), "timestamp": datetime.now().isoformat()}
@@ -283,6 +310,12 @@ async def knowledge_stats_api(rag=Depends(get_rag_pipeline)):
 async def evaluate_model_api(request: EvaluationRequest, benchmark=Depends(get_evaluator)):
     test_cases = request.test_cases or benchmark.create_test_cases()
     results = benchmark.evaluate_agent(test_cases)
+    return {"success": True, "results": results, "timestamp": datetime.now().isoformat()}
+
+
+@app.post("/api/evaluation/rag")
+async def evaluate_rag_api(request: RAGEvaluationRequest, rag=Depends(get_rag_pipeline)):
+    results = RAGEvaluator(rag).evaluate(request.cases)
     return {"success": True, "results": results, "timestamp": datetime.now().isoformat()}
 
 

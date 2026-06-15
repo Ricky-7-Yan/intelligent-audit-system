@@ -42,3 +42,6 @@ Thumbs.db
 docx_output.txt
 homepage-screenshot.png
 .edge-profile-shot/
+
+# Docker/local deployment
+.docker/
