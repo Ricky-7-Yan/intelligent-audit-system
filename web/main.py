@@ -49,7 +49,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="智能审计 Agent 平台",
     description="面向审计场景的 Agentic RAG、风险评估和合规分析系统",
-    version="2.2.0",
+    version="2.3.0",
     lifespan=lifespan,
 )
 
@@ -92,6 +92,12 @@ class ReviewRequest(BaseModel):
     reviewer: str = "复核人"
     decision: str = Field(..., pattern="^(approve|reject|need_evidence)$")
     comment: str = Field("", max_length=4000)
+
+
+class TaskUpdateRequest(BaseModel):
+    status: str = Field(..., pattern="^(未开始|进行中|待验证|已完成|已关闭|todo|doing|verifying|done|closed)$")
+    owner: str = ""
+    note: str = Field("", max_length=2000)
 
 
 def init_rag_lazy():
@@ -207,6 +213,15 @@ async def audit_run_review_api(run_id: str, request: ReviewRequest):
     return {"success": True, "run": record, "timestamp": datetime.now().isoformat()}
 
 
+@app.post("/api/audit/runs/{run_id}/tasks/{task_id}")
+async def audit_task_update_api(run_id: str, task_id: str, request: TaskUpdateRequest):
+    status_map = {"todo": "未开始", "doing": "进行中", "verifying": "待验证", "done": "已完成", "closed": "已关闭"}
+    record = audit_repository.update_task(run_id, task_id, status_map.get(request.status, request.status), request.owner, request.note)
+    if not record:
+        raise HTTPException(status_code=404, detail="审计运行记录或任务不存在")
+    return {"success": True, "run": record, "timestamp": datetime.now().isoformat()}
+
+
 @app.get("/api/audit/runs/{run_id}/report.md", response_class=PlainTextResponse)
 async def audit_run_report_api(run_id: str):
     report = audit_repository.render_markdown_report(run_id)
@@ -287,7 +302,7 @@ async def health_check(agent: AuditAgent = Depends(get_audit_agent), rag=Depends
         content={
             "status": "healthy",
             "timestamp": datetime.now().isoformat(),
-            "version": "2.2.0",
+            "version": "2.3.0",
             "services": {**agent.get_service_status(), "rag_documents": rag.get_statistics().get("total_documents", 0)},
         }
     )

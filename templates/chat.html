@@ -1,71 +1,71 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>审计对话 - 智能审计 Agent 平台</title>
-  <link rel="stylesheet" href="/static/app.css">
+  <title>瀹¤瀵硅瘽 - 鏅鸿兘瀹¤ Agent 骞冲彴</title>
+  <link rel="stylesheet" href="../static/app.css">
 </head>
 <body>
   <div class="app-shell">
     <aside class="sidebar">
-      <div class="brand"><div class="brand-icon">审</div><span>智能审计</span></div>
+      <div class="brand"><div class="brand-icon">瀹?/div><span>鏅鸿兘瀹¤</span></div>
       <nav class="nav-list">
-        <a class="nav-link" href="/">⌂ <span>总览</span></a>
-        <a class="nav-link active" href="/chat">● <span>审计对话</span></a>
-        <a class="nav-link" href="/audit">⌕ <span>审计分析</span></a>
-        <a class="nav-link" href="/knowledge">▦ <span>知识库</span></a>
-        <a class="nav-link" href="/training">□ <span>评估</span></a>
+        <a class="nav-link" href="/">鈱?<span>鎬昏</span></a>
+        <a class="nav-link active" href="/chat">鈼?<span>瀹¤瀵硅瘽</span></a>
+        <a class="nav-link" href="/audit">鈱?<span>瀹¤鍒嗘瀽</span></a>
+        <a class="nav-link" href="/knowledge">鈻?<span>鐭ヨ瘑搴?/span></a>
+        <a class="nav-link" href="/training">鈻?<span>璇勪及</span></a>
       </nav>
-      <div class="sidebar-note">对话结果会同步给出上下文、风险、质量门和证据缺口。</div>
+      <div class="sidebar-note">瀵硅瘽缁撴灉浼氬悓姝ョ粰鍑轰笂涓嬫枃銆侀闄┿€佽川閲忛棬鍜岃瘉鎹己鍙ｃ€?/div>
     </aside>
     <main class="main">
       <div class="topbar">
         <div class="page-title">
-          <h1>审计对话</h1>
-          <p>围绕审计对象进行多轮分析，系统会同步给出风险、合规和整改信息。</p>
+          <h1>瀹¤瀵硅瘽</h1>
+          <p>鍥寸粫瀹¤瀵硅薄杩涜澶氳疆鍒嗘瀽锛岀郴缁熶細鍚屾缁欏嚭椋庨櫓銆佸悎瑙勫拰鏁存敼淇℃伅銆?/p>
         </div>
-        <div class="status-pill"><span class="status-dot"></span><span id="healthText">加载状态中</span></div>
+        <div class="status-pill"><span class="status-dot"></span><span id="healthText">鍔犺浇鐘舵€佷腑</span></div>
       </div>
 
       <div class="grid layout-2">
         <section class="panel">
           <div class="toolbar">
-            <button class="btn" data-quick="请对ERP系统权限管理进行安全审计，参考ISO27001">ERP 权限审计</button>
-            <button class="btn" data-quick="检查财务报告流程是否符合SOX要求">SOX 财务控制</button>
-            <button class="btn" data-quick="分析数据备份流程的合规性和恢复风险">备份恢复风险</button>
+            <button class="btn" data-quick="璇峰ERP绯荤粺鏉冮檺绠＄悊杩涜瀹夊叏瀹¤锛屽弬鑰僆SO27001">ERP 鏉冮檺瀹¤</button>
+            <button class="btn" data-quick="妫€鏌ヨ储鍔℃姤鍛婃祦绋嬫槸鍚︾鍚圫OX瑕佹眰">SOX 璐㈠姟鎺у埗</button>
+            <button class="btn" data-quick="鍒嗘瀽鏁版嵁澶囦唤娴佺▼鐨勫悎瑙勬€у拰鎭㈠椋庨櫓">澶囦唤鎭㈠椋庨櫓</button>
           </div>
           <div class="chat-box mt-16" id="chatBox">
-            <div class="message ai">你好，我是智能审计 Agent。请输入审计对象、标准或风险场景，我会给出结构化审计建议。</div>
+            <div class="message ai">浣犲ソ锛屾垜鏄櫤鑳藉璁?Agent銆傝杈撳叆瀹¤瀵硅薄銆佹爣鍑嗘垨椋庨櫓鍦烘櫙锛屾垜浼氱粰鍑虹粨鏋勫寲瀹¤寤鸿銆?/div>
           </div>
           <div class="toolbar stretch mt-16">
-            <input id="messageInput" placeholder="例如：请对ERP系统权限管理进行安全审计，参考ISO27001">
-            <button class="btn primary" id="sendBtn">发送</button>
+            <input id="messageInput" placeholder="渚嬪锛氳瀵笶RP绯荤粺鏉冮檺绠＄悊杩涜瀹夊叏瀹¤锛屽弬鑰僆SO27001">
+            <button class="btn primary" id="sendBtn">鍙戦€?/button>
           </div>
         </section>
 
         <aside class="grid">
           <section class="panel">
-            <h2 class="panel-title">会话</h2>
+            <h2 class="panel-title">浼氳瘽</h2>
             <div class="list">
-              <div class="item"><span class="muted">会话 ID</span><div id="sessionId"></div></div>
-              <div class="item"><span class="muted">消息数</span><div id="messageCount">0</div></div>
+              <div class="item"><span class="muted">浼氳瘽 ID</span><div id="sessionId"></div></div>
+              <div class="item"><span class="muted">娑堟伅鏁?/span><div id="messageCount">0</div></div>
             </div>
-            <button class="btn mt-12" id="clearBtn">清空对话</button>
+            <button class="btn mt-12" id="clearBtn">娓呯┖瀵硅瘽</button>
           </section>
           <section class="panel">
-            <h2 class="panel-title">审计上下文</h2>
-            <div id="auditContext" class="list"><p class="muted">暂无上下文</p></div>
+            <h2 class="panel-title">瀹¤涓婁笅鏂?/h2>
+            <div id="auditContext" class="list"><p class="muted">鏆傛棤涓婁笅鏂?/p></div>
           </section>
           <section class="panel">
-            <h2 class="panel-title">风险与质量门</h2>
-            <div id="riskPanel" class="list"><p class="muted">暂无风险评估</p></div>
+            <h2 class="panel-title">椋庨櫓涓庤川閲忛棬</h2>
+            <div id="riskPanel" class="list"><p class="muted">鏆傛棤椋庨櫓璇勪及</p></div>
           </section>
         </aside>
       </div>
     </main>
   </div>
-  <script src="/static/app.js"></script>
+  <script src="../static/app.js"></script>
   <script>
     let sessionId = `session_${Date.now()}_${Math.random().toString(36).slice(2)}`;
     let messageCount = 0;
@@ -83,10 +83,10 @@
       Object.entries(context || {}).forEach(([key, value]) => {
         node.appendChild(el("div", { class: "item" }, [
           el("strong", { text: key }),
-          el("div", { class: "muted", text: Array.isArray(value) ? value.join("、") : String(value) })
+          el("div", { class: "muted", text: Array.isArray(value) ? value.join("銆?) : String(value) })
         ]));
       });
-      if (!node.childElementCount) node.appendChild(el("p", { class: "muted", text: "暂无上下文" }));
+      if (!node.childElementCount) node.appendChild(el("p", { class: "muted", text: "鏆傛棤涓婁笅鏂? }));
     }
 
     function renderRisk(result) {
@@ -95,18 +95,18 @@
       const risk = result.risk_assessment;
       const quality = result.quality_gate;
       if (!risk) {
-        node.appendChild(el("p", { class: "muted", text: "暂无风险评估" }));
+        node.appendChild(el("p", { class: "muted", text: "鏆傛棤椋庨櫓璇勪及" }));
         return;
       }
       node.appendChild(el("div", { class: "item" }, [
         riskBadge(risk.risk_level),
-        el("div", { class: "mt-12", text: `风险评分：${risk.risk_score}` }),
-        el("div", { class: "muted", text: `控制抵减：${risk.control_reduction || 0}` })
+        el("div", { class: "mt-12", text: `椋庨櫓璇勫垎锛?{risk.risk_score}` }),
+        el("div", { class: "muted", text: `鎺у埗鎶靛噺锛?{risk.control_reduction || 0}` })
       ]));
       if (quality) {
         node.appendChild(el("div", { class: "item" }, [
-          el("strong", { text: `质量门：${quality.status}` }),
-          el("div", { class: "muted", text: `置信度：${quality.confidence}；缺失证据：${(quality.missing_evidence || []).join("、") || "无"}` })
+          el("strong", { text: `璐ㄩ噺闂細${quality.status}` }),
+          el("div", { class: "muted", text: `缃俊搴︼細${quality.confidence}锛涚己澶辫瘉鎹細${(quality.missing_evidence || []).join("銆?) || "鏃?}` })
         ]));
       }
     }
@@ -117,7 +117,7 @@
       if (!message) return;
       addMessage(message, "user");
       input.value = "";
-      addMessage("正在规划任务、检索证据、映射控制并评估风险...", "ai");
+      addMessage("姝ｅ湪瑙勫垝浠诲姟銆佹绱㈣瘉鎹€佹槧灏勬帶鍒跺苟璇勪及椋庨櫓...", "ai");
       try {
         const data = await apiFetch("/api/chat", {
           method: "POST",
@@ -132,7 +132,7 @@
         setText("#messageCount", messageCount);
       } catch (error) {
         qs("#chatBox").lastChild.remove();
-        addMessage(`请求失败：${error.message}`, "ai");
+        addMessage(`璇锋眰澶辫触锛?{error.message}`, "ai");
       }
     }
 
@@ -143,3 +143,4 @@
   </script>
 </body>
 </html>
+

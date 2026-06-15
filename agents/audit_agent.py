@@ -293,6 +293,9 @@ class AuditAgent:
 
         risk_assessment = self._assess_risk(user_input, audit_context, retrieved, control_matrix)
         compliance_check = self._check_compliance(audit_context, risk_assessment, control_matrix)
+        audit_program = self._build_audit_program(audit_context, control_matrix, risk_assessment)
+        sampling_plan = self._build_sampling_plan(audit_context, control_matrix, risk_assessment)
+        findings = self._draft_findings(audit_context, control_matrix, risk_assessment, compliance_check, evidence_pack)
         quality_gate = self._quality_gate(evidence_pack, control_matrix, risk_assessment, compliance_check)
         recommendations = self._generate_recommendations(risk_assessment, compliance_check, control_matrix, quality_gate)
         response = self._compose_response(
@@ -317,6 +320,9 @@ class AuditAgent:
             "retrieval": retrieved,
             "evidence_pack": evidence_pack,
             "control_matrix": control_matrix,
+            "audit_program": audit_program,
+            "sampling_plan": sampling_plan,
+            "findings": findings,
             "risk_assessment": risk_assessment,
             "compliance_check": compliance_check,
             "quality_gate": quality_gate,
@@ -608,6 +614,106 @@ class AuditAgent:
             "escalation_required": risk_assessment["risk_level"] == "高" or status != "pass",
             "review_note": "证据充分，可进入现场验证。" if status == "pass" else "需要补充审计证据后再形成最终结论。",
         }
+
+    def _build_audit_program(
+        self,
+        audit_context: Dict[str, Any],
+        control_matrix: List[Dict[str, Any]],
+        risk_assessment: Dict[str, Any],
+    ) -> List[Dict[str, Any]]:
+        procedures = []
+        for index, control in enumerate(control_matrix, start=1):
+            procedures.append(
+                {
+                    "step_id": f"AP-{index:02d}",
+                    "control_id": control["control_id"],
+                    "procedure": control["test_procedure"],
+                    "assertion": self._assertion_for_domain(control["domain"]),
+                    "evidence": control["evidence_required"],
+                    "method": "抽样检查 + 访谈确认 + 系统配置核验",
+                    "priority": "高" if risk_assessment["risk_level"] == "高" else "中",
+                    "workpaper_ref": f"WP-{audit_context['business_domain']}-{index:02d}",
+                }
+            )
+        return procedures
+
+    def _build_sampling_plan(
+        self,
+        audit_context: Dict[str, Any],
+        control_matrix: List[Dict[str, Any]],
+        risk_assessment: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        risk_level = risk_assessment["risk_level"]
+        base_size = 25 if risk_level == "高" else 15 if risk_level == "中" else 8
+        population = f"{audit_context['audit_item']}在审计期间内的关键交易、权限、变更或日志记录"
+        return {
+            "population": population,
+            "period": "最近一个完整季度，必要时追溯至最近一次重大变更",
+            "method": "风险导向抽样；高风险控制采用分层抽样，关键例外全量核查",
+            "sample_size": base_size + min(len(control_matrix) * 2, 12),
+            "strata": [
+                "高权限/特权用户",
+                "关键财务或敏感数据操作",
+                "生产变更和例外审批",
+                "异常日志或失败交易",
+            ],
+            "exception_handling": "发现重大例外时扩大样本并触发管理层复核。",
+        }
+
+    def _draft_findings(
+        self,
+        audit_context: Dict[str, Any],
+        control_matrix: List[Dict[str, Any]],
+        risk_assessment: Dict[str, Any],
+        compliance_check: Dict[str, Any],
+        evidence_pack: List[Dict[str, Any]],
+    ) -> List[Dict[str, Any]]:
+        findings = []
+        if risk_assessment["risk_level"] in {"高", "中"}:
+            primary = risk_assessment["identified_risks"][0]
+            control = control_matrix[0]
+            findings.append(
+                {
+                    "finding_id": "F-01",
+                    "title": f"{audit_context['audit_item']}存在{primary['domain']}控制薄弱迹象",
+                    "severity": risk_assessment["risk_level"],
+                    "condition": f"当前证据显示{primary['risk']}，控制 {control['control_id']} 仍需现场验证。",
+                    "criteria": "应满足最小权限、审批留痕、定期复核和异常监控等控制要求。",
+                    "cause": "控制责任、证据留存或例外处理流程可能不够清晰。",
+                    "effect": "可能导致越权操作、关键交易未经授权或审计追溯困难。",
+                    "recommendation": f"按 {control['control_id']} 测试程序补齐证据并复核例外项。",
+                    "evidence_refs": control.get("evidence_refs", []),
+                }
+            )
+
+        if compliance_check["compliance_score"] < 75:
+            findings.append(
+                {
+                    "finding_id": f"F-{len(findings) + 1:02d}",
+                    "title": "合规证据覆盖不足",
+                    "severity": "中",
+                    "condition": f"当前合规评分为 {compliance_check['compliance_score']}，证据包数量为 {len(evidence_pack)}。",
+                    "criteria": "审计结论应可追溯到制度、审批、系统配置、日志或抽样底稿。",
+                    "cause": "知识库或现场证据尚未覆盖全部关键控制。",
+                    "effect": "结论置信度下降，可能需要人工复核或补充取证。",
+                    "recommendation": "补充制度条款、控制执行记录、抽样明细和管理层复核证据。",
+                    "evidence_refs": [item["id"] for item in evidence_pack[:3]],
+                }
+            )
+        return findings
+
+    def _assertion_for_domain(self, domain: str) -> str:
+        mapping = {
+            "访问控制": "授权、完整性、职责分离",
+            "身份治理": "授权、准确性、及时性",
+            "职责分离": "授权、有效性",
+            "变更管理": "授权、完整性、准确性",
+            "业务连续性": "可用性、完整性",
+            "监控审计": "完整性、可追溯性",
+            "数据安全": "保密性、完整性、合规性",
+            "接口安全": "完整性、准确性、可用性",
+        }
+        return mapping.get(domain, "完整性、授权、合规性")
 
     def _generate_recommendations(
         self,

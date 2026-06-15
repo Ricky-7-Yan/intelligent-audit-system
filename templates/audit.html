@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>审计分析 - 智能审计 Agent 平台</title>
-  <link rel="stylesheet" href="/static/app.css">
+  <link rel="stylesheet" href="../static/app.css">
 </head>
 <body>
   <div class="app-shell">
@@ -23,7 +23,7 @@
       <div class="topbar">
         <div class="page-title">
           <h1>审计分析</h1>
-          <p>将审计对象转化为控制矩阵、证据包、风险结论和可执行整改计划。</p>
+          <p>将审计对象转化为控制矩阵、证据包、风险结论、审计程序、抽样计划和整改闭环。</p>
         </div>
         <div class="status-pill"><span class="status-dot"></span><span id="healthText">加载状态中</span></div>
       </div>
@@ -50,35 +50,29 @@
       </section>
 
       <section class="grid layout-2 mt-16">
-        <div class="panel">
-          <h2 class="panel-title">审计结论</h2>
-          <div id="auditResult" class="prewrap muted">等待分析结果</div>
-        </div>
-        <div class="panel">
-          <h2 class="panel-title">质量门</h2>
-          <div id="qualityPanel" class="muted">等待结果</div>
-        </div>
+        <div class="panel"><h2 class="panel-title">审计结论</h2><div id="auditResult" class="prewrap muted">等待分析结果</div></div>
+        <div class="panel"><h2 class="panel-title">质量门</h2><div id="qualityPanel" class="muted">等待结果</div></div>
       </section>
 
       <section class="grid grid-2 mt-16">
-        <div class="panel">
-          <h2 class="panel-title">任务计划</h2>
-          <div id="taskPlan" class="timeline"><p class="muted">等待结果</p></div>
-        </div>
-        <div class="panel">
-          <h2 class="panel-title">证据包</h2>
-          <div id="evidencePack" class="list dense"><p class="muted">等待结果</p></div>
-        </div>
+        <div class="panel"><h2 class="panel-title">任务计划</h2><div id="taskPlan" class="timeline"><p class="muted">等待结果</p></div></div>
+        <div class="panel"><h2 class="panel-title">证据包</h2><div id="evidencePack" class="list dense"><p class="muted">等待结果</p></div></div>
       </section>
 
-      <section class="panel mt-16">
-        <h2 class="panel-title">控制矩阵</h2>
-        <div id="controlMatrix" class="matrix muted">等待结果</div>
+      <section class="panel mt-16"><h2 class="panel-title">控制矩阵</h2><div id="controlMatrix" class="matrix muted">等待结果</div></section>
+
+      <section class="grid grid-2 mt-16">
+        <div class="panel"><h2 class="panel-title">审计程序</h2><div id="auditProgram" class="list dense"><p class="muted">等待结果</p></div></div>
+        <div class="panel"><h2 class="panel-title">抽样计划</h2><div id="samplingPlan" class="list dense"><p class="muted">等待结果</p></div></div>
       </section>
 
+      <section class="panel mt-16"><h2 class="panel-title">审计发现草稿</h2><div id="findings" class="grid grid-2"><p class="muted">等待结果</p></div></section>
+
+      <section class="panel mt-16"><h2 class="panel-title">整改行动计划</h2><div id="recommendations" class="grid grid-3"><p class="muted">等待结果</p></div></section>
+
       <section class="panel mt-16">
-        <h2 class="panel-title">整改行动计划</h2>
-        <div id="recommendations" class="grid grid-3"><p class="muted">等待结果</p></div>
+        <h2 class="panel-title">整改任务跟踪</h2>
+        <div id="remediationTasks" class="list dense"><p class="muted">等待结果</p></div>
       </section>
 
       <section class="grid layout-2 mt-16">
@@ -103,7 +97,7 @@
       </section>
     </main>
   </div>
-  <script src="/static/app.js"></script>
+  <script src="../static/app.js"></script>
   <script>
     let currentRunId = null;
 
@@ -114,28 +108,24 @@
     function renderTaskPlan(tasks) {
       const node = qs("#taskPlan");
       clearNode(node);
-      tasks.forEach((task, index) => {
-        node.appendChild(el("div", { class: "timeline-step" }, [
-          el("div", { class: "step-index", text: String(index + 1) }),
-          el("div", { class: "item compact" }, [
-            el("strong", { text: task.name }),
-            el("div", { class: "muted", text: task.objective }),
-            el("div", { class: "mt-12", text: `负责人：${task.owner}` })
-          ])
-        ]));
-      });
+      tasks.forEach((task, index) => node.appendChild(el("div", { class: "timeline-step" }, [
+        el("div", { class: "step-index", text: String(index + 1) }),
+        el("div", { class: "item compact" }, [
+          el("strong", { text: task.name }),
+          el("div", { class: "muted", text: task.objective }),
+          el("div", { class: "mt-12", text: `负责人：${task.owner}` })
+        ])
+      ])));
     }
 
     function renderEvidence(items) {
       const node = qs("#evidencePack");
       clearNode(node);
-      items.forEach((item) => {
-        node.appendChild(el("div", { class: "item compact" }, [
-          el("strong", { text: `${item.id} · ${item.source}` }),
-          el("p", { class: "muted", text: item.summary }),
-          el("div", { text: `用途：${item.usage}` })
-        ]));
-      });
+      items.forEach((item) => node.appendChild(el("div", { class: "item compact" }, [
+        el("strong", { text: `${item.id} · ${item.source}` }),
+        el("p", { class: "muted", text: item.summary }),
+        el("div", { text: `用途：${item.usage}` })
+      ])));
     }
 
     function renderQuality(quality) {
@@ -147,9 +137,9 @@
       node.appendChild(el("div", { class: "quality" }, [
         ring,
         el("div", {}, [
-          statusBadge(quality.status),
-          el("p", { class: "muted", text: quality.review_note }),
-          el("div", { text: `证据扎实度：${quality.groundedness} · 控制覆盖：${quality.control_coverage}` }),
+          statusBadge(quality.status || "review"),
+          el("p", { class: "muted", text: quality.review_note || "" }),
+          el("div", { text: `证据扎实度：${quality.groundedness || 0} · 控制覆盖：${quality.control_coverage || 0}` }),
           el("div", { class: "mt-12 muted", text: `缺失证据：${(quality.missing_evidence || []).join("、") || "无"}` })
         ])
       ]));
@@ -161,31 +151,106 @@
       const table = el("table");
       table.appendChild(el("thead", {}, [el("tr", {}, ["控制", "领域", "测试程序", "证据要求", "成熟度", "状态"].map((text) => el("th", { text })))]));
       const body = el("tbody");
-      rows.forEach((row) => {
-        body.appendChild(el("tr", {}, [
-          el("td", { text: row.control_id }),
-          el("td", { text: row.domain }),
-          el("td", { text: row.test_procedure }),
-          el("td", { text: row.evidence_required.join("、") }),
-          el("td", { text: String(row.maturity_level) }),
-          el("td", { text: row.status })
-        ]));
-      });
+      rows.forEach((row) => body.appendChild(el("tr", {}, [
+        el("td", { text: row.control_id || row.id }),
+        el("td", { text: row.domain }),
+        el("td", { text: row.test_procedure }),
+        el("td", { text: (row.evidence_required || []).join("、") }),
+        el("td", { text: String(row.maturity_level ?? "-") }),
+        el("td", { text: row.status || row.objective || "" })
+      ])));
       table.appendChild(body);
       node.appendChild(table);
+    }
+
+    function renderAuditProgram(items) {
+      const node = qs("#auditProgram");
+      clearNode(node);
+      if (!items.length) return node.appendChild(el("p", { class: "muted", text: "暂无审计程序" }));
+      items.forEach((item) => node.appendChild(el("div", { class: "item compact" }, [
+        el("strong", { text: `${item.step_id} · ${item.control_id}` }),
+        el("div", { class: "muted", text: item.procedure }),
+        el("div", { class: "mt-12", text: `认定：${item.assertion}` }),
+        el("div", { class: "muted", text: `底稿：${item.workpaper_ref}` })
+      ])));
+    }
+
+    function renderSamplingPlan(plan) {
+      const node = qs("#samplingPlan");
+      clearNode(node);
+      if (!plan || !plan.population) return node.appendChild(el("p", { class: "muted", text: "暂无抽样计划" }));
+      [["总体", plan.population], ["期间", plan.period], ["方法", plan.method], ["样本量", plan.sample_size], ["分层", (plan.strata || []).join("、")], ["例外处理", plan.exception_handling]]
+        .forEach(([label, value]) => node.appendChild(el("div", { class: "item compact" }, [el("strong", { text: label }), el("div", { class: "muted", text: String(value || "") })])));
+    }
+
+    function renderFindings(items) {
+      const node = qs("#findings");
+      clearNode(node);
+      if (!items.length) return node.appendChild(el("p", { class: "muted", text: "当前未形成重大审计发现草稿" }));
+      items.forEach((finding) => node.appendChild(el("div", { class: "card" }, [
+        el("strong", { text: `${finding.finding_id} · ${finding.title}` }),
+        el("p", { class: "muted", text: `严重程度：${finding.severity}` }),
+        el("div", { text: finding.condition }),
+        el("p", { class: "muted", text: `影响：${finding.effect}` }),
+        el("div", { text: `建议：${finding.recommendation}` })
+      ])));
     }
 
     function renderRecommendations(items) {
       const node = qs("#recommendations");
       clearNode(node);
-      items.forEach((rec) => {
-        node.appendChild(el("div", { class: "card" }, [
-          el("strong", { text: `${rec.type} · ${rec.priority}` }),
-          el("p", { class: "muted", text: rec.description }),
-          el("div", { text: rec.action_items.join("；") }),
-          el("div", { class: "mt-12 muted", text: `责任角色：${rec.owner_role} · ${rec.due_days}天 · ${rec.success_metric}` })
+      items.forEach((rec) => node.appendChild(el("div", { class: "card" }, [
+        el("strong", { text: `${rec.type} · ${rec.priority}` }),
+        el("p", { class: "muted", text: rec.description }),
+        el("div", { text: rec.action_items.join("；") }),
+        el("div", { class: "mt-12 muted", text: `责任角色：${rec.owner_role} · ${rec.due_days}天 · ${rec.success_metric}` })
+      ])));
+    }
+
+    function renderTasks(tasks) {
+      const node = qs("#remediationTasks");
+      clearNode(node);
+      if (!tasks || !tasks.length) return node.appendChild(el("p", { class: "muted", text: "暂无整改任务" }));
+      tasks.forEach((task) => {
+        const status = el("select");
+        ["未开始", "进行中", "待验证", "已完成", "已关闭"].forEach((value) => {
+          const option = el("option", { value, text: value });
+          if (value === task.status) option.selected = true;
+          status.appendChild(option);
+        });
+        const owner = el("input", { value: task.owner || "", placeholder: "责任人" });
+        const note = el("input", { placeholder: "更新备注" });
+        const save = el("button", { class: "btn", text: "更新" });
+        save.addEventListener("click", () => updateTask(task.task_id, status.value, owner.value, note.value));
+        node.appendChild(el("div", { class: "item" }, [
+          el("strong", { text: `${task.task_id} · ${task.title} · ${task.priority}` }),
+          el("p", { class: "muted", text: task.description }),
+          el("div", { text: `验收指标：${task.success_metric}` }),
+          el("div", { class: "grid grid-4 mt-12" }, [status, owner, note, save])
         ]));
       });
+    }
+
+    function renderResult(result) {
+      setText("#auditResult", result.response);
+      setText("#riskLevelCard", result.risk_assessment.risk_level);
+      setText("#riskScoreCard", result.risk_assessment.risk_score);
+      setText("#complianceCard", result.compliance_check.compliance_score);
+      setText("#qualityCard", result.quality_gate.confidence);
+      setText("#controlsCard", result.control_matrix.length);
+      renderTaskPlan(result.task_plan || []);
+      renderEvidence(result.evidence_pack || []);
+      renderQuality(result.quality_gate || {});
+      renderMatrix(result.control_matrix || []);
+      renderAuditProgram(result.audit_program || []);
+      renderSamplingPlan(result.sampling_plan || {});
+      renderFindings(result.findings || []);
+      renderRecommendations(result.recommendations || []);
+    }
+
+    function renderRunRecord(record) {
+      renderResult(record.result);
+      renderTasks(record.remediation_tasks || []);
     }
 
     async function loadRuns() {
@@ -193,10 +258,7 @@
       clearNode(node);
       try {
         const data = await apiFetch("/api/audit/runs?limit=10");
-        if (!data.runs.length) {
-          node.appendChild(el("p", { class: "muted", text: "暂无历史" }));
-          return;
-        }
+        if (!data.runs.length) return node.appendChild(el("p", { class: "muted", text: "暂无历史" }));
         data.runs.forEach((run) => {
           const item = el("div", { class: "item compact" }, [
             el("strong", { text: `${run.run_id} · ${run.audit_item || ""}` }),
@@ -213,20 +275,9 @@
 
     async function loadRunDetail(runId) {
       const data = await apiFetch(`/api/audit/runs/${encodeURIComponent(runId)}`);
-      const result = data.run.result;
       currentRunId = runId;
-      qs("#downloadReport").href = `/api/audit/runs/${encodeURIComponent(runId)}/report.md`;
-      setText("#auditResult", result.response);
-      setText("#riskLevelCard", result.risk_assessment.risk_level);
-      setText("#riskScoreCard", result.risk_assessment.risk_score);
-      setText("#complianceCard", result.compliance_check.compliance_score);
-      setText("#qualityCard", result.quality_gate.confidence);
-      setText("#controlsCard", result.control_matrix.length);
-      renderTaskPlan(result.task_plan || []);
-      renderEvidence(result.evidence_pack || []);
-      renderQuality(result.quality_gate || {});
-      renderMatrix(result.control_matrix || []);
-      renderRecommendations(result.recommendations || []);
+      qs("#downloadReport").href = serviceUrl(`/api/audit/runs/${encodeURIComponent(runId)}/report.md`);
+      renderRunRecord(data.run);
     }
 
     qs("#runAudit").addEventListener("click", async () => {
@@ -242,20 +293,10 @@
             risk_level: qs("#riskLevel").value
           })
         });
-        const result = data.result;
         currentRunId = data.run_id;
-        qs("#downloadReport").href = `/api/audit/runs/${encodeURIComponent(currentRunId)}/report.md`;
-        setText("#auditResult", result.response);
-        setText("#riskLevelCard", result.risk_assessment.risk_level);
-        setText("#riskScoreCard", result.risk_assessment.risk_score);
-        setText("#complianceCard", result.compliance_check.compliance_score);
-        setText("#qualityCard", result.quality_gate.confidence);
-        setText("#controlsCard", result.control_matrix.length);
-        renderTaskPlan(result.task_plan || []);
-        renderEvidence(result.evidence_pack || []);
-        renderQuality(result.quality_gate || {});
-        renderMatrix(result.control_matrix || []);
-        renderRecommendations(result.recommendations || []);
+        qs("#downloadReport").href = serviceUrl(`/api/audit/runs/${encodeURIComponent(currentRunId)}/report.md`);
+        renderResult(data.result);
+        loadRunDetail(currentRunId);
         loadRuns();
       } catch (error) {
         setText("#auditResult", `分析失败：${error.message}`);
@@ -264,31 +305,17 @@
 
     qs("#loadControls").addEventListener("click", async () => {
       const data = await apiFetch("/api/audit/controls");
-      renderMatrix(data.controls.map((control) => ({
-        control_id: control.id,
-        domain: control.domain,
-        test_procedure: control.test_procedure,
-        evidence_required: control.evidence_required,
-        maturity_level: "-",
-        status: control.objective
-      })));
+      renderMatrix(data.controls);
     });
 
     qs("#refreshRuns").addEventListener("click", loadRuns);
     qs("#submitReview").addEventListener("click", async () => {
-      if (!currentRunId) {
-        setText("#reviewResult", "请先运行或选择一条审计档案");
-        return;
-      }
+      if (!currentRunId) return setText("#reviewResult", "请先运行或选择一条审计档案");
       try {
         await apiFetch(`/api/audit/runs/${encodeURIComponent(currentRunId)}/review`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            reviewer: qs("#reviewer").value,
-            decision: qs("#reviewDecision").value,
-            comment: qs("#reviewComment").value
-          })
+          body: JSON.stringify({ reviewer: qs("#reviewer").value, decision: qs("#reviewDecision").value, comment: qs("#reviewComment").value })
         });
         setText("#reviewResult", "复核已保存");
         loadRuns();
@@ -296,6 +323,21 @@
         setText("#reviewResult", `复核失败：${error.message}`);
       }
     });
+
+    async function updateTask(taskId, status, owner, note) {
+      if (!currentRunId) return;
+      try {
+        const data = await apiFetch(`/api/audit/runs/${encodeURIComponent(currentRunId)}/tasks/${encodeURIComponent(taskId)}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ status, owner, note })
+        });
+        renderRunRecord(data.run);
+        loadRuns();
+      } catch (error) {
+        setText("#reviewResult", `任务更新失败：${error.message}`);
+      }
+    }
 
     loadRuns();
   </script>

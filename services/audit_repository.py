@@ -26,6 +26,7 @@ class AuditRunRepository:
             "status": "待复核" if result.get("quality_gate", {}).get("escalation_required") else "已生成",
             "request": request,
             "result": result,
+            "remediation_tasks": self._build_remediation_tasks(run_id, result),
             "reviews": [],
         }
         self._write(record)
@@ -78,10 +79,28 @@ class AuditRunRepository:
         self._write(record)
         return record
 
+    def update_task(self, run_id: str, task_id: str, status: str, owner: str = "", note: str = "") -> Optional[Dict[str, Any]]:
+        record = self.get_run(run_id)
+        if not record:
+            return None
+        for task in record.get("remediation_tasks", []):
+            if task.get("task_id") == task_id:
+                task["status"] = status
+                if owner:
+                    task["owner"] = owner
+                if note:
+                    task.setdefault("notes", []).append({"note": note, "at": datetime.now().isoformat()})
+                task["updated_at"] = datetime.now().isoformat()
+                record["updated_at"] = datetime.now().isoformat()
+                self._write(record)
+                return record
+        return None
+
     def render_markdown_report(self, run_id: str) -> Optional[str]:
         record = self.get_run(run_id)
         if not record:
             return None
+
         result = record.get("result", {})
         risk = result.get("risk_assessment", {})
         compliance = result.get("compliance_check", {})
@@ -123,11 +142,55 @@ class AuditRunRepository:
             "| 控制 | 领域 | 成熟度 | 状态 | 测试程序 |",
             "| --- | --- | --- | --- | --- |",
         ]
+
         for control in result.get("control_matrix", []):
             lines.append(
                 f"| {control.get('control_id', '')} | {control.get('domain', '')} | "
                 f"{control.get('maturity_level', '')} | {control.get('status', '')} | "
                 f"{self._clean_table(control.get('test_procedure', ''))} |"
+            )
+
+        lines.extend(["", "## 审计程序", "", "| 步骤 | 控制 | 认定 | 方法 | 底稿索引 |", "| --- | --- | --- | --- | --- |"])
+        for procedure in result.get("audit_program", []):
+            lines.append(
+                f"| {procedure.get('step_id', '')} | {procedure.get('control_id', '')} | "
+                f"{procedure.get('assertion', '')} | {self._clean_table(procedure.get('method', ''))} | "
+                f"{procedure.get('workpaper_ref', '')} |"
+            )
+
+        sampling = result.get("sampling_plan", {})
+        if sampling:
+            lines.extend(
+                [
+                    "",
+                    "## 抽样计划",
+                    "",
+                    f"- 总体：{sampling.get('population', '')}",
+                    f"- 期间：{sampling.get('period', '')}",
+                    f"- 方法：{sampling.get('method', '')}",
+                    f"- 样本量：{sampling.get('sample_size', '')}",
+                    f"- 分层：{'、'.join(sampling.get('strata', []) or [])}",
+                    f"- 例外处理：{sampling.get('exception_handling', '')}",
+                ]
+            )
+
+        lines.extend(["", "## 审计发现草稿", ""])
+        findings = result.get("findings", [])
+        if not findings:
+            lines.append("当前未形成重大审计发现草稿。")
+        for finding in findings:
+            lines.extend(
+                [
+                    f"### {finding.get('finding_id', '')} {finding.get('title', '')}",
+                    "",
+                    f"- 严重程度：{finding.get('severity', '')}",
+                    f"- 现状：{finding.get('condition', '')}",
+                    f"- 标准：{finding.get('criteria', '')}",
+                    f"- 原因：{finding.get('cause', '')}",
+                    f"- 影响：{finding.get('effect', '')}",
+                    f"- 建议：{finding.get('recommendation', '')}",
+                    "",
+                ]
             )
 
         lines.extend(["", "## 整改行动计划", ""])
@@ -146,6 +209,13 @@ class AuditRunRepository:
                 ]
             )
 
+        lines.extend(["", "## 整改任务跟踪", "", "| 任务 | 状态 | 责任人 | 到期天数 | 验收指标 |", "| --- | --- | --- | --- | --- |"])
+        for task in record.get("remediation_tasks", []):
+            lines.append(
+                f"| {task.get('task_id', '')} {task.get('title', '')} | {task.get('status', '')} | "
+                f"{task.get('owner', '')} | {task.get('due_days', '')} | {self._clean_table(task.get('success_metric', ''))} |"
+            )
+
         lines.extend(["## 复核记录", ""])
         reviews = record.get("reviews", [])
         if not reviews:
@@ -157,6 +227,27 @@ class AuditRunRepository:
 
     def _write(self, record: Dict[str, Any]) -> None:
         self._path(record["run_id"]).write_text(json.dumps(record, ensure_ascii=False, indent=2), encoding="utf-8")
+
+    def _build_remediation_tasks(self, run_id: str, result: Dict[str, Any]) -> List[Dict[str, Any]]:
+        tasks = []
+        for index, rec in enumerate(result.get("recommendations", []), start=1):
+            tasks.append(
+                {
+                    "task_id": f"{run_id}-TASK-{index:02d}",
+                    "title": rec.get("type", "整改任务"),
+                    "description": rec.get("description", ""),
+                    "priority": rec.get("priority", "中"),
+                    "owner": rec.get("owner_role", "控制责任人"),
+                    "due_days": rec.get("due_days", 30),
+                    "success_metric": rec.get("success_metric", ""),
+                    "action_items": rec.get("action_items", []),
+                    "status": "未开始",
+                    "created_at": datetime.now().isoformat(),
+                    "updated_at": datetime.now().isoformat(),
+                    "notes": [],
+                }
+            )
+        return tasks
 
     def _path(self, run_id: str) -> Path:
         safe = re.sub(r"[^A-Za-z0-9_-]", "_", run_id)

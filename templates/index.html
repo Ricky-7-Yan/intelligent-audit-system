@@ -1,73 +1,74 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>智能审计 Agent 平台</title>
-  <link rel="stylesheet" href="/static/app.css">
+  <title>鏅鸿兘瀹¤ Agent 骞冲彴</title>
+  <link rel="stylesheet" href="../static/app.css">
 </head>
 <body>
   <div class="app-shell">
     <aside class="sidebar">
-      <div class="brand"><div class="brand-icon">审</div><span>智能审计</span></div>
+      <div class="brand"><div class="brand-icon">瀹?/div><span>鏅鸿兘瀹¤</span></div>
       <nav class="nav-list">
-        <a class="nav-link active" href="/">⌂ <span>总览</span></a>
-        <a class="nav-link" href="/chat">● <span>审计对话</span></a>
-        <a class="nav-link" href="/audit">⌕ <span>审计分析</span></a>
-        <a class="nav-link" href="/knowledge">▦ <span>知识库</span></a>
-        <a class="nav-link" href="/training">□ <span>评估</span></a>
+        <a class="nav-link active" href="/">鈱?<span>鎬昏</span></a>
+        <a class="nav-link" href="/chat">鈼?<span>瀹¤瀵硅瘽</span></a>
+        <a class="nav-link" href="/audit">鈱?<span>瀹¤鍒嗘瀽</span></a>
+        <a class="nav-link" href="/knowledge">鈻?<span>鐭ヨ瘑搴?/span></a>
+        <a class="nav-link" href="/training">鈻?<span>璇勪及</span></a>
       </nav>
-      <div class="sidebar-note">企业级 Agent 能力：规划、检索、工具调用、质量门、可解释结果和人工复核。</div>
+      <div class="sidebar-note">浼佷笟绾?Agent 鑳藉姏锛氳鍒掋€佹绱€佸伐鍏疯皟鐢ㄣ€佽川閲忛棬銆佸彲瑙ｉ噴缁撴灉鍜屼汉宸ュ鏍搞€?/div>
     </aside>
     <main class="main">
       <div class="topbar">
         <div class="page-title">
-          <h1>智能审计 Agent 平台</h1>
-          <p>面向企业审计的任务规划、Agentic RAG、控制矩阵、证据包和整改闭环工作台。</p>
+          <h1>鏅鸿兘瀹¤ Agent 骞冲彴</h1>
+          <p>闈㈠悜浼佷笟瀹¤鐨勪换鍔¤鍒掋€丄gentic RAG銆佹帶鍒剁煩闃点€佽瘉鎹寘鍜屾暣鏀归棴鐜伐浣滃彴銆?/p>
         </div>
-        <div class="status-pill"><span class="status-dot"></span><span id="healthText">加载状态中</span></div>
+        <div class="status-pill"><span class="status-dot"></span><span id="healthText">鍔犺浇鐘舵€佷腑</span></div>
       </div>
 
       <section class="kpi-row">
-        <div class="card metric"><div class="metric-value" id="docCount">0</div><div class="metric-label">知识切片</div></div>
-        <div class="card metric"><div class="metric-value" id="ragMode">-</div><div class="metric-label">检索模式</div></div>
-        <div class="card metric"><div class="metric-value">7</div><div class="metric-label">内置控制项</div></div>
-        <div class="card metric"><div class="metric-value">4</div><div class="metric-label">审计标准</div></div>
-        <div class="card metric"><div class="metric-value">2.1</div><div class="metric-label">当前版本</div></div>
+        <div class="card metric"><div class="metric-value" id="docCount">0</div><div class="metric-label">鐭ヨ瘑鍒囩墖</div></div>
+        <div class="card metric"><div class="metric-value" id="ragMode">-</div><div class="metric-label">妫€绱㈡ā寮?/div></div>
+        <div class="card metric"><div class="metric-value">7</div><div class="metric-label">鍐呯疆鎺у埗椤?/div></div>
+        <div class="card metric"><div class="metric-value">4</div><div class="metric-label">瀹¤鏍囧噯</div></div>
+        <div class="card metric"><div class="metric-value">2.1</div><div class="metric-label">褰撳墠鐗堟湰</div></div>
       </section>
 
       <section class="grid grid-3 mt-16">
         <a class="panel" href="/audit">
-          <h2 class="panel-title">审计分析工作台</h2>
-          <p class="muted">生成任务计划、证据包、控制矩阵、质量门和整改行动计划。</p>
+          <h2 class="panel-title">瀹¤鍒嗘瀽宸ヤ綔鍙?/h2>
+          <p class="muted">鐢熸垚浠诲姟璁″垝銆佽瘉鎹寘銆佹帶鍒剁煩闃点€佽川閲忛棬鍜屾暣鏀硅鍔ㄨ鍒掋€?/p>
         </a>
         <a class="panel" href="/chat">
-          <h2 class="panel-title">多轮审计对话</h2>
-          <p class="muted">用自然语言持续追问审计范围、风险判断和证据缺口。</p>
+          <h2 class="panel-title">澶氳疆瀹¤瀵硅瘽</h2>
+          <p class="muted">鐢ㄨ嚜鐒惰瑷€鎸佺画杩介棶瀹¤鑼冨洿銆侀闄╁垽鏂拰璇佹嵁缂哄彛銆?/p>
         </a>
         <a class="panel" href="/knowledge">
-          <h2 class="panel-title">RAG 知识库</h2>
-          <p class="muted">沉淀制度、流程、底稿和标准文本，支撑可引用回答。</p>
+          <h2 class="panel-title">RAG 鐭ヨ瘑搴?/h2>
+          <p class="muted">娌夋穩鍒跺害銆佹祦绋嬨€佸簳绋垮拰鏍囧噯鏂囨湰锛屾敮鎾戝彲寮曠敤鍥炵瓟銆?/p>
         </a>
       </section>
 
       <section class="panel mt-16">
-        <h2 class="panel-title">新版 Agent 架构</h2>
+        <h2 class="panel-title">鏂扮増 Agent 鏋舵瀯</h2>
         <div class="grid grid-3">
-          <div class="item"><strong>任务规划器</strong><p class="muted">将输入拆解成范围识别、证据检索、控制映射、风险评估和整改计划。</p></div>
-          <div class="item"><strong>证据与质量门</strong><p class="muted">每次审计返回证据包、缺失证据、置信度、控制覆盖和人工复核建议。</p></div>
-          <div class="item"><strong>可降级部署</strong><p class="muted">LLM、MySQL、Neo4j 不可用时仍能基于内置控制库和 RAG fallback 运行。</p></div>
+          <div class="item"><strong>浠诲姟瑙勫垝鍣?/strong><p class="muted">灏嗚緭鍏ユ媶瑙ｆ垚鑼冨洿璇嗗埆銆佽瘉鎹绱€佹帶鍒舵槧灏勩€侀闄╄瘎浼板拰鏁存敼璁″垝銆?/p></div>
+          <div class="item"><strong>璇佹嵁涓庤川閲忛棬</strong><p class="muted">姣忔瀹¤杩斿洖璇佹嵁鍖呫€佺己澶辫瘉鎹€佺疆淇″害銆佹帶鍒惰鐩栧拰浜哄伐澶嶆牳寤鸿銆?/p></div>
+          <div class="item"><strong>鍙檷绾ч儴缃?/strong><p class="muted">LLM銆丮ySQL銆丯eo4j 涓嶅彲鐢ㄦ椂浠嶈兘鍩轰簬鍐呯疆鎺у埗搴撳拰 RAG fallback 杩愯銆?/p></div>
         </div>
       </section>
     </main>
   </div>
-  <script src="/static/app.js"></script>
+  <script src="../static/app.js"></script>
   <script>
     apiFetch("/api/knowledge/stats").then((data) => {
       const stats = data.stats || {};
       setText("#docCount", stats.total_documents || 0);
-      setText("#ragMode", stats.semantic_retrieval ? "向量" : "TF-IDF");
+      setText("#ragMode", stats.semantic_retrieval ? "鍚戦噺" : "TF-IDF");
     }).catch(() => {});
   </script>
 </body>
 </html>
+
