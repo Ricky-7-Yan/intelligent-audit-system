@@ -1,75 +1,68 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>鏅鸿兘瀹¤ Agent 骞冲彴</title>
+  <title>&#26234;&#33021;&#23457;&#35745; Agent &#24179;&#21488; - &#26234;&#33021;&#23457;&#35745; Agent &#24179;&#21488;</title>
   <link rel="stylesheet" href="../static/app.css">
 </head>
 <body>
   <div class="app-shell">
+
     <aside class="sidebar">
-      <div class="brand"><div class="brand-icon">瀹?/div><span>鏅鸿兘瀹¤</span></div>
+      <div class="brand"><div class="brand-icon">&#23457;</div><span>&#26234;&#33021;&#23457;&#35745;</span></div>
       <nav class="nav-list">
-        <a class="nav-link active" href="/">鈱?<span>鎬昏</span></a>
-        <a class="nav-link" href="/chat">鈼?<span>瀹¤瀵硅瘽</span></a>
-        <a class="nav-link" href="/audit">鈱?<span>瀹¤鍒嗘瀽</span></a>
-        <a class="nav-link" href="/knowledge">鈻?<span>鐭ヨ瘑搴?/span></a>
-        <a class="nav-link" href="/training">鈻?<span>璇勪及</span></a>
+        <a class="nav-link active" href="/">&#8962; <span>&#24635;&#35272;</span></a>
+        <a class="nav-link" href="/chat">&#9679; <span>&#23457;&#35745;&#23545;&#35805;</span></a>
+        <a class="nav-link" href="/audit">&#8981; <span>&#23457;&#35745;&#20998;&#26512;</span></a>
+        <a class="nav-link" href="/knowledge">&#9638; <span>&#30693;&#35782;&#24211;</span></a>
+        <a class="nav-link" href="/training">&#9633; <span>&#35780;&#20272;</span></a>
+        <a class="nav-link" href="/skills">&#9671; <span>Skills</span></a>
       </nav>
-      <div class="sidebar-note">浼佷笟绾?Agent 鑳藉姏锛氳鍒掋€佹绱€佸伐鍏疯皟鐢ㄣ€佽川閲忛棬銆佸彲瑙ｉ噴缁撴灉鍜屼汉宸ュ鏍搞€?/div>
+      <div class="sidebar-note">&#20225;&#19994;&#32423; Agent &#33021;&#21147;&#65306;RAG&#12289;Skills&#12289;MCP&#12289;&#36136;&#37327;&#38376;&#21644;&#19994;&#21153;&#38381;&#29615;&#12290;</div>
     </aside>
+
     <main class="main">
       <div class="topbar">
         <div class="page-title">
-          <h1>鏅鸿兘瀹¤ Agent 骞冲彴</h1>
-          <p>闈㈠悜浼佷笟瀹¤鐨勪换鍔¤鍒掋€丄gentic RAG銆佹帶鍒剁煩闃点€佽瘉鎹寘鍜屾暣鏀归棴鐜伐浣滃彴銆?/p>
+          <h1>&#26234;&#33021;&#23457;&#35745; Agent &#24179;&#21488;</h1>
+          <p>&#38754;&#21521;&#20225;&#19994;&#23457;&#35745;&#19982;&#22823;&#27169;&#22411; Agent &#23703;&#20301;&#23637;&#31034;&#30340;&#31471;&#21040;&#31471;&#39033;&#30446;&#12290;</p>
         </div>
-        <div class="status-pill"><span class="status-dot"></span><span id="healthText">鍔犺浇鐘舵€佷腑</span></div>
+        <div class="status-pill"><span class="status-dot"></span><span id="healthText">&#21152;&#36733;&#29366;&#24577;&#20013;</span></div>
       </div>
 
       <section class="kpi-row">
-        <div class="card metric"><div class="metric-value" id="docCount">0</div><div class="metric-label">鐭ヨ瘑鍒囩墖</div></div>
-        <div class="card metric"><div class="metric-value" id="ragMode">-</div><div class="metric-label">妫€绱㈡ā寮?/div></div>
-        <div class="card metric"><div class="metric-value">7</div><div class="metric-label">鍐呯疆鎺у埗椤?/div></div>
-        <div class="card metric"><div class="metric-value">4</div><div class="metric-label">瀹¤鏍囧噯</div></div>
-        <div class="card metric"><div class="metric-value">2.1</div><div class="metric-label">褰撳墠鐗堟湰</div></div>
+        <div class="card metric"><div class="metric-value" id="docCount">0</div><div class="metric-label">&#30693;&#35782;&#20999;&#29255;</div></div>
+        <div class="card metric"><div class="metric-value" id="ragMode">-</div><div class="metric-label">&#26816;&#32034;&#27169;&#24335;</div></div>
+        <div class="card metric"><div class="metric-value">7</div><div class="metric-label">&#20869;&#32622;&#25511;&#21046;&#39033;</div></div>
+        <div class="card metric"><div class="metric-value">7</div><div class="metric-label">Skills</div></div>
+        <div class="card metric"><div class="metric-value">2.4.0</div><div class="metric-label">&#24403;&#21069;&#29256;&#26412;</div></div>
       </section>
-
       <section class="grid grid-3 mt-16">
-        <a class="panel" href="/audit">
-          <h2 class="panel-title">瀹¤鍒嗘瀽宸ヤ綔鍙?/h2>
-          <p class="muted">鐢熸垚浠诲姟璁″垝銆佽瘉鎹寘銆佹帶鍒剁煩闃点€佽川閲忛棬鍜屾暣鏀硅鍔ㄨ鍒掋€?/p>
-        </a>
-        <a class="panel" href="/chat">
-          <h2 class="panel-title">澶氳疆瀹¤瀵硅瘽</h2>
-          <p class="muted">鐢ㄨ嚜鐒惰瑷€鎸佺画杩介棶瀹¤鑼冨洿銆侀闄╁垽鏂拰璇佹嵁缂哄彛銆?/p>
-        </a>
-        <a class="panel" href="/knowledge">
-          <h2 class="panel-title">RAG 鐭ヨ瘑搴?/h2>
-          <p class="muted">娌夋穩鍒跺害銆佹祦绋嬨€佸簳绋垮拰鏍囧噯鏂囨湰锛屾敮鎾戝彲寮曠敤鍥炵瓟銆?/p>
-        </a>
+        <a class="panel" href="/audit"><h2 class="panel-title">&#23457;&#35745;&#20998;&#26512;&#24037;&#20316;&#21488;</h2><p class="muted">&#29983;&#25104;&#20219;&#21153;&#35745;&#21010;&#12289;&#35777;&#25454;&#21253;&#12289;&#25511;&#21046;&#30697;&#38453;&#12289;&#36136;&#37327;&#38376;&#12289;&#23457;&#35745;&#31243;&#24207;&#12289;&#25277;&#26679;&#35745;&#21010;&#21644;&#25972;&#25913;&#20219;&#21153;&#12290;</p></a>
+        <a class="panel" href="/skills"><h2 class="panel-title">Skills / MCP</h2><p class="muted">&#23637;&#31034;&#21487;&#27880;&#20876;&#12289;&#21487;&#25551;&#36848;&#12289;&#21487;&#23457;&#35745;&#30340;&#24037;&#20855;&#33021;&#21147;&#21644; MCP &#39118;&#26684;&#24037;&#20855;&#28165;&#21333;&#12290;</p></a>
+        <a class="panel" href="/knowledge"><h2 class="panel-title">&#20225;&#19994;&#30693;&#35782;&#24211;</h2><p class="muted">&#27785;&#28096;&#21046;&#24230;&#12289;&#26631;&#20934;&#12289;&#24213;&#31295;&#21644;&#27969;&#31243;&#25991;&#26412;&#65292;&#25903;&#25745;&#21487;&#24341;&#29992; RAG &#22238;&#31572;&#12290;</p></a>
       </section>
-
       <section class="panel mt-16">
-        <h2 class="panel-title">鏂扮増 Agent 鏋舵瀯</h2>
+        <h2 class="panel-title">&#38754;&#21521;&#30495;&#23454; JD &#30340;&#33021;&#21147;&#35206;&#30422;</h2>
         <div class="grid grid-3">
-          <div class="item"><strong>浠诲姟瑙勫垝鍣?/strong><p class="muted">灏嗚緭鍏ユ媶瑙ｆ垚鑼冨洿璇嗗埆銆佽瘉鎹绱€佹帶鍒舵槧灏勩€侀闄╄瘎浼板拰鏁存敼璁″垝銆?/p></div>
-          <div class="item"><strong>璇佹嵁涓庤川閲忛棬</strong><p class="muted">姣忔瀹¤杩斿洖璇佹嵁鍖呫€佺己澶辫瘉鎹€佺疆淇″害銆佹帶鍒惰鐩栧拰浜哄伐澶嶆牳寤鸿銆?/p></div>
-          <div class="item"><strong>鍙檷绾ч儴缃?/strong><p class="muted">LLM銆丮ySQL銆丯eo4j 涓嶅彲鐢ㄦ椂浠嶈兘鍩轰簬鍐呯疆鎺у埗搴撳拰 RAG fallback 杩愯銆?/p></div>
+          <div class="item"><strong>Agent Platform</strong><p class="muted">&#35268;&#21010;&#12289;&#24037;&#20855;&#35843;&#29992;&#12289;&#35760;&#24518;&#12289;&#36136;&#37327;&#38376;&#12289;&#20154;&#24037;&#22797;&#26680;&#21644;&#21487;&#35266;&#27979;&#25191;&#34892;&#36712;&#36857;&#12290;</p></div>
+          <div class="item"><strong>Skill / MCP</strong><p class="muted">Skill &#27880;&#20876;&#12289;&#36755;&#20837; Schema&#12289;&#26435;&#38480;&#22768;&#26126;&#12289;&#35843;&#29992;&#26085;&#24535;&#21644; MCP &#39118;&#26684;&#24037;&#20855;&#25551;&#36848;&#12290;</p></div>
+          <div class="item"><strong>RAG Evaluation</strong><p class="muted">&#28151;&#21512;&#26816;&#32034;&#12289;&#26469;&#28304;&#24341;&#29992;&#12289;&#22522;&#20934;&#35780;&#27979;&#21644;&#20225;&#19994;&#23457;&#35745;&#30693;&#35782;&#22686;&#24378;&#12290;</p></div>
         </div>
       </section>
+
     </main>
   </div>
   <script src="../static/app.js"></script>
+
   <script>
-    apiFetch("/api/knowledge/stats").then((data) => {
+    apiFetch('/api/knowledge/stats').then((data) => {
       const stats = data.stats || {};
-      setText("#docCount", stats.total_documents || 0);
-      setText("#ragMode", stats.semantic_retrieval ? "鍚戦噺" : "TF-IDF");
+      setText('#docCount', stats.total_documents || 0);
+      setText('#ragMode', stats.semantic_retrieval ? '&#21521;&#37327;' : 'TF-IDF');
     }).catch(() => {});
   </script>
+
 </body>
 </html>
-
-

@@ -31,7 +31,127 @@
         "source": "builtin:DataSecurity",
         "type": "standard"
       }
+    },
+    {
+      "id": "aee7235cff50adb9ec055587",
+      "content": "NIST Cybersecurity Framework 2.0 can be used as an audit structure around Govern, Identify, Protect, Detect, Respond and Recover. For enterprise audit work, useful evidence includes governance charters, risk appetite statements, asset inventories, access control policy, security monitoring records, incident response playbooks, recovery test results and management review minutes. The audit conclusion should connect each observation to business impact, control ownership, evidence quality and remediation priority.",
+      "metadata": {
+        "source": "seed:NIST-CSF-2.0",
+        "type": "framework",
+        "title": "NIST CSF 2.0 audit themes",
+        "seed": true
+      }
+    },
+    {
+      "id": "392b2b4e12e2ae86a718f7d4",
+      "content": "NIST SP 800-53 groups controls into families such as access control, audit and accountability, configuration management, contingency planning, identification and authentication, incident response, risk assessment, system and communications protection, and supply chain risk management. Audit tests should map the control family to concrete procedures: inspect policy, sample approvals, reperform configuration checks, review logs, verify exception handling and trace evidence to responsible owners.",
+      "metadata": {
+        "source": "seed:NIST-SP-800-53",
+        "type": "framework",
+        "title": "NIST SP 800-53 control families",
+        "seed": true
+      }
+    },
+    {
+      "id": "df52e4480755a56327ca9675",
+      "content": "CIS Controls v8 emphasizes inventory of enterprise assets, inventory of software assets, data protection, secure configuration, account management, access control management, continuous vulnerability management, audit log management, email and web browser protections, malware defenses, data recovery, network infrastructure management, security awareness, service provider management, application software security, incident response and penetration testing. Audit evidence should include inventory exports, baseline configuration, vulnerability tickets, log retention settings, backup recovery proof and remediation closure records.",
+      "metadata": {
+        "source": "seed:CIS-Controls-v8",
+        "type": "framework",
+        "title": "CIS Controls v8 audit themes",
+        "seed": true
+      }
+    },
+    {
+      "id": "123cba565c0b6343c5399eec",
+      "content": "ISO 27001 audits should evaluate whether the organization has established an information security management system with defined scope, risk assessment method, risk treatment plan, statement of applicability, operating controls, monitoring, internal audit and management review. Evidence should demonstrate that risks are identified, controls are selected for a reason, owners are assigned, exceptions are approved, incidents are recorded and continual improvement is tracked.",
+      "metadata": {
+        "source": "seed:ISO27001-ISMS",
+        "type": "standard",
+        "title": "ISO 27001 ISMS audit approach",
+        "seed": true
+      }
+    },
+    {
+      "id": "38d2a3d9de81e5069df09278",
+      "content": "COBIT 2019 is useful for IT governance and management audits. It links enterprise goals to governance objectives, management practices, process ownership, performance metrics, risk optimization and resource optimization. Audit work should verify whether decision rights are defined, key processes have owners, service and risk metrics are monitored, control activities are evidenced and issues are escalated through governance forums.",
+      "metadata": {
+        "source": "seed:COBIT-2019",
+        "type": "standard",
+        "title": "COBIT 2019 governance audit approach",
+        "seed": true
+      }
+    },
+    {
+      "id": "c8f7c37e789c78458a070a9e",
+      "content": "SOX ITGC work for financial reporting systems commonly covers access to programs and data, program change management, computer operations and interface controls. For access controls, auditors inspect user provisioning, termination, privileged accounts and periodic access review. For changes, auditors sample change tickets, approval records, test evidence, deployment logs and rollback plans. For operations, auditors review job monitoring, backup success, incident handling and batch reconciliation.",
+      "metadata": {
+        "source": "seed:SOX-ITGC",
+        "type": "control",
+        "title": "SOX IT general controls",
+        "seed": true
+      }
+    },
+    {
+      "id": "d1e1d6ade8f110eb737b9443",
+      "content": "ERP permission audits should start with a population of active users, privileged users, finance roles, role assignment history and approval records. Key tests include user lifecycle sampling, segregation of duties conflict analysis, privileged account review, emergency account review, periodic recertification, dormant account detection and review of direct database access. Findings should separate design gaps from operating exceptions and should include affected users, systems, periods, evidence references and business impact.",
+      "metadata": {
+        "source": "seed:ERP-access-audit",
+        "type": "procedure",
+        "title": "ERP access audit procedure",
+        "seed": true
+      }
+    },
+    {
+      "id": "c64b89e0554c56c1c8cb8857",
+      "content": "Data security and personal information protection audits should evaluate data classification and grading, data inventory, lawful processing basis, minimization, consent or authorization records, sensitive data access approval, encryption, masking, cross-border transfer controls, third-party sharing approval, retention and deletion, security incident response and audit logging. Evidence should show accountable owners, approved processes, technical safeguards and traceable records.",
+      "metadata": {
+        "source": "seed:data-security-China",
+        "type": "regulation",
+        "title": "China data security and personal information audit themes",
+        "seed": true
+      }
+    },
+    {
+      "id": "bc6ab66e64f15737901d9e15",
+      "content": "Enterprise Agent engineering roles often require LLM application development, tool calling, multi-step planning, memory, RAG, evaluation, prompt and data iteration, model service integration, observability, safety guardrails and production deployment. A strong project should expose tools with schemas, keep execution traces, evaluate retrieval and answer quality, support human review, preserve audit logs and degrade gracefully when external model services are unavailable.",
+      "metadata": {
+        "source": "seed:agent-platform-jd",
+        "type": "jd_mapping",
+        "title": "Enterprise Agent platform engineering requirements",
+        "seed": true
+      }
+    },
+    {
+      "id": "3ce01e08bc1080e7adf9340f",
+      "content": "Skill based Agent architecture packages reusable capabilities as named tools with input schema, permission declaration, version, execution record and deterministic fallback. MCP style tool descriptions make capabilities discoverable by an Agent client and separate tool invocation from business logic. For audit Agents, useful skills include scope planning, evidence checklist generation, control mapping, RAG query, finding drafting, remediation task creation and report export.",
+      "metadata": {
+        "source": "seed:mcp-skill-agent",
+        "type": "architecture",
+        "title": "Skill and MCP style tool architecture",
+        "seed": true
+      }
+    },
+    {
+      "id": "e8dcad1c4c89db28163a7583",
+      "content": "RAG evaluation should measure retrieval relevance, source coverage, answer faithfulness, answer completeness, citation quality and robustness to ambiguous questions. Practical benchmark cases should include ISO 27001 access control, SOX ITGC, data security, COBIT governance, incident response, backup recovery and change management. Low confidence answers should trigger evidence gap warnings or human review instead of unsupported conclusions.",
+      "metadata": {
+        "source": "seed:rag-evaluation",
+        "type": "evaluation",
+        "title": "RAG quality evaluation",
+        "seed": true
+      }
+    },
+    {
+      "id": "15e9ca3ff813bc087ea462a1",
+      "content": "A defensible audit finding should include condition, criteria, cause, effect and recommendation. The condition states what was observed, criteria explains the expected control or standard, cause identifies why the gap occurred, effect explains risk or business impact, and recommendation defines concrete remediation. Each finding should cite evidence, responsible owner, severity, due date and validation method.",
+      "metadata": {
+        "source": "seed:audit-findings",
+        "type": "workpaper",
+        "title": "Audit finding five elements",
+        "seed": true
+      }
     }
   ],
-  "updated_at": "2026-06-15T00:30:19.773733"
+  "updated_at": "2026-06-15T23:01:44.882413"
 }

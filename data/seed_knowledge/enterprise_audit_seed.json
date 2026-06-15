@@ -1,0 +1,74 @@
+[
+  {
+    "source": "seed:NIST-CSF-2.0",
+    "type": "framework",
+    "title": "NIST CSF 2.0 audit themes",
+    "text": "NIST Cybersecurity Framework 2.0 can be used as an audit structure around Govern, Identify, Protect, Detect, Respond and Recover. For enterprise audit work, useful evidence includes governance charters, risk appetite statements, asset inventories, access control policy, security monitoring records, incident response playbooks, recovery test results and management review minutes. The audit conclusion should connect each observation to business impact, control ownership, evidence quality and remediation priority."
+  },
+  {
+    "source": "seed:NIST-SP-800-53",
+    "type": "framework",
+    "title": "NIST SP 800-53 control families",
+    "text": "NIST SP 800-53 groups controls into families such as access control, audit and accountability, configuration management, contingency planning, identification and authentication, incident response, risk assessment, system and communications protection, and supply chain risk management. Audit tests should map the control family to concrete procedures: inspect policy, sample approvals, reperform configuration checks, review logs, verify exception handling and trace evidence to responsible owners."
+  },
+  {
+    "source": "seed:CIS-Controls-v8",
+    "type": "framework",
+    "title": "CIS Controls v8 audit themes",
+    "text": "CIS Controls v8 emphasizes inventory of enterprise assets, inventory of software assets, data protection, secure configuration, account management, access control management, continuous vulnerability management, audit log management, email and web browser protections, malware defenses, data recovery, network infrastructure management, security awareness, service provider management, application software security, incident response and penetration testing. Audit evidence should include inventory exports, baseline configuration, vulnerability tickets, log retention settings, backup recovery proof and remediation closure records."
+  },
+  {
+    "source": "seed:ISO27001-ISMS",
+    "type": "standard",
+    "title": "ISO 27001 ISMS audit approach",
+    "text": "ISO 27001 audits should evaluate whether the organization has established an information security management system with defined scope, risk assessment method, risk treatment plan, statement of applicability, operating controls, monitoring, internal audit and management review. Evidence should demonstrate that risks are identified, controls are selected for a reason, owners are assigned, exceptions are approved, incidents are recorded and continual improvement is tracked."
+  },
+  {
+    "source": "seed:COBIT-2019",
+    "type": "standard",
+    "title": "COBIT 2019 governance audit approach",
+    "text": "COBIT 2019 is useful for IT governance and management audits. It links enterprise goals to governance objectives, management practices, process ownership, performance metrics, risk optimization and resource optimization. Audit work should verify whether decision rights are defined, key processes have owners, service and risk metrics are monitored, control activities are evidenced and issues are escalated through governance forums."
+  },
+  {
+    "source": "seed:SOX-ITGC",
+    "type": "control",
+    "title": "SOX IT general controls",
+    "text": "SOX ITGC work for financial reporting systems commonly covers access to programs and data, program change management, computer operations and interface controls. For access controls, auditors inspect user provisioning, termination, privileged accounts and periodic access review. For changes, auditors sample change tickets, approval records, test evidence, deployment logs and rollback plans. For operations, auditors review job monitoring, backup success, incident handling and batch reconciliation."
+  },
+  {
+    "source": "seed:ERP-access-audit",
+    "type": "procedure",
+    "title": "ERP access audit procedure",
+    "text": "ERP permission audits should start with a population of active users, privileged users, finance roles, role assignment history and approval records. Key tests include user lifecycle sampling, segregation of duties conflict analysis, privileged account review, emergency account review, periodic recertification, dormant account detection and review of direct database access. Findings should separate design gaps from operating exceptions and should include affected users, systems, periods, evidence references and business impact."
+  },
+  {
+    "source": "seed:data-security-China",
+    "type": "regulation",
+    "title": "China data security and personal information audit themes",
+    "text": "Data security and personal information protection audits should evaluate data classification and grading, data inventory, lawful processing basis, minimization, consent or authorization records, sensitive data access approval, encryption, masking, cross-border transfer controls, third-party sharing approval, retention and deletion, security incident response and audit logging. Evidence should show accountable owners, approved processes, technical safeguards and traceable records."
+  },
+  {
+    "source": "seed:agent-platform-jd",
+    "type": "jd_mapping",
+    "title": "Enterprise Agent platform engineering requirements",
+    "text": "Enterprise Agent engineering roles often require LLM application development, tool calling, multi-step planning, memory, RAG, evaluation, prompt and data iteration, model service integration, observability, safety guardrails and production deployment. A strong project should expose tools with schemas, keep execution traces, evaluate retrieval and answer quality, support human review, preserve audit logs and degrade gracefully when external model services are unavailable."
+  },
+  {
+    "source": "seed:mcp-skill-agent",
+    "type": "architecture",
+    "title": "Skill and MCP style tool architecture",
+    "text": "Skill based Agent architecture packages reusable capabilities as named tools with input schema, permission declaration, version, execution record and deterministic fallback. MCP style tool descriptions make capabilities discoverable by an Agent client and separate tool invocation from business logic. For audit Agents, useful skills include scope planning, evidence checklist generation, control mapping, RAG query, finding drafting, remediation task creation and report export."
+  },
+  {
+    "source": "seed:rag-evaluation",
+    "type": "evaluation",
+    "title": "RAG quality evaluation",
+    "text": "RAG evaluation should measure retrieval relevance, source coverage, answer faithfulness, answer completeness, citation quality and robustness to ambiguous questions. Practical benchmark cases should include ISO 27001 access control, SOX ITGC, data security, COBIT governance, incident response, backup recovery and change management. Low confidence answers should trigger evidence gap warnings or human review instead of unsupported conclusions."
+  },
+  {
+    "source": "seed:audit-findings",
+    "type": "workpaper",
+    "title": "Audit finding five elements",
+    "text": "A defensible audit finding should include condition, criteria, cause, effect and recommendation. The condition states what was observed, criteria explains the expected control or standard, cause identifies why the gap occurred, effect explains risk or business impact, and recommendation defines concrete remediation. Each finding should cite evidence, responsible owner, severity, due date and validation method."
+  }
+]

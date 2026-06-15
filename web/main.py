@@ -18,7 +18,7 @@ from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel, Field
 
 from agents.audit_agent import AuditAgent, CONTROL_LIBRARY
-from config import PATHS, WEB_CONFIG
+from config import LLM_CONFIG, PATHS, WEB_CONFIG
 from knowledge_graph.builder import KnowledgeGraphBuilder
 from services.audit_repository import AuditRunRepository
 from services.rag_evaluator import RAGEvaluator
@@ -52,7 +52,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="智能审计 Agent 平台",
     description="面向审计场景的 Agentic RAG、风险评估和合规分析系统",
-    version="2.3.0",
+    version="2.4.0",
     lifespan=lifespan,
 )
 
@@ -367,13 +367,24 @@ async def get_session_history(session_id: str, agent: AuditAgent = Depends(get_a
 
 
 @app.get("/api/health")
-async def health_check(agent: AuditAgent = Depends(get_audit_agent), rag=Depends(get_rag_pipeline)):
+async def health_check():
+    services = {
+        "llm": bool(LLM_CONFIG.get("enabled")),
+        "mysql": False,
+        "neo4j": False,
+        "rag": rag_pipeline is not None,
+        "rag_documents": 0,
+    }
+    if audit_agent is not None:
+        services.update(audit_agent.get_service_status())
+    if rag_pipeline is not None:
+        services["rag_documents"] = rag_pipeline.get_statistics().get("total_documents", 0)
     return JSONResponse(
         content={
             "status": "healthy",
             "timestamp": datetime.now().isoformat(),
-            "version": "2.3.0",
-            "services": {**agent.get_service_status(), "rag_documents": rag.get_statistics().get("total_documents", 0)},
+            "version": "2.4.0",
+            "services": services,
         }
     )
 

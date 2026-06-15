@@ -27,6 +27,7 @@ data/**/*.sqlite
 data/**/*.sqlite3
 data/**/*.db
 data/audit_runs/
+data/skill_runs/
 data/uploads/
 
 # Large local model artifacts

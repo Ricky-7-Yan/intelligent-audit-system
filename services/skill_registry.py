@@ -156,6 +156,59 @@ class SkillRegistry:
                 handler=self._rag_query,
             )
         )
+        self._register(
+            Skill(
+                name="audit.control_mapper",
+                title="控制矩阵映射",
+                description="根据风险主题、标准和审计对象生成可执行控制测试矩阵。",
+                input_schema={
+                    "type": "object",
+                    "properties": {
+                        "audit_item": {"type": "string"},
+                        "standard": {"type": "string"},
+                        "risk_topics": {"type": "array", "items": {"type": "string"}},
+                    },
+                    "required": ["audit_item"],
+                },
+                permissions=["read:controls", "write:workpaper"],
+                handler=self._control_mapper,
+            )
+        )
+        self._register(
+            Skill(
+                name="agent.eval_case_designer",
+                title="Agent 评测用例设计",
+                description="面向 Agent / RAG / 工具调用场景生成可落地的评测用例。",
+                input_schema={
+                    "type": "object",
+                    "properties": {
+                        "scenario": {"type": "string"},
+                        "capabilities": {"type": "array", "items": {"type": "string"}},
+                    },
+                    "required": ["scenario"],
+                },
+                permissions=["write:evaluation"],
+                handler=self._eval_case_designer,
+            )
+        )
+        self._register(
+            Skill(
+                name="audit.remediation_planner",
+                title="整改任务生成",
+                description="把审计发现转化为责任人、到期时间、验收指标和跟踪状态。",
+                input_schema={
+                    "type": "object",
+                    "properties": {
+                        "finding": {"type": "string"},
+                        "severity": {"type": "string"},
+                        "owner_role": {"type": "string"},
+                    },
+                    "required": ["finding"],
+                },
+                permissions=["write:tasks"],
+                handler=self._remediation_planner,
+            )
+        )
 
     def _scope_planner(self, payload: Dict[str, Any]) -> Dict[str, Any]:
         item = payload.get("audit_item", "待审计对象")
@@ -194,3 +247,54 @@ class SkillRegistry:
         from rag.agentic_rag import RAGPipeline
 
         return RAGPipeline().query(payload["question"])
+
+    def _control_mapper(self, payload: Dict[str, Any]) -> Dict[str, Any]:
+        item = payload.get("audit_item", "待审计对象")
+        standard = payload.get("standard", "ISO27001")
+        topics = payload.get("risk_topics") or ["权限", "变更", "日志"]
+        controls = []
+        for index, topic in enumerate(topics, start=1):
+            controls.append(
+                {
+                    "control_id": f"MAP-{index:02d}",
+                    "domain": topic,
+                    "objective": f"确认{item}在{topic}领域满足{standard}相关控制要求",
+                    "test_procedure": "检查制度设计、抽样验证执行记录、复核例外审批并追踪整改闭环",
+                    "evidence_required": ["制度或流程文件", "审批记录", "系统配置截图", "抽样底稿", "复核记录"],
+                    "quality_rule": "每项控制至少需要一项设计证据和一项运行证据，否则进入人工复核",
+                }
+            )
+        return {"audit_item": item, "standard": standard, "control_matrix": controls}
+
+    def _eval_case_designer(self, payload: Dict[str, Any]) -> Dict[str, Any]:
+        scenario = payload.get("scenario", "企业审计 Agent")
+        capabilities = payload.get("capabilities") or ["RAG", "工具调用", "质量门", "人工复核"]
+        cases = []
+        for index, capability in enumerate(capabilities, start=1):
+            cases.append(
+                {
+                    "case_id": f"EVAL-{index:02d}",
+                    "capability": capability,
+                    "question": f"在{scenario}中验证{capability}能力是否可用",
+                    "expected_terms": ["证据", "来源", "风险", "结论"],
+                    "pass_rule": "回答必须引用来源、给出风险判断，并说明缺失证据或人工复核条件",
+                }
+            )
+        return {"scenario": scenario, "cases": cases, "metrics": ["retrieval_relevance", "faithfulness", "tool_success", "human_review_trigger"]}
+
+    def _remediation_planner(self, payload: Dict[str, Any]) -> Dict[str, Any]:
+        severity = payload.get("severity", "中")
+        due_days = 7 if severity == "高" else 14 if severity == "中" else 30
+        return {
+            "title": payload.get("finding", "审计发现整改"),
+            "owner_role": payload.get("owner_role", "控制责任人"),
+            "due_days": due_days,
+            "tasks": [
+                "确认影响范围和责任人",
+                "补齐控制设计和运行证据",
+                "完成例外审批或权限清理",
+                "由审计或内控团队复核关闭",
+            ],
+            "acceptance_criteria": "整改证据完整、抽样无重大例外、复核意见已记录",
+            "status_flow": ["未开始", "进行中", "待验证", "已完成", "已关闭"],
+        }

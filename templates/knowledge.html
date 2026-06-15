@@ -1,129 +1,61 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>鐭ヨ瘑搴?- 鏅鸿兘瀹¤ Agent 骞冲彴</title>
+  <title>&#30693;&#35782;&#24211; - &#26234;&#33021;&#23457;&#35745; Agent &#24179;&#21488;</title>
   <link rel="stylesheet" href="../static/app.css">
 </head>
 <body>
   <div class="app-shell">
+
     <aside class="sidebar">
-      <div class="brand"><div class="brand-icon">瀹?/div><span>鏅鸿兘瀹¤</span></div>
+      <div class="brand"><div class="brand-icon">&#23457;</div><span>&#26234;&#33021;&#23457;&#35745;</span></div>
       <nav class="nav-list">
-        <a class="nav-link" href="/">鈱?<span>鎬昏</span></a>
-        <a class="nav-link" href="/chat">鈼?<span>瀹¤瀵硅瘽</span></a>
-        <a class="nav-link" href="/audit">鈱?<span>瀹¤鍒嗘瀽</span></a>
-        <a class="nav-link active" href="/knowledge">鈻?<span>鐭ヨ瘑搴?/span></a>
-        <a class="nav-link" href="/training">鈻?<span>璇勪及</span></a>
+        <a class="nav-link" href="/">&#8962; <span>&#24635;&#35272;</span></a>
+        <a class="nav-link" href="/chat">&#9679; <span>&#23457;&#35745;&#23545;&#35805;</span></a>
+        <a class="nav-link" href="/audit">&#8981; <span>&#23457;&#35745;&#20998;&#26512;</span></a>
+        <a class="nav-link active" href="/knowledge">&#9638; <span>&#30693;&#35782;&#24211;</span></a>
+        <a class="nav-link" href="/training">&#9633; <span>&#35780;&#20272;</span></a>
+        <a class="nav-link" href="/skills">&#9671; <span>Skills</span></a>
       </nav>
-      <div class="sidebar-note">鐭ヨ瘑搴撴敮鎸佸埗搴︺€佸簳绋裤€佹帶鍒舵弿杩般€佹爣鍑嗘潯娆惧拰鏃ュ織鏂囨湰銆?/div>
+      <div class="sidebar-note">&#30693;&#35782;&#24211;&#25903;&#25345;&#21046;&#24230;&#12289;&#24213;&#31295;&#12289;&#25511;&#21046;&#25551;&#36848;&#12289;&#26631;&#20934;&#26465;&#27454;&#21644;&#26085;&#24535;&#25991;&#26412;&#12290;</div>
     </aside>
+
     <main class="main">
       <div class="topbar">
         <div class="page-title">
-          <h1>鐭ヨ瘑搴?/h1>
-          <p>缁存姢瀹¤鍒跺害銆佸簳绋裤€佹爣鍑嗗拰娴佺▼鏂囨湰锛屼緵 RAG 妫€绱㈠寮轰娇鐢ㄣ€?/p>
+          <h1>&#30693;&#35782;&#24211;</h1>
+          <p>&#32500;&#25252;&#23457;&#35745;&#21046;&#24230;&#12289;&#24213;&#31295;&#12289;&#26631;&#20934;&#21644;&#27969;&#31243;&#25991;&#26412;&#65292;&#20379; RAG &#26816;&#32034;&#22686;&#24378;&#20351;&#29992;&#12290;</p>
         </div>
-        <div class="status-pill"><span class="status-dot"></span><span id="healthText">鍔犺浇鐘舵€佷腑</span></div>
+        <div class="status-pill"><span class="status-dot"></span><span id="healthText">&#21152;&#36733;&#29366;&#24577;&#20013;</span></div>
       </div>
 
       <section class="grid layout-2">
         <div class="panel">
-          <h2 class="panel-title">娣诲姞鐭ヨ瘑</h2>
-          <div class="field"><label>鐭ヨ瘑鍐呭</label><textarea id="knowledgeText" rows="8" placeholder="绮樿创瀹¤鍒跺害銆佹帶鍒舵弿杩般€佹爣鍑嗘潯娆炬垨瀹¤搴曠鎽樿"></textarea></div>
-          <div class="grid grid-2 mt-12">
-            <div class="field"><label>鏉ユ簮</label><input id="knowledgeSource" placeholder="渚嬪锛氭潈闄愮鐞嗗埗搴?V1.2"></div>
-            <div class="field"><label>绫诲瀷</label><input id="knowledgeType" value="manual"></div>
-          </div>
-          <button class="btn primary mt-16" id="addKnowledge">鍐欏叆鐭ヨ瘑搴?/button>
-          <div id="addResult" class="muted mt-12"></div>
+          <h2 class="panel-title">&#28155;&#21152;&#30693;&#35782;</h2>
+          <div class="field"><label>&#30693;&#35782;&#20869;&#23481;</label><textarea id="knowledgeText" rows="8" placeholder="&#31896;&#36148;&#23457;&#35745;&#21046;&#24230;&#12289;&#25511;&#21046;&#25551;&#36848;&#12289;&#26631;&#20934;&#26465;&#27454;&#25110;&#23457;&#35745;&#24213;&#31295;&#25688;&#35201;"></textarea></div>
+          <div class="grid grid-2 mt-12"><div class="field"><label>&#26469;&#28304;</label><input id="knowledgeSource" placeholder="&#20363;&#22914;&#65306;&#26435;&#38480;&#31649;&#29702;&#21046;&#24230; V1.2"></div><div class="field"><label>&#31867;&#22411;</label><input id="knowledgeType" value="manual"></div></div>
+          <button class="btn primary mt-16" id="addKnowledge">&#20889;&#20837;&#30693;&#35782;&#24211;</button><div id="addResult" class="muted mt-12"></div>
         </div>
         <div class="panel">
-          <h2 class="panel-title">涓婁紶鏂囨湰鏂囦欢</h2>
-          <input type="file" id="fileInput" accept=".txt,.md,.csv,.json,.log">
-          <button class="btn mt-16" id="uploadFile">涓婁紶骞跺垏鍧?/button>
-          <div id="uploadResult" class="muted mt-12"></div>
-          <div class="item mt-16">
-            <strong>鐭ヨ瘑搴撶粺璁?/strong>
-            <p class="muted" id="statsText">鍔犺浇涓?/p>
-          </div>
+          <h2 class="panel-title">&#19978;&#20256;&#25991;&#26412;&#25991;&#20214;</h2><input type="file" id="fileInput" accept=".txt,.md,.csv,.json,.log"><button class="btn mt-16" id="uploadFile">&#19978;&#20256;&#24182;&#20999;&#22359;</button><div id="uploadResult" class="muted mt-12"></div>
+          <div class="item mt-16"><strong>&#30693;&#35782;&#24211;&#32479;&#35745;</strong><p class="muted" id="statsText">&#21152;&#36733;&#20013;</p></div>
         </div>
       </section>
+      <section class="panel mt-16"><h2 class="panel-title">&#26816;&#32034;&#27979;&#35797;</h2><div class="toolbar stretch"><input id="searchQuery" placeholder="&#20363;&#22914;&#65306;SOX &#36130;&#21153;&#31995;&#32479;&#20869;&#37096;&#25511;&#21046;&#37325;&#28857;"><button class="btn primary" id="searchBtn">&#26816;&#32034;</button></div><div id="searchResults" class="list mt-16"><p class="muted">&#36755;&#20837;&#38382;&#39064;&#21518;&#26597;&#30475; RAG &#31572;&#26696;&#21644;&#26469;&#28304;&#12290;</p></div></section>
 
-      <section class="panel mt-16">
-        <h2 class="panel-title">妫€绱㈡祴璇?/h2>
-        <div class="toolbar stretch">
-          <input id="searchQuery" placeholder="渚嬪锛歋OX 璐㈠姟绯荤粺鍐呴儴鎺у埗閲嶇偣">
-          <button class="btn primary" id="searchBtn">妫€绱?/button>
-        </div>
-        <div id="searchResults" class="list mt-16"><p class="muted">杈撳叆闂鍚庢煡鐪?RAG 绛旀鍜屾潵婧愩€?/p></div>
-      </section>
     </main>
   </div>
   <script src="../static/app.js"></script>
+
   <script>
-    async function refreshStats() {
-      const data = await apiFetch("/api/knowledge/stats");
-      const stats = data.stats;
-      setText("#statsText", `${stats.total_documents} 涓垏鐗?路 ${stats.semantic_retrieval ? "璇箟鍚戦噺" : "TF-IDF"} 妫€绱?路 鍒囧潡 ${stats.chunk_size}/${stats.chunk_overlap}`);
-    }
-
-    qs("#addKnowledge").addEventListener("click", async () => {
-      const text = qs("#knowledgeText").value.trim();
-      if (!text) return setText("#addResult", "璇疯緭鍏ョ煡璇嗗唴瀹?);
-      try {
-        const data = await apiFetch("/api/knowledge/add", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ text, metadata: { source: qs("#knowledgeSource").value || "manual", type: qs("#knowledgeType").value || "manual" } })
-        });
-        setText("#addResult", `宸叉柊澧?${data.result.added_chunks} 涓垏鐗嘸);
-        qs("#knowledgeText").value = "";
-        refreshStats();
-      } catch (error) {
-        setText("#addResult", `鍐欏叆澶辫触锛?{error.message}`);
-      }
-    });
-
-    qs("#uploadFile").addEventListener("click", async () => {
-      const file = qs("#fileInput").files[0];
-      if (!file) return setText("#uploadResult", "璇烽€夋嫨鏂囦欢");
-      const form = new FormData();
-      form.append("file", file);
-      try {
-        const data = await apiFetch("/api/knowledge/upload", { method: "POST", body: form });
-        setText("#uploadResult", `宸蹭笂浼?${data.file}锛屾柊澧?${data.result.added_chunks} 涓垏鐗嘸);
-        refreshStats();
-      } catch (error) {
-        setText("#uploadResult", `涓婁紶澶辫触锛?{error.message}`);
-      }
-    });
-
-    qs("#searchBtn").addEventListener("click", async () => {
-      const question = qs("#searchQuery").value.trim();
-      if (!question) return;
-      const node = qs("#searchResults");
-      clearNode(node);
-      node.appendChild(el("p", { class: "muted", text: "妫€绱腑..." }));
-      try {
-        const data = await apiFetch(`/api/knowledge/query?question=${encodeURIComponent(question)}`);
-        clearNode(node);
-        node.appendChild(el("div", { class: "item prewrap", text: data.result.answer }));
-        (data.result.sources || []).forEach((source) => node.appendChild(el("div", { class: "item" }, [
-          el("strong", { text: source.source }),
-          el("p", { class: "muted", text: `score ${source.score}` }),
-          el("div", { text: source.content })
-        ])));
-      } catch (error) {
-        clearNode(node);
-        node.appendChild(el("p", { class: "muted", text: `妫€绱㈠け璐ワ細${error.message}` }));
-      }
-    });
-
-    refreshStats().catch(() => setText("#statsText", "缁熻鍔犺浇澶辫触"));
+    async function refreshStats() { const data = await apiFetch("/api/knowledge/stats"); const stats = data.stats; setText("#statsText", `${stats.total_documents} 个切片 · ${stats.semantic_retrieval ? "语义向量" : "TF-IDF"} 检索 · 切块 ${stats.chunk_size}/${stats.chunk_overlap}`); }
+    qs("#addKnowledge").addEventListener("click", async () => { const text = qs("#knowledgeText").value.trim(); if (!text) return setText("#addResult", "请输入知识内容"); try { const data = await apiFetch("/api/knowledge/add", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text, metadata: { source: qs("#knowledgeSource").value || "manual", type: qs("#knowledgeType").value || "manual" } }) }); setText("#addResult", `已新增 ${data.result.added_chunks} 个切片`); qs("#knowledgeText").value = ""; refreshStats(); } catch (error) { setText("#addResult", `写入失败：${error.message}`); } });
+    qs("#uploadFile").addEventListener("click", async () => { const file = qs("#fileInput").files[0]; if (!file) return setText("#uploadResult", "请选择文件"); const form = new FormData(); form.append("file", file); try { const data = await apiFetch("/api/knowledge/upload", { method: "POST", body: form }); setText("#uploadResult", `已上传 ${data.file}，新增 ${data.result.added_chunks} 个切片`); refreshStats(); } catch (error) { setText("#uploadResult", `上传失败：${error.message}`); } });
+    qs("#searchBtn").addEventListener("click", async () => { const question = qs("#searchQuery").value.trim(); if (!question) return; const node = qs("#searchResults"); clearNode(node); node.appendChild(el("p", { class: "muted", text: "检索中..." })); try { const data = await apiFetch(`/api/knowledge/query?question=${encodeURIComponent(question)}`); clearNode(node); node.appendChild(el("div", { class: "item prewrap", text: data.result.answer })); (data.result.sources || []).forEach((source) => node.appendChild(el("div", { class: "item" }, [el("strong", { text: source.source }), el("p", { class: "muted", text: `score ${source.score}` }), el("div", { text: source.content })]))); } catch (error) { clearNode(node); node.appendChild(el("p", { class: "muted", text: `检索失败：${error.message}` })); } });
+    refreshStats().catch(() => setText("#statsText", "统计加载失败"));
   </script>
+
 </body>
 </html>
-
-

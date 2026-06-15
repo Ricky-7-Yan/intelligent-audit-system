@@ -13,36 +13,32 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+import os
 import re
 from dataclasses import asdict, dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional
-
-import numpy as np
-from langchain_core.documents import Document
-
 from config import LLM_CONFIG, RAG_CONFIG
 
-try:
-    from sklearn.feature_extraction.text import TfidfVectorizer
-    from sklearn.metrics.pairwise import cosine_similarity
-except Exception:  # pragma: no cover
-    TfidfVectorizer = None
-    cosine_similarity = None
+TfidfVectorizer = None
+cosine_similarity = None
 
 
 logger = logging.getLogger(__name__)
 
 
 AUDIT_QUERY_SYNONYMS: Dict[str, List[str]] = {
-    "权限": ["访问控制", "账号授权", "职责分离", "最小权限"],
-    "备份": ["恢复演练", "灾备", "RPO", "RTO"],
-    "日志": ["审计轨迹", "操作留痕", "监控告警"],
-    "财务": ["财务报告", "凭证", "SOX", "内部控制"],
-    "数据": ["数据分类分级", "敏感数据", "加密", "脱敏"],
-    "变更": ["上线审批", "回退方案", "测试验证"],
-    "合规": ["控制要求", "法规", "标准", "审计证据"],
+    "权限": ["访问控制", "账号授权", "职责分离", "最小权限", "privileged access", "access review"],
+    "访问": ["身份认证", "授权审批", "定期复核", "用户生命周期"],
+    "备份": ["恢复演练", "灾备", "RPO", "RTO", "data recovery"],
+    "日志": ["审计轨迹", "操作留痕", "监控告警", "audit log"],
+    "财务": ["财务报告", "凭证", "SOX", "内部控制", "ITGC"],
+    "数据": ["数据分类分级", "敏感数据", "加密", "脱敏", "personal information"],
+    "变更": ["上线审批", "回退方案", "测试验证", "change management"],
+    "合规": ["控制要求", "法规", "标准", "审计证据", "compliance"],
+    "Agent": ["tool calling", "planning", "memory", "RAG", "evaluation", "MCP", "Skill"],
+    "RAG": ["retrieval", "citation", "faithfulness", "answer relevance", "检索增强"],
 }
 
 BUILTIN_KNOWLEDGE = [
@@ -67,6 +63,12 @@ BUILTIN_KNOWLEDGE = [
         "type": "standard",
     },
 ]
+
+
+@dataclass
+class Document:
+    page_content: str
+    metadata: Dict[str, Any]
 
 
 @dataclass
@@ -146,14 +148,7 @@ class PersistentDocumentStore:
         self.store_file.parent.mkdir(parents=True, exist_ok=True)
         self.chunks: List[StoredChunk] = []
         self.load()
-        if not self.chunks:
-            self.add_documents(
-                [
-                    Document(page_content=item["text"], metadata={"source": item["source"], "type": item["type"]})
-                    for item in BUILTIN_KNOWLEDGE
-                ],
-                persist=True,
-            )
+        self._ensure_seed_knowledge()
 
     def load(self) -> None:
         if not self.store_file.exists():
@@ -186,6 +181,36 @@ class PersistentDocumentStore:
             self.persist()
         return added
 
+    def _ensure_seed_knowledge(self) -> None:
+        seed_items = list(BUILTIN_KNOWLEDGE)
+        seed_dir = self.store_file.parents[1] / "seed_knowledge"
+        for path in sorted(seed_dir.glob("*.json")):
+            try:
+                payload = json.loads(path.read_text(encoding="utf-8"))
+            except Exception as exc:
+                logger.warning("Failed to load seed knowledge %s: %s", path, exc)
+                continue
+            if isinstance(payload, list):
+                seed_items.extend(item for item in payload if isinstance(item, dict))
+
+        documents = []
+        for item in seed_items:
+            text = str(item.get("text", "")).strip()
+            if not text:
+                continue
+            documents.append(
+                Document(
+                    page_content=text,
+                    metadata={
+                        "source": item.get("source", "seed"),
+                        "type": item.get("type", "seed"),
+                        "title": item.get("title", ""),
+                        "seed": True,
+                    },
+                )
+            )
+        self.add_documents(documents, persist=True)
+
     def _document_id(self, document: Document) -> str:
         source = str(document.metadata.get("source", "manual"))
         raw = f"{source}\n{document.page_content}".encode("utf-8")
@@ -202,6 +227,9 @@ class HybridRetriever:
         self.rebuild()
 
     def _load_embedding_model(self) -> Any:
+        if os.getenv("RAG_DISABLE_EMBEDDINGS", "1").lower() in {"1", "true", "yes"}:
+            logger.info("Embedding model disabled by RAG_DISABLE_EMBEDDINGS, TF-IDF fallback enabled")
+            return None
         model_name = str(RAG_CONFIG["embedding_model"])
         if "\\" in model_name or "/" in model_name:
             path = Path(model_name)
@@ -222,12 +250,15 @@ class HybridRetriever:
             return
         if self.embedding_model:
             try:
+                import numpy as np
+
                 embeddings = self.embedding_model.encode(texts, normalize_embeddings=True, show_progress_bar=False)
                 self.embedding_matrix = np.asarray(embeddings, dtype=np.float32)
             except Exception as exc:
                 logger.warning("Embedding index rebuild failed: %s", exc)
                 self.embedding_matrix = None
 
+        self._ensure_tfidf_dependencies()
         if TfidfVectorizer:
             try:
                 self.tfidf_vectorizer = TfidfVectorizer(analyzer="char_wb", ngram_range=(2, 4), max_features=20000)
@@ -246,6 +277,9 @@ class HybridRetriever:
             for chunk_id, score in self._tfidf_scores(query, k * 3):
                 scored.setdefault(chunk_id, {"score": 0.0})
                 scored[chunk_id]["score"] = max(scored[chunk_id]["score"], score)
+            for chunk_id, score in self._keyword_scores(query, k * 3):
+                scored.setdefault(chunk_id, {"score": 0.0})
+                scored[chunk_id]["score"] = max(scored[chunk_id]["score"], score * 0.72)
 
         chunks_by_id = {chunk.id: chunk for chunk in self.store.chunks}
         ranked = sorted(scored.items(), key=lambda item: item[1]["score"], reverse=True)
@@ -262,6 +296,8 @@ class HybridRetriever:
         if self.embedding_model is None or self.embedding_matrix is None:
             return []
         try:
+            import numpy as np
+
             query_vec = self.embedding_model.encode([query], normalize_embeddings=True, show_progress_bar=False)[0]
             scores = self.embedding_matrix @ np.asarray(query_vec, dtype=np.float32)
             top_indices = np.argsort(scores)[::-1][:limit]
@@ -281,6 +317,35 @@ class HybridRetriever:
         except Exception as exc:
             logger.warning("TF-IDF retrieval failed: %s", exc)
             return []
+
+    def _keyword_scores(self, query: str, limit: int) -> List[tuple[str, float]]:
+        query_terms = set(re.findall(r"[\w\u4e00-\u9fff]+", query.lower()))
+        if not query_terms:
+            return []
+        scored = []
+        for chunk in self.store.chunks:
+            content = chunk.content.lower()
+            metadata_text = " ".join(str(value).lower() for value in chunk.metadata.values())
+            hits = sum(1 for term in query_terms if term and (term in content or term in metadata_text))
+            char_hits = len(set(query.lower()).intersection(set(content))) / max(len(set(query.lower())), 1)
+            score = hits * 0.18 + char_hits * 0.35
+            if score > 0:
+                scored.append((chunk.id, min(score, 1.0)))
+        scored.sort(key=lambda item: item[1], reverse=True)
+        return scored[:limit]
+
+    def _ensure_tfidf_dependencies(self) -> None:
+        global TfidfVectorizer, cosine_similarity
+        if TfidfVectorizer is not None or os.getenv("RAG_LIGHT_MODE", "1").lower() in {"1", "true", "yes"}:
+            return
+        try:
+            from sklearn.feature_extraction.text import TfidfVectorizer as _TfidfVectorizer
+            from sklearn.metrics.pairwise import cosine_similarity as _cosine_similarity
+
+            TfidfVectorizer = _TfidfVectorizer
+            cosine_similarity = _cosine_similarity
+        except Exception as exc:  # pragma: no cover
+            logger.info("sklearn unavailable, keyword retrieval fallback enabled: %s", exc)
 
 
 class AgenticRetriever:
@@ -322,6 +387,8 @@ class RAGPipeline:
         self.llm = self._init_llm()
 
     def _init_llm(self) -> Any:
+        if os.getenv("RAG_DISABLE_LLM", "1").lower() in {"1", "true", "yes"}:
+            return None
         if not LLM_CONFIG.get("enabled"):
             return None
         try:
@@ -428,6 +495,7 @@ class RAGPipeline:
             "embedding_model": str(RAG_CONFIG["embedding_model"]),
             "semantic_retrieval": self.hybrid_retriever.embedding_model is not None,
             "tfidf_retrieval": self.hybrid_retriever.tfidf_vectorizer is not None,
+            "keyword_retrieval": True,
             "chunk_size": RAG_CONFIG["chunk_size"],
             "chunk_overlap": RAG_CONFIG["chunk_overlap"],
         }
