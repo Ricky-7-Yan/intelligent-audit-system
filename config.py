@@ -75,9 +75,13 @@ NEO4J_CONFIG: Dict[str, Any] = {
 }
 
 LLM_CONFIG: Dict[str, Any] = {
-    "api_key": os.getenv("QWEN_API_KEY") or os.getenv("OPENAI_API_KEY") or "",
-    "base_url": os.getenv("QWEN_BASE_URL", "https://dashscope.aliyuncs.com/compatible-mode/v1"),
-    "model": os.getenv("QWEN_MODEL", "qwen-turbo"),
+    "provider": os.getenv("LLM_PROVIDER", "deepseek"),
+    "api_key": os.getenv("DEEPSEEK_API_KEY") or os.getenv("QWEN_API_KEY") or os.getenv("OPENAI_API_KEY") or "",
+    "base_url": os.getenv(
+        "LLM_BASE_URL",
+        os.getenv("DEEPSEEK_BASE_URL", os.getenv("QWEN_BASE_URL", "https://api.deepseek.com")),
+    ),
+    "model": os.getenv("LLM_MODEL", os.getenv("DEEPSEEK_MODEL", os.getenv("QWEN_MODEL", "deepseek-chat"))),
     "max_tokens": _int_env("MAX_TOKENS", 2048),
     "temperature": _float_env("TEMPERATURE", 0.2),
     "top_p": _float_env("TOP_P", 0.9),

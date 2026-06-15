@@ -79,9 +79,9 @@ index_body = f"""
       <section class="hero-console">
         <div class="panel console-hero">
           <div>
-            <div class="hero-eyebrow">Audit Operations Console</div>
-            <h2 class="hero-title">{ent('把审计从一次性问答升级为可运营的企业 Agent 工作台')}</h2>
-            <p class="hero-copy">{ent('覆盖范围规划、证据检索、控制映射、风险评分、质量门、人工复核和整改闭环。所有关键动作都有状态、来源、负责人和可追溯记录。')}</p>
+            <div class="hero-eyebrow">Audit Delivery Workbench</div>
+            <h2 class="hero-title">{ent('面向审计行业交付的企业 Agent 工作台')}</h2>
+            <p class="hero-copy">{ent('围绕审计项目真正需要的范围、证据、控制测试、底稿索引、发现整改和复核签字形成完整交付包，而不是停留在问答演示。')}</p>
             <div class="hero-actions">
               <a class="btn primary" href="/audit">{ent('启动审计')}</a>
               <a class="btn" href="/knowledge">{ent('管理知识库')}</a>
@@ -160,7 +160,7 @@ index_scripts = """
   </script>
 """
 
-write("index.html", page(T["app"], "home", "面向客户使用的企业审计 Agent 运营平台", index_body, "产品化能力：审计运营、RAG、Skills、MCP、质量门和整改闭环。", index_scripts))
+write("index.html", page(T["app"], "home", "面向审计行业交付场景的企业 Agent 工作台", index_body, "行业落地能力：审计项目、证据请求、控制测试、底稿索引、质量门和整改闭环。", index_scripts))
 
 
 skills_body = f"""

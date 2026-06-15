@@ -21,6 +21,7 @@ from agents.audit_agent import AuditAgent, CONTROL_LIBRARY
 from config import LLM_CONFIG, PATHS, WEB_CONFIG
 from knowledge_graph.builder import KnowledgeGraphBuilder
 from services.audit_repository import AuditRunRepository
+from services.audit_delivery import AuditDeliveryService
 from services.product_insights import ProductInsights
 from services.rag_evaluator import RAGEvaluator
 from services.skill_registry import SkillRegistry
@@ -35,6 +36,7 @@ evaluator = None
 audit_repository = AuditRunRepository()
 skill_registry = SkillRegistry()
 product_insights = ProductInsights(audit_repository, skill_registry)
+audit_delivery = AuditDeliveryService(audit_repository)
 
 
 @asynccontextmanager
@@ -319,6 +321,50 @@ async def audit_run_report_api(run_id: str):
         media_type="text/markdown; charset=utf-8",
         headers={"Content-Disposition": f'attachment; filename="{run_id}.md"'},
     )
+
+
+@app.get("/api/audit/runs/{run_id}/delivery")
+async def audit_delivery_package_api(run_id: str):
+    package = audit_delivery.build_package(run_id)
+    if package is None:
+        raise HTTPException(status_code=404, detail="审计运行记录不存在")
+    return {"success": True, "package": package, "timestamp": datetime.now().isoformat()}
+
+
+@app.get("/api/audit/runs/{run_id}/delivery.md", response_class=PlainTextResponse)
+async def audit_delivery_markdown_api(run_id: str):
+    package = audit_delivery.build_package(run_id)
+    if package is None:
+        raise HTTPException(status_code=404, detail="审计运行记录不存在")
+    lines = [
+        f"# 审计交付包 - {run_id}",
+        "",
+        "## 项目信息",
+        "",
+        f"- 审计对象：{package['engagement'].get('audit_item')}",
+        f"- 审计类型：{package['engagement'].get('audit_type')}",
+        f"- 参考标准：{package['engagement'].get('standard')}",
+        f"- 当前状态：{package['engagement'].get('status')}",
+        "",
+        "## 底稿索引",
+        "",
+        "| 索引 | 名称 | 来源 | 责任人 |",
+        "| --- | --- | --- | --- |",
+    ]
+    for item in package["workpaper_index"]:
+        lines.append(f"| {item['ref']} | {item['name']} | {item['source']} | {item['owner']} |")
+    lines.extend(["", "## 证据请求清单", "", "| ID | 来源 | 摘要 | 用途 | 状态 |", "| --- | --- | --- | --- | --- |"])
+    for item in package["evidence_request_list"]:
+        lines.append(f"| {item['id']} | {item['source']} | {item['summary']} | {item['usage']} | {item['status']} |")
+    lines.extend(["", "## 控制测试计划", "", "| 控制 | 领域 | 认定 | 底稿 | 测试程序 |", "| --- | --- | --- | --- | --- |"])
+    for item in package["control_test_plan"]:
+        lines.append(f"| {item['control_id']} | {item['domain']} | {item.get('assertion', '')} | {item.get('workpaper_ref', '')} | {str(item.get('test_procedure', '')).replace('|', '/')} |")
+    lines.extend(["", "## 发现跟踪", ""])
+    if not package["finding_tracker"]:
+        lines.append("当前未形成重大审计发现。")
+    for item in package["finding_tracker"]:
+        lines.extend([f"### {item['finding_id']} {item['title']}", "", f"- 严重程度：{item['severity']}", f"- 现状：{item['condition']}", f"- 建议：{item['recommendation']}", ""])
+    return PlainTextResponse("\n".join(lines), media_type="text/markdown; charset=utf-8")
 
 
 @app.post("/api/knowledge/add")
