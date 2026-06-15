@@ -401,6 +401,22 @@ a { color: inherit; text-decoration: none; }
   color: var(--primary);
 }
 
+.delivery-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.delivery-card {
+  min-height: 112px;
+}
+
+.delivery-number {
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--primary);
+}
+
 .toolbar {
   display: flex;
   gap: 10px;
@@ -629,7 +645,7 @@ label { display: block; margin-bottom: 6px; color: var(--muted); font-size: 13px
   .nav-link span { display: none; }
   .main { padding: 18px; }
   .grid-2, .grid-3, .grid-4, .layout-2, .kpi-row, .quality { grid-template-columns: 1fr; }
-  .hero-console, .pipeline-grid, .connector-grid, .command-panel, .scenario-grid { grid-template-columns: 1fr; }
+  .hero-console, .pipeline-grid, .connector-grid, .command-panel, .scenario-grid, .delivery-grid { grid-template-columns: 1fr; }
   .pipeline-step::after { display: none; }
   .run-row { grid-template-columns: 1fr; }
   .toolbar.stretch { grid-template-columns: 1fr; }

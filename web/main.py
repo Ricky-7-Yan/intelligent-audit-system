@@ -22,6 +22,7 @@ from config import LLM_CONFIG, PATHS, WEB_CONFIG
 from knowledge_graph.builder import KnowledgeGraphBuilder
 from services.audit_repository import AuditRunRepository
 from services.audit_delivery import AuditDeliveryService
+from services.audit_templates import list_audit_templates
 from services.product_insights import ProductInsights
 from services.rag_evaluator import RAGEvaluator
 from services.skill_registry import SkillRegistry
@@ -212,6 +213,11 @@ async def audit_controls_api():
     return {"success": True, "controls": CONTROL_LIBRARY, "timestamp": datetime.now().isoformat()}
 
 
+@app.get("/api/audit/templates")
+async def audit_templates_api():
+    return {"success": True, "templates": list_audit_templates(), "timestamp": datetime.now().isoformat()}
+
+
 @app.get("/api/agent/capabilities")
 async def agent_capabilities_api():
     return {
@@ -359,6 +365,12 @@ async def audit_delivery_markdown_api(run_id: str):
     lines.extend(["", "## 控制测试计划", "", "| 控制 | 领域 | 认定 | 底稿 | 测试程序 |", "| --- | --- | --- | --- | --- |"])
     for item in package["control_test_plan"]:
         lines.append(f"| {item['control_id']} | {item['domain']} | {item.get('assertion', '')} | {item.get('workpaper_ref', '')} | {str(item.get('test_procedure', '')).replace('|', '/')} |")
+    lines.extend(["", "## 访谈计划", "", "| 主题 | 访谈对象 | 关键问题 |", "| --- | --- | --- |"])
+    for item in package.get("interview_plan", []):
+        lines.append(f"| {item['topic']} | {item['interviewee']} | {'；'.join(item.get('questions', []))} |")
+    lines.extend(["", "## 现场工作日程", "", "| 日期 | 活动 | 负责人 | 产出 |", "| --- | --- | --- | --- |"])
+    for item in package.get("fieldwork_calendar", []):
+        lines.append(f"| {item['day']} | {item['activity']} | {item['owner']} | {item['output']} |")
     lines.extend(["", "## 发现跟踪", ""])
     if not package["finding_tracker"]:
         lines.append("当前未形成重大审计发现。")

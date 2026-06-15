@@ -19,7 +19,6 @@ class AuditDeliveryService:
         result = record.get("result", {})
         request = record.get("request", {})
         controls = result.get("control_matrix", [])
-        evidence = result.get("evidence_pack", [])
         procedures = result.get("audit_program", [])
         findings = result.get("findings", [])
         tasks = record.get("remediation_tasks", [])
@@ -38,6 +37,8 @@ class AuditDeliveryService:
             "evidence_request_list": self._evidence_request_list(result),
             "control_test_plan": self._control_test_plan(controls, procedures),
             "finding_tracker": self._finding_tracker(findings, tasks),
+            "interview_plan": self._interview_plan(result),
+            "fieldwork_calendar": self._fieldwork_calendar(result),
             "quality_review": result.get("quality_gate", {}),
             "signoff": {
                 "prepared_by": "智能审计 Agent",
@@ -98,6 +99,8 @@ class AuditDeliveryService:
                     "sample_method": procedure.get("method"),
                     "evidence_required": control.get("evidence_required", []),
                     "workpaper_ref": procedure.get("workpaper_ref"),
+                    "result": "待执行",
+                    "exception_rule": "发现重大例外时扩大样本并升级复核。",
                 }
             )
         return rows
@@ -117,3 +120,36 @@ class AuditDeliveryService:
                 }
             )
         return rows
+
+    def _interview_plan(self, result: Dict[str, Any]) -> List[Dict[str, Any]]:
+        domains = []
+        for control in result.get("control_matrix", []):
+            domain = control.get("domain")
+            if domain and domain not in domains:
+                domains.append(domain)
+        return [
+            {
+                "topic": domain,
+                "interviewee": "流程负责人 / 系统管理员 / 控制责任人",
+                "questions": [
+                    f"{domain}控制的责任边界和审批链路是什么？",
+                    "关键例外如何审批、记录和复核？",
+                    "最近一次控制执行证据存放在哪里？",
+                ],
+            }
+            for domain in domains[:6]
+        ]
+
+    def _fieldwork_calendar(self, result: Dict[str, Any]) -> List[Dict[str, Any]]:
+        tasks = result.get("task_plan", [])
+        calendar = []
+        for index, task in enumerate(tasks, start=1):
+            calendar.append(
+                {
+                    "day": f"D+{index}",
+                    "activity": task.get("name"),
+                    "owner": task.get("owner"),
+                    "output": task.get("objective"),
+                }
+            )
+        return calendar
