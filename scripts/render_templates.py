@@ -2,14 +2,18 @@
 from pathlib import Path
 
 
+def zh(text: str) -> str:
+    return text
+
+
 T = {
-    "app": "\u667a\u80fd\u5ba1\u8ba1 Agent \u5e73\u53f0",
-    "home": "\u603b\u89c8",
-    "chat": "\u5ba1\u8ba1\u5bf9\u8bdd",
-    "audit": "\u5ba1\u8ba1\u5206\u6790",
-    "knowledge": "\u77e5\u8bc6\u5e93",
-    "training": "\u8bc4\u4f30",
-    "loading": "\u52a0\u8f7d\u72b6\u6001\u4e2d",
+    "app": zh("智能审计 Agent 平台"),
+    "home": zh("总览"),
+    "chat": zh("审计对话"),
+    "audit": zh("审计分析"),
+    "knowledge": zh("知识库"),
+    "training": zh("评估"),
+    "loading": zh("加载状态中"),
 }
 
 
@@ -98,17 +102,20 @@ index_body = f"""
         </aside>
       </section>
 
+      <div class="section-title"><div><h2>{ent('风险台账')}</h2><p>{ent('成熟审计产品需要直接管理风险、责任人、状态和下一步动作。')}</p></div></div>
+      <section class="panel"><div id="riskRegister" class="list dense"></div></section>
+
+      <div class="section-title"><div><h2>{ent('证据请求队列')}</h2><p>{ent('把缺失证据变成可跟踪的业务请求，减少审计人员线下追问。')}</p></div></div>
+      <section id="evidenceRequests" class="grid grid-4"></section>
+
+      <div class="section-title"><div><h2>{ent('控制健康度')}</h2><p>{ent('按控制领域聚合成熟度、例外数量和健康评分。')}</p></div></div>
+      <section id="controlHealth" class="connector-grid"></section>
+
       <div class="section-title"><div><h2>{ent('Agent 执行流水线')}</h2><p>{ent('把成熟审计方法固化为可观察、可复核、可扩展的工作流。')}</p></div></div>
       <section id="pipeline" class="pipeline-grid"></section>
 
       <div class="section-title"><div><h2>{ent('企业连接与能力层')}</h2><p>{ent('知识库、审计档案、Skill Registry、模型网关和可选数据源的运行状态。')}</p></div></div>
       <section id="connectors" class="connector-grid"></section>
-
-      <div class="section-title"><div><h2>{ent('最近审计')}</h2><p>{ent('客户工作台需要能快速回到最新档案和风险状态。')}</p></div><a class="btn" href="/audit">{ent('进入工作台')}</a></div>
-      <section class="panel"><div id="recentRuns" class="list dense"></div></section>
-
-      <div class="section-title"><div><h2>{ent('客户价值')}</h2><p>{ent('产品需要回答为什么企业愿意把它用于真实审计流程。')}</p></div></div>
-      <section id="customerValue" class="grid grid-4"></section>
 """
 
 index_scripts = """
@@ -131,24 +138,29 @@ index_scripts = """
         ["合规", `平均评分 ${summary.avg_compliance || 0}`, "ok"],
       ].forEach(([name, detail, tone]) => signals.appendChild(el("div", { class: `signal ${tone}` }, [el("span", { class: "signal-dot" }), el("div", {}, [el("strong", { text: name }), el("div", { class: "muted", text: detail })]), el("span", { class: "status-chip", text: tone === "danger" ? "需关注" : "正常" })])));
 
+      const risks = qs("#riskRegister"); clearNode(risks);
+      if (!(overview.risk_register || []).length) risks.appendChild(el("p", { class: "muted", text: "暂无风险台账，运行审计后自动生成。" }));
+      (overview.risk_register || []).slice(0, 8).forEach((risk) => risks.appendChild(el("div", { class: "item run-row" }, [el("strong", { text: `${risk.risk_id} · ${risk.audit_item}` }), riskBadge(risk.risk_level), el("div", { class: "muted", text: risk.status }), el("div", { class: "muted", text: risk.next_action })])));
+
+      const evidence = qs("#evidenceRequests"); clearNode(evidence);
+      if (!(overview.evidence_requests || []).length) evidence.appendChild(el("div", { class: "card value-card" }, [el("h3", { class: "panel-title", text: "暂无证据请求" }), el("p", { class: "muted", text: "质量门通过时不会产生补证队列。" })]));
+      (overview.evidence_requests || []).slice(0, 8).forEach((req) => evidence.appendChild(el("div", { class: "card value-card" }, [el("div", { class: "connector-head" }, [el("strong", { text: req.evidence }), el("span", { class: "status-chip warning", text: req.priority })]), el("p", { class: "muted", text: req.audit_item }), el("div", { text: `负责人：${req.owner}` }), el("div", { class: "muted", text: req.status })])));
+
+      const health = qs("#controlHealth"); clearNode(health);
+      if (!(overview.control_health || []).length) health.appendChild(el("div", { class: "card connector" }, [el("strong", { text: "暂无控制健康数据" }), el("div", { class: "muted", text: "运行审计后自动聚合控制领域。" })]));
+      (overview.control_health || []).slice(0, 6).forEach((item) => health.appendChild(el("div", { class: "card connector" }, [el("div", { class: "connector-head" }, [el("strong", { text: item.domain }), el("span", { class: "status-chip", text: `${item.health_score}` })]), el("div", { class: "muted", text: `控制 ${item.controls} · 例外 ${item.exceptions}` }), el("div", { class: "progress-track" }, [el("div", { class: "progress-bar", style: `width:${Math.min(item.health_score, 100)}%` })]), el("div", { class: "muted", text: `平均成熟度 ${item.avg_maturity}` })])));
+
       const pipeline = qs("#pipeline"); clearNode(pipeline);
       (overview.pipeline || []).forEach((step) => pipeline.appendChild(el("div", { class: "card pipeline-step" }, [el("div", { class: "step-code", text: step.stage }), el("h3", { class: "panel-title", text: step.title }), el("p", { class: "muted", text: step.detail })])));
 
       const connectors = qs("#connectors"); clearNode(connectors);
       (overview.connectors || []).forEach((item) => connectors.appendChild(el("div", { class: "card connector" }, [el("div", { class: "connector-head" }, [el("strong", { text: item.name }), el("span", { class: `status-chip ${item.status}`, text: item.status })]), el("div", { class: "muted", text: item.detail })])));
-
-      const runs = qs("#recentRuns"); clearNode(runs);
-      if (!(overview.recent_runs || []).length) runs.appendChild(el("p", { class: "muted", text: "暂无审计档案，先运行一次审计分析。" }));
-      (overview.recent_runs || []).forEach((run) => runs.appendChild(el("div", { class: "item run-row clickable", onclick: () => { location.href = "/audit"; } }, [el("strong", { text: run.audit_item || run.run_id }), riskBadge(run.risk_level), el("div", { class: "muted", text: `质量 ${run.quality_confidence ?? "-"}` }), el("div", { class: "muted", text: run.status || "-" })])));
-
-      const values = qs("#customerValue"); clearNode(values);
-      (overview.customer_value || []).forEach((item) => values.appendChild(el("div", { class: "card value-card" }, [el("h3", { class: "panel-title", text: item.title }), el("p", { class: "muted", text: item.detail })])));
     }
     apiFetch("/api/product/overview").then(renderOverview).catch(() => {});
   </script>
 """
 
-write("index.html", page(T["app"], "home", "\u9762\u5411\u5ba2\u6237\u4f7f\u7528\u7684\u4f01\u4e1a\u5ba1\u8ba1 Agent \u8fd0\u8425\u5e73\u53f0", index_body, "\u4ea7\u54c1\u5316\u80fd\u529b\uff1a\u5ba1\u8ba1\u8fd0\u8425\u3001RAG\u3001Skills\u3001MCP\u3001\u8d28\u91cf\u95e8\u548c\u6574\u6539\u95ed\u73af\u3002", index_scripts))
+write("index.html", page(T["app"], "home", "面向客户使用的企业审计 Agent 运营平台", index_body, "产品化能力：审计运营、RAG、Skills、MCP、质量门和整改闭环。", index_scripts))
 
 
 skills_body = f"""
@@ -174,18 +186,12 @@ skills_body = f"""
           <button class="btn primary mt-16" id="runSkill">{ent('执行')}</button>
         </div>
       </section>
-
       <div class="section-title"><div><h2>Skill Registry</h2><p>{ent('企业 Agent 平台需要可发现、可审计、可灰度扩展的工具能力。')}</p></div></div>
       <section id="skillList" class="connector-grid"></section>
-
       <div class="section-title"><div><h2>MCP Tools</h2><p>{ent('面向工具协议的描述层，包含 inputSchema 与权限注解。')}</p></div></div>
       <section id="mcpTools" class="grid grid-2"></section>
-
       <div class="section-title"><div><h2>{ent('执行结果与日志')}</h2><p>{ent('客户产品里，任何自动化动作都应可追踪、可解释、可复盘。')}</p></div><button class="btn" id="refreshRuns">{ent('刷新日志')}</button></div>
-      <section class="grid layout-2">
-        <pre id="skillOutput" class="item prewrap">{ent('等待执行')}</pre>
-        <div id="skillRuns" class="list dense"></div>
-      </section>
+      <section class="grid layout-2"><pre id="skillOutput" class="item prewrap">{ent('等待执行')}</pre><div id="skillRuns" class="list dense"></div></section>
 """
 
 skills_scripts = """

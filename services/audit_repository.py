@@ -57,6 +57,16 @@ class AuditRunRepository:
         records.sort(key=lambda item: item.get("created_at") or "", reverse=True)
         return records[:limit]
 
+    def iter_records(self, limit: int = 200) -> List[Dict[str, Any]]:
+        records = []
+        for path in self.root.glob("*.json"):
+            try:
+                records.append(json.loads(path.read_text(encoding="utf-8")))
+            except Exception:
+                continue
+        records.sort(key=lambda item: item.get("created_at") or "", reverse=True)
+        return records[:limit]
+
     def task_summary(self) -> Dict[str, Any]:
         status_counts: Dict[str, int] = {}
         open_tasks = 0

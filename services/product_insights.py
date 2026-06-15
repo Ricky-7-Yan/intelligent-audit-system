@@ -22,36 +22,94 @@ class ProductInsights:
         runs = self.audit_repository.list_runs(limit=200)
         risk_counter = Counter(run.get("risk_level") or "未评估" for run in runs)
         status_counter = Counter(run.get("status") or "未知" for run in runs)
-        avg_quality = self._avg([run.get("quality_confidence") for run in runs])
-        avg_compliance = self._avg([run.get("compliance_score") for run in runs])
-        open_tasks = self.audit_repository.task_summary()
-        recent_runs = runs[:8]
-        skill_runs = self.skill_registry.recent_runs(8)
+        task_summary = self.audit_repository.task_summary()
+        summary = {
+            "audit_runs": len(runs),
+            "open_tasks": task_summary["open_tasks"],
+            "overdue_tasks": task_summary["overdue_tasks"],
+            "avg_quality": self._avg([run.get("quality_confidence") for run in runs]),
+            "avg_compliance": self._avg([run.get("compliance_score") for run in runs]),
+            "knowledge_chunks": rag_stats.get("total_documents", 0),
+            "skills": len(self.skill_registry.list_skills()),
+        }
+
         return {
             "generated_at": datetime.now().isoformat(),
-            "summary": {
-                "audit_runs": len(runs),
-                "open_tasks": open_tasks["open_tasks"],
-                "overdue_tasks": open_tasks["overdue_tasks"],
-                "avg_quality": avg_quality,
-                "avg_compliance": avg_compliance,
-                "knowledge_chunks": rag_stats.get("total_documents", 0),
-                "skills": len(self.skill_registry.list_skills()),
-            },
+            "summary": summary,
             "risk_distribution": dict(risk_counter),
             "status_distribution": dict(status_counter),
-            "task_status": open_tasks["status_distribution"],
-            "recent_runs": recent_runs,
-            "recent_skill_runs": skill_runs,
+            "task_status": task_summary["status_distribution"],
+            "recent_runs": runs[:8],
+            "recent_skill_runs": self.skill_registry.recent_runs(8),
+            "risk_register": self.risk_register(runs),
+            "evidence_requests": self.evidence_requests(),
+            "control_health": self.control_health(runs),
             "connectors": self._connectors(rag_stats),
             "pipeline": self._pipeline(),
-            "customer_value": [
-                {"title": "审计自动化", "detail": "从审计对象直接生成范围、控制矩阵、证据包、程序和报告。"},
-                {"title": "证据可追溯", "detail": "RAG 答案返回来源，质量门输出置信度和缺失证据。"},
-                {"title": "整改闭环", "detail": "发现、建议、责任人、状态和复核意见保存在审计档案中。"},
-                {"title": "平台化扩展", "detail": "Skill/MCP 风格工具可注册、可描述、可审计。"},
-            ],
+            "customer_value": self._customer_value(),
         }
+
+    def risk_register(self, runs: List[Dict[str, Any]] | None = None) -> List[Dict[str, Any]]:
+        runs = runs if runs is not None else self.audit_repository.list_runs(limit=200)
+        register = []
+        for run in runs[:20]:
+            register.append(
+                {
+                    "risk_id": f"RR-{run.get('run_id', '')[-6:]}",
+                    "audit_item": run.get("audit_item") or "待审计对象",
+                    "risk_level": run.get("risk_level") or "未评估",
+                    "risk_score": run.get("risk_score") or 0,
+                    "owner": "审计经理",
+                    "status": run.get("status") or "待处理",
+                    "next_action": self._next_action(run),
+                }
+            )
+        return register
+
+    def evidence_requests(self) -> List[Dict[str, Any]]:
+        requests: List[Dict[str, Any]] = []
+        for record in self.audit_repository.iter_records(limit=80):
+            result = record.get("result", {})
+            quality = result.get("quality_gate", {})
+            for index, evidence in enumerate(quality.get("missing_evidence", [])[:4], start=1):
+                requests.append(
+                    {
+                        "request_id": f"ER-{record.get('run_id', '')[-6:]}-{index:02d}",
+                        "audit_item": record.get("request", {}).get("audit_item") or "待审计对象",
+                        "evidence": evidence,
+                        "owner": "控制责任人",
+                        "priority": "高" if quality.get("escalation_required") else "中",
+                        "status": "待收集",
+                    }
+                )
+        return requests[:16]
+
+    def control_health(self, runs: List[Dict[str, Any]] | None = None) -> List[Dict[str, Any]]:
+        records = self.audit_repository.iter_records(limit=80)
+        domain_stats: Dict[str, Dict[str, Any]] = {}
+        for record in records:
+            for control in record.get("result", {}).get("control_matrix", []):
+                domain = control.get("domain") or "通用控制"
+                stats = domain_stats.setdefault(domain, {"domain": domain, "controls": 0, "maturity_sum": 0.0, "exceptions": 0})
+                stats["controls"] += 1
+                stats["maturity_sum"] += float(control.get("maturity_level") or 0)
+                if "取证" in str(control.get("status", "")) or "验证" in str(control.get("status", "")):
+                    stats["exceptions"] += 1
+        health = []
+        for stats in domain_stats.values():
+            controls = max(stats["controls"], 1)
+            maturity = round(stats["maturity_sum"] / controls, 2)
+            health.append(
+                {
+                    "domain": stats["domain"],
+                    "controls": stats["controls"],
+                    "avg_maturity": maturity,
+                    "exceptions": stats["exceptions"],
+                    "health_score": round(min(100, maturity * 18 + max(0, 5 - stats["exceptions"]) * 2), 1),
+                }
+            )
+        health.sort(key=lambda item: item["health_score"])
+        return health[:12]
 
     def _connectors(self, rag_stats: Dict[str, Any]) -> List[Dict[str, Any]]:
         return [
@@ -72,6 +130,21 @@ class ProductInsights:
             {"stage": "Gate", "title": "质量门", "detail": "输出置信度、缺失证据和人工复核条件。"},
             {"stage": "Close", "title": "整改闭环", "detail": "生成任务、状态流转、复核记录和报告。"},
         ]
+
+    def _customer_value(self) -> List[Dict[str, str]]:
+        return [
+            {"title": "审计自动化", "detail": "从审计对象直接生成范围、控制矩阵、证据包、程序和报告。"},
+            {"title": "证据可追溯", "detail": "RAG 答案返回来源，质量门输出置信度和缺失证据。"},
+            {"title": "整改闭环", "detail": "发现、建议、责任人、状态和复核意见保存在审计档案中。"},
+            {"title": "平台化扩展", "detail": "Skill/MCP 风格工具可注册、可描述、可审计。"},
+        ]
+
+    def _next_action(self, run: Dict[str, Any]) -> str:
+        if (run.get("quality_confidence") or 0) < 0.7:
+            return "补充证据并提交复核"
+        if run.get("risk_level") in {"高", "中"}:
+            return "确认整改责任人与到期时间"
+        return "归档并纳入持续监控"
 
     def _avg(self, values: List[Any]) -> float:
         numbers = [float(value) for value in values if isinstance(value, (int, float))]

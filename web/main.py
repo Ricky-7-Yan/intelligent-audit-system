@@ -240,6 +240,21 @@ async def product_overview_api():
     return {"success": True, "overview": product_insights.overview(rag_stats), "timestamp": datetime.now().isoformat()}
 
 
+@app.get("/api/product/risk-register")
+async def product_risk_register_api():
+    return {"success": True, "risks": product_insights.risk_register(), "timestamp": datetime.now().isoformat()}
+
+
+@app.get("/api/product/evidence-requests")
+async def product_evidence_requests_api():
+    return {"success": True, "requests": product_insights.evidence_requests(), "timestamp": datetime.now().isoformat()}
+
+
+@app.get("/api/product/control-health")
+async def product_control_health_api():
+    return {"success": True, "controls": product_insights.control_health(), "timestamp": datetime.now().isoformat()}
+
+
 @app.get("/api/skills")
 async def skills_api():
     return {"success": True, "skills": skill_registry.list_skills(), "timestamp": datetime.now().isoformat()}
