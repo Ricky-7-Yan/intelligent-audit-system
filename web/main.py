@@ -20,11 +20,12 @@ from pydantic import BaseModel, Field
 from agents.audit_agent import AuditAgent, CONTROL_LIBRARY
 from config import LLM_CONFIG, PATHS, WEB_CONFIG
 from knowledge_graph.builder import KnowledgeGraphBuilder
-from services.audit_repository import AuditRunRepository
 from services.audit_delivery import AuditDeliveryService
+from services.audit_repository import AuditRunRepository
 from services.audit_templates import list_audit_templates
 from services.product_insights import ProductInsights
 from services.rag_evaluator import RAGEvaluator
+from services.research_agent import AuditResearchAgent
 from services.skill_registry import SkillRegistry
 
 
@@ -55,9 +56,9 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(
-    title="智能审计 Agent 平台",
-    description="面向审计场景的 Agentic RAG、风险评估和合规分析系统",
-    version="2.4.0",
+    title="审脉 AuditPilot",
+    description="面向审计交付场景的 Agentic RAG、风险评估、控制测试和整改闭环系统",
+    version="2.5.0",
     lifespan=lifespan,
 )
 
@@ -100,6 +101,11 @@ class RAGEvaluationRequest(BaseModel):
     cases: Optional[List[Dict[str, Any]]] = None
 
 
+class ResearchRequest(BaseModel):
+    question: str = Field(..., min_length=1, max_length=8000)
+    context: Optional[Dict[str, Any]] = None
+
+
 class SkillRunRequest(BaseModel):
     input: Dict[str, Any] = Field(default_factory=dict)
 
@@ -111,9 +117,21 @@ class ReviewRequest(BaseModel):
 
 
 class TaskUpdateRequest(BaseModel):
-    status: str = Field(..., pattern="^(未开始|进行中|待验证|已完成|已关闭|todo|doing|verifying|done|closed)$")
+    status: str = Field(..., max_length=100)
     owner: str = ""
     note: str = Field("", max_length=2000)
+
+
+class EvidenceUpdateRequest(BaseModel):
+    status: str = Field(..., max_length=100)
+    owner: str = ""
+    note: str = Field("", max_length=2000)
+
+
+class ControlTestUpdateRequest(BaseModel):
+    result: str = Field(..., max_length=100)
+    tester: str = ""
+    exception: str = Field("", max_length=2000)
 
 
 def init_rag_lazy():
@@ -134,6 +152,10 @@ def get_audit_agent() -> AuditAgent:
 
 def get_rag_pipeline():
     return init_rag_lazy()
+
+
+def get_research_agent() -> AuditResearchAgent:
+    return AuditResearchAgent(init_rag_lazy())
 
 
 def get_kg_builder() -> KnowledgeGraphBuilder:
@@ -191,11 +213,11 @@ async def chat_api(request: ChatRequest, agent: AuditAgent = Depends(get_audit_a
 
 @app.post("/api/audit")
 async def audit_api(request: AuditRequest, agent: AuditAgent = Depends(get_audit_agent)):
-    audit_query = f"请对{request.audit_item}进行{request.audit_type}"
+    audit_query = f"请对 {request.audit_item} 进行 {request.audit_type}"
     if request.standard_type:
-        audit_query += f"，参考{request.standard_type}标准"
+        audit_query += f"，参考 {request.standard_type} 标准"
     if request.risk_level:
-        audit_query += f"，关注{request.risk_level}风险"
+        audit_query += f"，关注 {request.risk_level} 风险"
     result = agent.process_audit_query(audit_query)
     run = audit_repository.create_run(request.model_dump(), result)
     return {
@@ -204,6 +226,7 @@ async def audit_api(request: AuditRequest, agent: AuditAgent = Depends(get_audit
         "audit_item": request.audit_item,
         "audit_type": request.audit_type,
         "result": result,
+        "run": run,
         "timestamp": datetime.now().isoformat(),
     }
 
@@ -223,23 +246,29 @@ async def agent_capabilities_api():
     return {
         "success": True,
         "capabilities": {
-            "agent_architecture": [
-                "任务规划",
-                "Skill 注册与执行",
-                "MCP 风格工具描述",
-                "工具调用",
-                "Agentic RAG",
-                "控制矩阵映射",
-                "风险与合规评分",
-                "质量门",
-                "人工复核闭环",
-            ],
+            "agent_architecture": ["任务规划", "Skill 注册与执行", "MCP 风格工具描述", "工具调用", "Agentic RAG", "质量门", "人工复核闭环"],
             "rag": ["混合检索", "查询扩展", "来源引用", "降级检索", "RAG 评测"],
             "engineering": ["FastAPI", "持久化审计档案", "报告导出", "健康检查", "Docker 部署"],
-            "audit_business": ["审计程序", "抽样计划", "审计发现草稿", "整改任务跟踪"],
+            "audit_business": ["审计程序", "抽样计划", "证据请求中心", "控制测试工作台", "审计发现草稿", "整改任务跟踪"],
         },
         "timestamp": datetime.now().isoformat(),
     }
+
+
+@app.post("/api/research/answer")
+async def research_answer_api(request: ResearchRequest, research: AuditResearchAgent = Depends(get_research_agent)):
+    result = research.answer(request.question, request.context)
+    return {"success": True, "result": result, "timestamp": datetime.now().isoformat()}
+
+
+@app.get("/api/research/jd-coverage")
+async def research_jd_coverage_api(research: AuditResearchAgent = Depends(get_research_agent)):
+    return {"success": True, "coverage": research.jd_coverage(), "timestamp": datetime.now().isoformat()}
+
+
+@app.get("/api/research/evaluation-plan")
+async def research_evaluation_plan_api(research: AuditResearchAgent = Depends(get_research_agent)):
+    return {"success": True, "plan": research.evaluation_plan(), "timestamp": datetime.now().isoformat()}
 
 
 @app.get("/api/product/overview")
@@ -317,6 +346,24 @@ async def audit_task_update_api(run_id: str, task_id: str, request: TaskUpdateRe
     return {"success": True, "run": record, "timestamp": datetime.now().isoformat()}
 
 
+@app.post("/api/audit/runs/{run_id}/evidence/{request_id}")
+async def audit_evidence_update_api(run_id: str, request_id: str, request: EvidenceUpdateRequest):
+    status_map = {"todo": "待收集", "received": "已收到", "need_more": "需补充", "verified": "已验证", "na": "不适用"}
+    record = audit_repository.update_evidence_request(run_id, request_id, status_map.get(request.status, request.status), request.owner, request.note)
+    if not record:
+        raise HTTPException(status_code=404, detail="审计运行记录或证据请求不存在")
+    return {"success": True, "run": record, "timestamp": datetime.now().isoformat()}
+
+
+@app.post("/api/audit/runs/{run_id}/controls/{control_id}/test")
+async def audit_control_test_update_api(run_id: str, control_id: str, request: ControlTestUpdateRequest):
+    result_map = {"pending": "待执行", "pass": "通过", "exception": "例外", "na": "不适用", "expand": "需扩大样本"}
+    record = audit_repository.update_control_test(run_id, control_id, result_map.get(request.result, request.result), request.tester, request.exception)
+    if not record:
+        raise HTTPException(status_code=404, detail="审计运行记录或控制测试不存在")
+    return {"success": True, "run": record, "timestamp": datetime.now().isoformat()}
+
+
 @app.get("/api/audit/runs/{run_id}/report.md", response_class=PlainTextResponse)
 async def audit_run_report_api(run_id: str):
     report = audit_repository.render_markdown_report(run_id)
@@ -351,6 +398,7 @@ async def audit_delivery_markdown_api(run_id: str):
         f"- 审计类型：{package['engagement'].get('audit_type')}",
         f"- 参考标准：{package['engagement'].get('standard')}",
         f"- 当前状态：{package['engagement'].get('status')}",
+        f"- 项目阶段：{package['engagement'].get('lifecycle_stage')}",
         "",
         "## 底稿索引",
         "",
@@ -359,12 +407,13 @@ async def audit_delivery_markdown_api(run_id: str):
     ]
     for item in package["workpaper_index"]:
         lines.append(f"| {item['ref']} | {item['name']} | {item['source']} | {item['owner']} |")
-    lines.extend(["", "## 证据请求清单", "", "| ID | 来源 | 摘要 | 用途 | 状态 |", "| --- | --- | --- | --- | --- |"])
+    lines.extend(["", "## 证据请求清单", "", "| ID | 来源 | 摘要 | 用途 | 责任人 | 状态 |", "| --- | --- | --- | --- | --- | --- |"])
     for item in package["evidence_request_list"]:
-        lines.append(f"| {item['id']} | {item['source']} | {item['summary']} | {item['usage']} | {item['status']} |")
-    lines.extend(["", "## 控制测试计划", "", "| 控制 | 领域 | 认定 | 底稿 | 测试程序 |", "| --- | --- | --- | --- | --- |"])
+        lines.append(f"| {item['id']} | {item['source']} | {item['summary']} | {item['usage']} | {item.get('owner', '')} | {item['status']} |")
+    lines.extend(["", "## 控制测试计划", "", "| 控制 | 领域 | 认定 | 底稿 | 测试程序 | 结果 |", "| --- | --- | --- | --- | --- | --- |"])
     for item in package["control_test_plan"]:
-        lines.append(f"| {item['control_id']} | {item['domain']} | {item.get('assertion', '')} | {item.get('workpaper_ref', '')} | {str(item.get('test_procedure', '')).replace('|', '/')} |")
+        procedure = str(item.get("test_procedure") or item.get("procedure") or "").replace("|", "/")
+        lines.append(f"| {item['control_id']} | {item['domain']} | {item.get('assertion', '')} | {item.get('workpaper_ref', '')} | {procedure} | {item.get('result', '')} |")
     lines.extend(["", "## 访谈计划", "", "| 主题 | 访谈对象 | 关键问题 |", "| --- | --- | --- |"])
     for item in package.get("interview_plan", []):
         lines.append(f"| {item['topic']} | {item['interviewee']} | {'；'.join(item.get('questions', []))} |")
@@ -376,6 +425,9 @@ async def audit_delivery_markdown_api(run_id: str):
         lines.append("当前未形成重大审计发现。")
     for item in package["finding_tracker"]:
         lines.extend([f"### {item['finding_id']} {item['title']}", "", f"- 严重程度：{item['severity']}", f"- 现状：{item['condition']}", f"- 建议：{item['recommendation']}", ""])
+    lines.extend(["", "## 事件轨迹", ""])
+    for event in package.get("event_log", []):
+        lines.append(f"- {event.get('at')} / {event.get('type')} / {event.get('message')}")
     return PlainTextResponse("\n".join(lines), media_type="text/markdown; charset=utf-8")
 
 
@@ -410,11 +462,7 @@ async def query_knowledge_api(question: str, context: Optional[str] = None, rag=
 
 
 @app.post("/api/knowledge/build")
-async def build_knowledge_graph_api(
-    text: str = Form(...),
-    language: str = Form("auto"),
-    builder: KnowledgeGraphBuilder = Depends(get_kg_builder),
-):
+async def build_knowledge_graph_api(text: str = Form(...), language: str = Form("auto"), builder: KnowledgeGraphBuilder = Depends(get_kg_builder)):
     result = builder.build_from_text(text, language)
     return {"success": True, "result": result, "timestamp": datetime.now().isoformat()}
 
@@ -439,35 +487,17 @@ async def evaluate_rag_api(request: RAGEvaluationRequest, rag=Depends(get_rag_pi
 
 @app.get("/api/session/history/{session_id}")
 async def get_session_history(session_id: str, agent: AuditAgent = Depends(get_audit_agent)):
-    return {
-        "success": True,
-        "session_id": session_id,
-        "history": agent.get_session_history(session_id),
-        "timestamp": datetime.now().isoformat(),
-    }
+    return {"success": True, "session_id": session_id, "history": agent.get_session_history(session_id), "timestamp": datetime.now().isoformat()}
 
 
 @app.get("/api/health")
 async def health_check():
-    services = {
-        "llm": bool(LLM_CONFIG.get("enabled")),
-        "mysql": False,
-        "neo4j": False,
-        "rag": rag_pipeline is not None,
-        "rag_documents": 0,
-    }
+    services = {"llm": bool(LLM_CONFIG.get("enabled")), "mysql": False, "neo4j": False, "rag": rag_pipeline is not None, "rag_documents": 0}
     if audit_agent is not None:
         services.update(audit_agent.get_service_status())
     if rag_pipeline is not None:
         services["rag_documents"] = rag_pipeline.get_statistics().get("total_documents", 0)
-    return JSONResponse(
-        content={
-            "status": "healthy",
-            "timestamp": datetime.now().isoformat(),
-            "version": "2.4.0",
-            "services": services,
-        }
-    )
+    return JSONResponse(content={"status": "healthy", "timestamp": datetime.now().isoformat(), "version": "2.5.0", "services": services})
 
 
 if __name__ == "__main__":

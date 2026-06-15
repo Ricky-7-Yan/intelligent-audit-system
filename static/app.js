@@ -62,7 +62,7 @@ async function loadHealth() {
   try {
     const data = await apiFetch("/api/health");
     const services = data.services || {};
-    setText("#healthText", `RAG ${services.rag_documents || 0} 条知识 · LLM ${services.llm ? "在线" : "降级"}`);
+    setText("#healthText", `RAG ${services.rag_documents || 0} 条知识 · LLM ${services.llm ? "已配置" : "降级"}`);
   } catch {
     setText("#healthText", window.location.protocol === "file:" ? "本地文件模式：请先启动服务" : "服务状态待确认");
   }

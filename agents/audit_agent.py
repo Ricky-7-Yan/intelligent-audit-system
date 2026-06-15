@@ -1,9 +1,10 @@
-"""
-Enterprise-style audit agent orchestration.
+"""Enterprise audit Agent orchestration.
 
-The agent uses a planner -> retrieval -> control mapping -> risk scoring ->
-quality gate -> report generation workflow. It keeps the system deployable even
-when LLM, MySQL, Neo4j or vector embeddings are unavailable.
+The agent follows a practical audit workflow:
+scope planning -> RAG evidence retrieval -> control mapping -> risk scoring ->
+audit program generation -> quality gate -> findings and remediation planning.
+It keeps deterministic fallbacks so the product remains usable without external
+LLM, database, graph, or embedding services.
 """
 
 from __future__ import annotations
@@ -37,23 +38,23 @@ logger = logging.getLogger(__name__)
 AUDIT_STANDARDS: Dict[str, Dict[str, Any]] = {
     "COBIT": {
         "name": "COBIT 2019",
-        "focus": "IT治理、价值交付、风险优化、资源优化和绩效度量",
+        "focus": "企业 IT 治理、价值交付、风险优化、资源优化和绩效度量",
         "controls": ["治理目标映射", "流程责任矩阵", "绩效指标", "风险场景管理"],
     },
     "ISO27001": {
         "name": "ISO/IEC 27001",
-        "focus": "信息安全管理体系、风险评估和控制措施",
+        "focus": "信息安全管理体系、风险评估、控制措施选择和持续改进",
         "controls": ["访问控制", "资产管理", "事件响应", "供应商安全", "备份与恢复"],
     },
     "SOX": {
         "name": "Sarbanes-Oxley Act",
-        "focus": "财务报告内部控制、变更审批、职责分离和审计证据",
+        "focus": "财务报告相关内部控制、ITGC、变更审批、职责分离和审计证据",
         "controls": ["职责分离", "变更管理", "日志留存", "财务数据完整性", "管理层复核"],
     },
     "数据安全法": {
-        "name": "数据安全法",
-        "focus": "数据分类分级、重要数据保护、风险监测和应急处置",
-        "controls": ["分类分级", "最小权限", "数据加密", "安全评估", "应急预案"],
+        "name": "数据安全法 / 个人信息保护相关要求",
+        "focus": "数据分类分级、重要数据保护、个人信息处理、风险监测和应急处置",
+        "controls": ["分类分级", "最小权限", "数据加密", "共享审批", "应急预案"],
     },
 }
 
@@ -62,11 +63,11 @@ RISK_KEYWORDS: Dict[str, Dict[str, Any]] = {
     "权限": {"score": 0.84, "risk": "权限滥用、越权访问或职责分离不足", "domain": "访问控制"},
     "账号": {"score": 0.78, "risk": "账号生命周期和特权账号管理不足", "domain": "身份治理"},
     "财务": {"score": 0.86, "risk": "财务数据完整性、审批链路和报表可靠性风险", "domain": "财务内控"},
-    "变更": {"score": 0.75, "risk": "系统变更未经充分审批、测试或上线复核", "domain": "变更管理"},
+    "变更": {"score": 0.75, "risk": "系统变更未经过充分审批、测试或上线后复核", "domain": "变更管理"},
     "备份": {"score": 0.69, "risk": "备份不可恢复或恢复目标不清晰", "domain": "业务连续性"},
     "日志": {"score": 0.66, "risk": "审计日志不完整、不可追溯或缺少告警", "domain": "监控审计"},
     "数据": {"score": 0.77, "risk": "敏感数据泄露、过度使用或共享不合规", "domain": "数据安全"},
-    "接口": {"score": 0.71, "risk": "接口鉴权、限流、对账和监控不足", "domain": "接口安全"},
+    "接口": {"score": 0.71, "risk": "接口鉴权、限流、对账和异常处置不足", "domain": "接口安全"},
 }
 
 
@@ -85,7 +86,7 @@ CONTROL_LIBRARY: List[Dict[str, Any]] = [
         "domain": "职责分离",
         "keywords": ["权限", "财务", "职责", "审批", "制单"],
         "objective": "防止同一人员同时拥有发起、审批和复核关键交易的权限。",
-        "test_procedure": "识别互斥权限组合，核查例外审批和补偿性控制。",
+        "test_procedure": "识别互斥权限组合，核查例外审批、补偿性控制和整改闭环。",
         "evidence_required": ["职责分离规则", "冲突权限报表", "例外审批", "补偿性控制记录"],
         "standards": ["SOX", "COBIT"],
     },
@@ -104,7 +105,7 @@ CONTROL_LIBRARY: List[Dict[str, Any]] = [
         "keywords": ["备份", "恢复", "灾备", "RPO", "RTO"],
         "objective": "确保关键系统和数据可在既定恢复目标内恢复。",
         "test_procedure": "检查备份策略、备份成功率、恢复演练记录和问题整改闭环。",
-        "evidence_required": ["备份策略", "备份日志", "恢复演练报告", "RPO/RTO定义"],
+        "evidence_required": ["备份策略", "备份日志", "恢复演练报告", "RPO/RTO 定义"],
         "standards": ["ISO27001", "COBIT"],
     },
     {
@@ -285,14 +286,14 @@ class AuditAgent:
         trace: List[Dict[str, Any]] = []
         audit_context = self._extract_context(user_input)
         task_plan = self._create_task_plan(audit_context)
-        trace.append(self._trace("planner", "generated", f"{len(task_plan)} audit tasks"))
+        trace.append(self._trace("planner", "generated", f"生成 {len(task_plan)} 个审计任务"))
 
         retrieved = self._retrieve_context(user_input, audit_context)
         evidence_pack = self._build_evidence_pack(retrieved, audit_context)
-        trace.append(self._trace("retriever", "completed", f"{len(evidence_pack)} evidence items"))
+        trace.append(self._trace("retriever", "completed", f"形成 {len(evidence_pack)} 条证据线索"))
 
         control_matrix = self._build_control_matrix(user_input, audit_context, evidence_pack)
-        trace.append(self._trace("control_mapper", "completed", f"{len(control_matrix)} controls mapped"))
+        trace.append(self._trace("control_mapper", "completed", f"映射 {len(control_matrix)} 项关键控制"))
 
         risk_assessment = self._assess_risk(user_input, audit_context, retrieved, control_matrix)
         compliance_check = self._check_compliance(audit_context, risk_assessment, control_matrix)
@@ -310,7 +311,7 @@ class AuditAgent:
             recommendations,
             quality_gate,
         )
-        trace.append(self._trace("quality_gate", quality_gate["status"], f"confidence={quality_gate['confidence']}"))
+        trace.append(self._trace("quality_gate", quality_gate["status"], f"置信度 {quality_gate['confidence']}"))
 
         self.session_memory[session_id].append(AIMessage(content=response))
         self._trim_session(session_id)
@@ -375,14 +376,15 @@ class AuditAgent:
         return "待审计对象"
 
     def _infer_standards(self, text: str) -> List[str]:
+        normalized = text.upper()
         inferred = []
-        if any(word in text for word in ["财务", "报表", "凭证", "SOX"]):
+        if any(word in text for word in ["财务", "报表", "凭证"]) or "SOX" in normalized:
             inferred.append("SOX")
-        if any(word in text for word in ["安全", "权限", "账号", "日志", "备份"]):
+        if any(word in text for word in ["安全", "权限", "账号", "日志", "备份", "ACCESS", "SECURITY"]):
             inferred.append("ISO27001")
-        if any(word in text for word in ["治理", "IT", "系统", "流程"]):
+        if any(word in text for word in ["治理", "系统", "流程"]) or "IT" in normalized:
             inferred.append("COBIT")
-        if any(word in text for word in ["数据", "个人信息", "敏感"]):
+        if any(word in text for word in ["数据", "个人信息", "敏感", "DATA"]):
             inferred.append("数据安全法")
         return inferred or ["ISO27001", "COBIT"]
 
@@ -399,74 +401,67 @@ class AuditAgent:
         item = audit_context["audit_item"]
         standards = "、".join(audit_context["standards"])
         return [
-            {"id": "T1", "name": "识别审计范围", "objective": f"确认{item}的边界、关键流程和责任人", "owner": "审计经理", "status": "done"},
-            {"id": "T2", "name": "检索制度与标准", "objective": f"检索{standards}及知识库证据", "owner": "RAG检索器", "status": "done"},
-            {"id": "T3", "name": "映射关键控制", "objective": "将风险主题映射到控制目标和测试程序", "owner": "控制映射器", "status": "done"},
-            {"id": "T4", "name": "评估风险与合规", "objective": "形成风险等级、合规评分和缺口", "owner": "风险评估器", "status": "done"},
-            {"id": "T5", "name": "生成整改计划", "objective": "输出责任角色、时限、证据和验收指标", "owner": "计划生成器", "status": "done"},
+            {"id": "T1", "name": "识别审计范围", "objective": f"确认 {item} 的边界、关键流程、系统接口和责任人。", "owner": "审计经理", "status": "done"},
+            {"id": "T2", "name": "检索制度与标准", "objective": f"检索 {standards}、知识库和历史底稿中的可引用依据。", "owner": "RAG 检索器", "status": "done"},
+            {"id": "T3", "name": "映射关键控制", "objective": "将风险主题映射到控制目标、控制活动和测试程序。", "owner": "控制映射器", "status": "done"},
+            {"id": "T4", "name": "执行风险评分", "objective": "综合固有风险、证据质量和控制成熟度计算剩余风险。", "owner": "风险评分器", "status": "done"},
+            {"id": "T5", "name": "生成审计程序", "objective": "输出抽样、访谈、系统配置检查和底稿索引。", "owner": "审计程序生成器", "status": "done"},
+            {"id": "T6", "name": "质量门与复核", "objective": "判断证据充分性、缺口和是否需要人工复核。", "owner": "质量门", "status": "done"},
         ]
 
-    def _retrieve_context(self, question: str, audit_context: Dict[str, Any]) -> Dict[str, Any]:
-        kg_results = self.tools.query_knowledge_graph(audit_context["audit_item"])
-        rag_result = None
+    def _retrieve_context(self, query: str, audit_context: Dict[str, Any]) -> Dict[str, Any]:
+        rag_result: Dict[str, Any] = {"answer": "", "sources": [], "confidence": 0.0}
         if self.rag_pipeline:
             try:
-                rag_result = self.rag_pipeline.query(question, audit_context, k=6)
+                rag_result = self.rag_pipeline.query(query, audit_context)
             except Exception as exc:
-                logger.warning("RAG retrieval failed: %s", exc)
-
-        standards = []
-        for standard in audit_context["standards"]:
-            standards.extend(self.tools.get_standards(standard))
-
-        return {"knowledge_graph": kg_results, "rag": rag_result, "standards": standards}
+                logger.warning("RAG query failed: %s", exc)
+        graph = self.tools.query_knowledge_graph(audit_context["audit_item"])
+        standards = self.tools.get_standards(audit_context["standards"][0] if audit_context["standards"] else None)
+        return {"rag": rag_result, "graph": graph, "standards": standards}
 
     def _build_evidence_pack(self, retrieved: Dict[str, Any], audit_context: Dict[str, Any]) -> List[Dict[str, Any]]:
         evidence = []
-        for index, standard in enumerate(retrieved.get("standards") or [], start=1):
-            evidence.append(
-                {
-                    "id": f"STD-{index:02d}",
-                    "type": "standard",
-                    "source": standard.get("name") or standard.get("type"),
-                    "summary": standard.get("focus") or standard.get("description") or "审计标准要求",
-                    "relevance": 0.82,
-                    "usage": "作为控制设计和合规评分依据",
-                }
-            )
-
-        rag_sources = (retrieved.get("rag") or {}).get("sources") or []
-        for index, source in enumerate(rag_sources, start=1):
+        for index, source in enumerate(retrieved.get("rag", {}).get("sources", []), start=1):
             evidence.append(
                 {
                     "id": f"RAG-{index:02d}",
                     "type": "knowledge",
-                    "source": source.get("source", "knowledge_base"),
-                    "summary": source.get("content", "")[:220],
-                    "relevance": round(float(source.get("score", 0.0)), 3),
-                    "usage": "作为审计事实和建议的背景证据",
+                    "source": source.get("source", "knowledge"),
+                    "summary": source.get("content", ""),
+                    "relevance": float(source.get("score") or 0.5),
+                    "usage": "作为制度依据或控制要求引用",
                 }
             )
-
-        for index, relation in enumerate(retrieved.get("knowledge_graph") or [], start=1):
+        for index, standard in enumerate(retrieved.get("standards", [])[:3], start=1):
+            evidence.append(
+                {
+                    "id": f"STD-{index:02d}",
+                    "type": "standard",
+                    "source": standard.get("name", standard.get("type", "standard")),
+                    "summary": standard.get("focus", standard.get("description", "")),
+                    "relevance": 0.72,
+                    "usage": "作为审计准则和控制设计依据",
+                }
+            )
+        for index, edge in enumerate(retrieved.get("graph", [])[:3], start=1):
             evidence.append(
                 {
                     "id": f"KG-{index:02d}",
                     "type": "graph",
-                    "source": relation.get("source"),
-                    "summary": f"{relation.get('source')} -{relation.get('relation')}- {relation.get('target')}",
-                    "relevance": 0.7,
-                    "usage": "作为实体关系补充证据",
+                    "source": edge.get("source", "knowledge_graph"),
+                    "summary": f"{edge.get('source')} -{edge.get('relation')}-> {edge.get('target')}",
+                    "relevance": 0.65,
+                    "usage": "用于补充系统、流程和风险关系",
                 }
             )
-
         if not evidence:
             evidence.append(
                 {
                     "id": "HEU-01",
                     "type": "heuristic",
                     "source": "内置审计控制库",
-                    "summary": f"基于{audit_context['business_domain']}和风险主题生成审计假设。",
+                    "summary": f"基于 {audit_context['business_domain']} 和风险主题生成初步审计假设。",
                     "relevance": 0.45,
                     "usage": "证据不足时的初步审计假设，需要现场取证验证",
                 }
@@ -499,7 +494,6 @@ class AuditAgent:
                     "risk_reduction": 0.16 if keyword_hit else 0.09,
                 }
             )
-
         if not matrix:
             base = CONTROL_LIBRARY[0]
             matrix.append(
@@ -526,21 +520,16 @@ class AuditAgent:
     ) -> Dict[str, Any]:
         matched = []
         scores = []
+        normalized = text.lower()
+        requested_high = any(word in normalized for word in ["高", "high", "critical", "重点关注"])
         for keyword, definition in RISK_KEYWORDS.items():
             if keyword in text or keyword in audit_context.get("audit_item", ""):
-                matched.append(
-                    {
-                        "topic": keyword,
-                        "domain": definition["domain"],
-                        "risk": definition["risk"],
-                        "score": definition["score"],
-                    }
-                )
+                matched.append({"topic": keyword, "domain": definition["domain"], "risk": definition["risk"], "score": definition["score"]})
                 scores.append(definition["score"])
-
         if not matched:
-            matched.append({"topic": "通用控制", "domain": audit_context["business_domain"], "risk": "审计范围、证据链或控制责任未完全明确", "score": 0.52})
-            scores.append(0.52)
+            base_score = 0.76 if requested_high else 0.52
+            matched.append({"topic": "通用控制", "domain": audit_context["business_domain"], "risk": "审计范围、证据链或控制责任未完全明确", "score": base_score})
+            scores.append(base_score)
 
         control_reduction = min(sum(item["risk_reduction"] for item in control_matrix), 0.28)
         evidence_boost = 0.03 if (retrieved.get("rag") or {}).get("confidence", 0) > 0.5 else 0
@@ -549,7 +538,6 @@ class AuditAgent:
         high = AUDIT_CONFIG["risk_threshold_high"]
         medium = AUDIT_CONFIG["risk_threshold_medium"]
         risk_level = "高" if residual_score >= high else "中" if residual_score >= medium else "低"
-
         return {
             "audit_item": audit_context["audit_item"],
             "inherent_risk_score": round(raw_score, 2),
@@ -560,18 +548,17 @@ class AuditAgent:
             "assessment_date": datetime.now().isoformat(),
         }
 
-    def _check_compliance(
-        self,
-        audit_context: Dict[str, Any],
-        risk_assessment: Dict[str, Any],
-        control_matrix: List[Dict[str, Any]],
-    ) -> Dict[str, Any]:
+    def _check_compliance(self, audit_context: Dict[str, Any], risk_assessment: Dict[str, Any], control_matrix: List[Dict[str, Any]]) -> Dict[str, Any]:
         standards = audit_context["standards"]
         details = []
         avg_maturity = sum(item["maturity_level"] for item in control_matrix) / max(len(control_matrix), 1)
         for standard in standards:
             definition = AUDIT_STANDARDS.get(standard, {})
-            related_controls = [item for item in control_matrix if standard in next((c["standards"] for c in CONTROL_LIBRARY if c["id"] == item["control_id"]), [])]
+            related_controls = [
+                item
+                for item in control_matrix
+                if standard in next((control["standards"] for control in CONTROL_LIBRARY if control["id"] == item["control_id"]), [])
+            ]
             details.append(
                 {
                     "standard": definition.get("name", standard),
@@ -615,15 +602,10 @@ class AuditAgent:
             "control_coverage": round(control_coverage, 2),
             "missing_evidence": missing,
             "escalation_required": risk_assessment["risk_level"] == "高" or status != "pass",
-            "review_note": "证据充分，可进入现场验证。" if status == "pass" else "需要补充审计证据后再形成最终结论。",
+            "review_note": "证据较充分，可进入现场验证和复核。" if status == "pass" else "需要补充审计证据后再形成最终结论。",
         }
 
-    def _build_audit_program(
-        self,
-        audit_context: Dict[str, Any],
-        control_matrix: List[Dict[str, Any]],
-        risk_assessment: Dict[str, Any],
-    ) -> List[Dict[str, Any]]:
+    def _build_audit_program(self, audit_context: Dict[str, Any], control_matrix: List[Dict[str, Any]], risk_assessment: Dict[str, Any]) -> List[Dict[str, Any]]:
         procedures = []
         for index, control in enumerate(control_matrix, start=1):
             procedures.append(
@@ -640,26 +622,15 @@ class AuditAgent:
             )
         return procedures
 
-    def _build_sampling_plan(
-        self,
-        audit_context: Dict[str, Any],
-        control_matrix: List[Dict[str, Any]],
-        risk_assessment: Dict[str, Any],
-    ) -> Dict[str, Any]:
+    def _build_sampling_plan(self, audit_context: Dict[str, Any], control_matrix: List[Dict[str, Any]], risk_assessment: Dict[str, Any]) -> Dict[str, Any]:
         risk_level = risk_assessment["risk_level"]
         base_size = 25 if risk_level == "高" else 15 if risk_level == "中" else 8
-        population = f"{audit_context['audit_item']}在审计期间内的关键交易、权限、变更或日志记录"
         return {
-            "population": population,
-            "period": "最近一个完整季度，必要时追溯至最近一次重大变更",
-            "method": "风险导向抽样；高风险控制采用分层抽样，关键例外全量核查",
+            "population": f"{audit_context['audit_item']} 在审计期间内的关键交易、权限、变更或日志记录",
+            "period": "最近一个完整季度，必要时追溯至最近一次重大变更。",
+            "method": "风险导向抽样；高风险控制采用分层抽样，关键例外全量核查。",
             "sample_size": base_size + min(len(control_matrix) * 2, 12),
-            "strata": [
-                "高权限/特权用户",
-                "关键财务或敏感数据操作",
-                "生产变更和例外审批",
-                "异常日志或失败交易",
-            ],
+            "strata": ["高权限/特权用户", "关键财务或敏感数据操作", "生产变更和例外审批", "异常日志或失败交易"],
             "exception_handling": "发现重大例外时扩大样本并触发管理层复核。",
         }
 
@@ -678,9 +649,9 @@ class AuditAgent:
             findings.append(
                 {
                     "finding_id": "F-01",
-                    "title": f"{audit_context['audit_item']}存在{primary['domain']}控制薄弱迹象",
+                    "title": f"{audit_context['audit_item']} 存在 {primary['domain']} 控制薄弱迹象",
                     "severity": risk_assessment["risk_level"],
-                    "condition": f"当前证据显示{primary['risk']}，控制 {control['control_id']} 仍需现场验证。",
+                    "condition": f"当前证据显示 {primary['risk']}，控制 {control['control_id']} 仍需现场验证。",
                     "criteria": "应满足最小权限、审批留痕、定期复核和异常监控等控制要求。",
                     "cause": "控制责任、证据留存或例外处理流程可能不够清晰。",
                     "effect": "可能导致越权操作、关键交易未经授权或审计追溯困难。",
@@ -688,7 +659,6 @@ class AuditAgent:
                     "evidence_refs": control.get("evidence_refs", []),
                 }
             )
-
         if compliance_check["compliance_score"] < 75:
             findings.append(
                 {
@@ -696,7 +666,7 @@ class AuditAgent:
                     "title": "合规证据覆盖不足",
                     "severity": "中",
                     "condition": f"当前合规评分为 {compliance_check['compliance_score']}，证据包数量为 {len(evidence_pack)}。",
-                    "criteria": "审计结论应可追溯到制度、审批、系统配置、日志或抽样底稿。",
+                    "criteria": "审计结论应能追溯到制度、审批、系统配置、日志或抽样底稿。",
                     "cause": "知识库或现场证据尚未覆盖全部关键控制。",
                     "effect": "结论置信度下降，可能需要人工复核或补充取证。",
                     "recommendation": "补充制度条款、控制执行记录、抽样明细和管理层复核证据。",
@@ -732,14 +702,13 @@ class AuditAgent:
                 {
                     "type": "控制整改",
                     "priority": priority,
-                    "description": f"围绕{control['domain']}补齐控制设计和运行有效性证据。",
+                    "description": f"围绕 {control['domain']} 补齐控制设计和运行有效性证据。",
                     "action_items": control["evidence_required"][:3],
                     "owner_role": "控制责任人",
                     "due_days": 14 if priority == "高" else 30,
                     "success_metric": f"{control['control_id']} 关键证据齐备且抽样无重大例外",
                 }
             )
-
         if quality_gate["missing_evidence"]:
             recommendations.append(
                 {
@@ -752,7 +721,6 @@ class AuditAgent:
                     "success_metric": "质量门置信度达到 0.72 以上",
                 }
             )
-
         recommendations.append(
             {
                 "type": "持续监控",
@@ -777,29 +745,19 @@ class AuditAgent:
         quality_gate: Dict[str, Any],
     ) -> str:
         if self.llm:
-            llm_response = self._compose_with_llm(
-                user_input,
-                audit_context,
-                retrieved,
-                risk_assessment,
-                compliance_check,
-                recommendations,
-                quality_gate,
-            )
+            llm_response = self._compose_with_llm(user_input, audit_context, retrieved, risk_assessment, compliance_check, recommendations, quality_gate)
             if llm_response:
                 return llm_response
-
         standards = "、".join(compliance_check["standards"])
         top_risks = "；".join(risk["risk"] for risk in risk_assessment["identified_risks"])
         first_action = recommendations[0]["description"] if recommendations else "补齐审计证据。"
         return (
             f"审计对象：{audit_context['audit_item']}。\n\n"
-            f"结论摘要：当前剩余风险等级为{risk_assessment['risk_level']}，风险评分 {risk_assessment['risk_score']}，"
+            f"结论摘要：当前剩余风险等级为 {risk_assessment['risk_level']}，风险评分 {risk_assessment['risk_score']}，"
             f"控制抵减约 {risk_assessment['control_reduction']}。主要风险包括：{top_risks}。\n\n"
             f"合规视角：建议按 {standards} 取证，当前合规评分约为 {compliance_check['compliance_score']}，"
             f"控制成熟度均值 {compliance_check['control_maturity_avg']}。\n\n"
-            f"质量门：状态 {quality_gate['status']}，置信度 {quality_gate['confidence']}，"
-            f"{quality_gate['review_note']}\n\n"
+            f"质量门：状态 {quality_gate['status']}，置信度 {quality_gate['confidence']}。{quality_gate['review_note']}\n\n"
             f"优先动作：{first_action}"
         )
 
@@ -850,12 +808,7 @@ class AuditAgent:
         ]
 
     def get_service_status(self) -> Dict[str, bool]:
-        return {
-            "llm": bool(self.llm),
-            "mysql": self.tools.status.mysql,
-            "neo4j": self.tools.status.neo4j,
-            "rag": bool(self.rag_pipeline),
-        }
+        return {"llm": bool(self.llm), "mysql": self.tools.status.mysql, "neo4j": self.tools.status.neo4j, "rag": bool(self.rag_pipeline)}
 
     def close(self) -> None:
         self.tools.close()

@@ -32,14 +32,16 @@ class AuditDeliveryService:
                 "standard": request.get("standard_type"),
                 "risk_level": request.get("risk_level"),
                 "status": record.get("status"),
+                "lifecycle_stage": record.get("lifecycle_stage"),
             },
             "workpaper_index": self._workpaper_index(result),
-            "evidence_request_list": self._evidence_request_list(result),
-            "control_test_plan": self._control_test_plan(controls, procedures),
+            "evidence_request_list": self._evidence_request_list(record, result),
+            "control_test_plan": self._control_test_plan(record, controls, procedures),
             "finding_tracker": self._finding_tracker(findings, tasks),
             "interview_plan": self._interview_plan(result),
             "fieldwork_calendar": self._fieldwork_calendar(result),
             "quality_review": result.get("quality_gate", {}),
+            "event_log": record.get("events", []),
             "signoff": {
                 "prepared_by": "智能审计 Agent",
                 "reviewer": "审计经理",
@@ -68,8 +70,22 @@ class AuditDeliveryService:
             )
         return rows
 
-    def _evidence_request_list(self, result: Dict[str, Any]) -> List[Dict[str, Any]]:
+    def _evidence_request_list(self, record: Dict[str, Any], result: Dict[str, Any]) -> List[Dict[str, Any]]:
         requests = []
+        for item in record.get("evidence_requests", []):
+            requests.append(
+                {
+                    "id": item.get("request_id"),
+                    "source": item.get("source"),
+                    "summary": item.get("evidence"),
+                    "usage": item.get("usage"),
+                    "owner": item.get("owner"),
+                    "priority": item.get("priority"),
+                    "status": item.get("status"),
+                }
+            )
+        if requests:
+            return requests
         for index, item in enumerate(result.get("evidence_pack", []), start=1):
             requests.append(
                 {
@@ -77,15 +93,16 @@ class AuditDeliveryService:
                     "source": item.get("source"),
                     "summary": item.get("summary"),
                     "usage": item.get("usage"),
+                    "owner": "审计员",
+                    "priority": "中",
                     "status": "已获取" if item.get("type") != "heuristic" else "待补充",
                 }
             )
-        missing = result.get("quality_gate", {}).get("missing_evidence", [])
-        for index, item in enumerate(missing, start=len(requests) + 1):
-            requests.append({"id": f"EV-{index:02d}", "source": "现场取证", "summary": item, "usage": "补齐质量门缺口", "status": "待收集"})
         return requests
 
-    def _control_test_plan(self, controls: List[Dict[str, Any]], procedures: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    def _control_test_plan(self, record: Dict[str, Any], controls: List[Dict[str, Any]], procedures: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        if record.get("control_tests"):
+            return record["control_tests"]
         procedure_by_control = {item.get("control_id"): item for item in procedures}
         rows = []
         for control in controls:
@@ -132,7 +149,7 @@ class AuditDeliveryService:
                 "topic": domain,
                 "interviewee": "流程负责人 / 系统管理员 / 控制责任人",
                 "questions": [
-                    f"{domain}控制的责任边界和审批链路是什么？",
+                    f"{domain} 控制的责任边界和审批链路是什么？",
                     "关键例外如何审批、记录和复核？",
                     "最近一次控制执行证据存放在哪里？",
                 ],

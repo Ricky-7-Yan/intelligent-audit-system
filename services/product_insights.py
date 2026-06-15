@@ -1,4 +1,4 @@
-"""Product-facing metrics for the audit operations console."""
+"""Product-facing metrics for the audit delivery workspace."""
 
 from __future__ import annotations
 
@@ -32,7 +32,6 @@ class ProductInsights:
             "knowledge_chunks": rag_stats.get("total_documents", 0),
             "skills": len(self.skill_registry.list_skills()),
         }
-
         return {
             "generated_at": datetime.now().isoformat(),
             "summary": summary,
@@ -69,20 +68,18 @@ class ProductInsights:
     def evidence_requests(self) -> List[Dict[str, Any]]:
         requests: List[Dict[str, Any]] = []
         for record in self.audit_repository.iter_records(limit=80):
-            result = record.get("result", {})
-            quality = result.get("quality_gate", {})
-            for index, evidence in enumerate(quality.get("missing_evidence", [])[:4], start=1):
+            for item in record.get("evidence_requests", [])[:8]:
                 requests.append(
                     {
-                        "request_id": f"ER-{record.get('run_id', '')[-6:]}-{index:02d}",
+                        "request_id": item.get("request_id"),
                         "audit_item": record.get("request", {}).get("audit_item") or "待审计对象",
-                        "evidence": evidence,
-                        "owner": "控制责任人",
-                        "priority": "高" if quality.get("escalation_required") else "中",
-                        "status": "待收集",
+                        "evidence": item.get("evidence"),
+                        "owner": item.get("owner") or "控制责任人",
+                        "priority": item.get("priority") or "中",
+                        "status": item.get("status") or "待收集",
                     }
                 )
-        return requests[:16]
+        return requests[:24]
 
     def control_health(self, runs: List[Dict[str, Any]] | None = None) -> List[Dict[str, Any]]:
         records = self.audit_repository.iter_records(limit=80)
@@ -116,7 +113,7 @@ class ProductInsights:
             {"name": "Knowledge Base", "status": "online", "detail": f"{rag_stats.get('total_documents', 0)} chunks"},
             {"name": "Audit Archive", "status": "online", "detail": "local JSON repository"},
             {"name": "Skill Registry", "status": "online", "detail": f"{len(self.skill_registry.list_skills())} tools"},
-            {"name": "LLM Gateway", "status": "configured", "detail": "optional Qwen/OpenAI compatible"},
+            {"name": "LLM Gateway", "status": "configured", "detail": "DeepSeek/OpenAI compatible"},
             {"name": "MySQL Standards", "status": "optional", "detail": "falls back to built-in controls"},
             {"name": "Neo4j Graph", "status": "optional", "detail": "falls back to local graph"},
         ]

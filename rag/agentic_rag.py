@@ -1,12 +1,4 @@
-"""
-Agentic RAG implementation for audit knowledge.
-
-The pipeline is intentionally resilient:
-- persistent JSON document store for user-added knowledge
-- semantic retrieval when sentence-transformers is available
-- TF-IDF fallback when embedding dependencies or model files are unavailable
-- query expansion, deduplication, lightweight reranking and source attribution
-"""
+"""Agentic RAG implementation for audit knowledge."""
 
 from __future__ import annotations
 
@@ -19,11 +11,11 @@ from dataclasses import asdict, dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional
+
 from config import LLM_CONFIG, RAG_CONFIG
 
 TfidfVectorizer = None
 cosine_similarity = None
-
 
 logger = logging.getLogger(__name__)
 
@@ -40,6 +32,7 @@ AUDIT_QUERY_SYNONYMS: Dict[str, List[str]] = {
     "Agent": ["tool calling", "planning", "memory", "RAG", "evaluation", "MCP", "Skill"],
     "RAG": ["retrieval", "citation", "faithfulness", "answer relevance", "检索增强"],
 }
+
 
 BUILTIN_KNOWLEDGE = [
     {
@@ -78,6 +71,13 @@ class StoredChunk:
     metadata: Dict[str, Any]
 
 
+def _looks_corrupt(text: Any) -> bool:
+    value = str(text or "")
+    if "?" * 3 in value:
+        return True
+    return any(mark in value for mark in ["\u93c1", "\u7487", "\u20ac", "\ufffd", "\u6d93", "\u6942", "\u6d63"])
+
+
 class DocumentProcessor:
     def __init__(self, chunk_size: int = RAG_CONFIG["chunk_size"], chunk_overlap: int = RAG_CONFIG["chunk_overlap"]) -> None:
         self.chunk_size = chunk_size
@@ -87,35 +87,26 @@ class DocumentProcessor:
         metadata = dict(metadata or {})
         metadata.setdefault("source", "manual")
         metadata["processed_at"] = datetime.now().isoformat()
-        chunks = self._split_text(text)
-        documents = []
-        for index, chunk in enumerate(chunks):
-            doc_metadata = {**metadata, "chunk_id": index, "chunk_size": len(chunk)}
-            documents.append(Document(page_content=chunk, metadata=doc_metadata))
-        return documents
+        return [
+            Document(page_content=chunk, metadata={**metadata, "chunk_id": index, "chunk_size": len(chunk)})
+            for index, chunk in enumerate(self._split_text(text))
+        ]
 
     def process_file(self, file_path: str) -> List[Document]:
         path = Path(file_path)
         content = path.read_text(encoding="utf-8", errors="ignore")
         return self.process_text(
             content,
-            {
-                "source": str(path),
-                "file_name": path.name,
-                "file_type": path.suffix.lower(),
-                "file_size": path.stat().st_size,
-            },
+            {"source": str(path), "file_name": path.name, "file_type": path.suffix.lower(), "file_size": path.stat().st_size},
         )
 
     def _split_text(self, text: str) -> List[str]:
         text = re.sub(r"\r\n?", "\n", text).strip()
         if not text:
             return []
-
         paragraphs = [part.strip() for part in re.split(r"\n{2,}", text) if part.strip()]
         chunks: List[str] = []
         current = ""
-
         for paragraph in paragraphs:
             if len(current) + len(paragraph) + 2 <= self.chunk_size:
                 current = f"{current}\n\n{paragraph}".strip()
@@ -127,7 +118,6 @@ class DocumentProcessor:
             else:
                 chunks.extend(self._window_split(paragraph))
                 current = ""
-
         if current:
             chunks.append(current)
         return chunks
@@ -182,6 +172,13 @@ class PersistentDocumentStore:
         return added
 
     def _ensure_seed_knowledge(self) -> None:
+        builtin_sources = {item["source"] for item in BUILTIN_KNOWLEDGE}
+        before = len(self.chunks)
+        self.chunks = [
+            chunk
+            for chunk in self.chunks
+            if not (chunk.metadata.get("source") in builtin_sources and _looks_corrupt(chunk.content))
+        ]
         seed_items = list(BUILTIN_KNOWLEDGE)
         seed_dir = self.store_file.parents[1] / "seed_knowledge"
         for path in sorted(seed_dir.glob("*.json")):
@@ -201,15 +198,12 @@ class PersistentDocumentStore:
             documents.append(
                 Document(
                     page_content=text,
-                    metadata={
-                        "source": item.get("source", "seed"),
-                        "type": item.get("type", "seed"),
-                        "title": item.get("title", ""),
-                        "seed": True,
-                    },
+                    metadata={"source": item.get("source", "seed"), "type": item.get("type", "seed"), "title": item.get("title", ""), "seed": True},
                 )
             )
-        self.add_documents(documents, persist=True)
+        added = self.add_documents(documents, persist=False)
+        if added or len(self.chunks) != before:
+            self.persist()
 
     def _document_id(self, document: Document) -> str:
         source = str(document.metadata.get("source", "manual"))
@@ -221,14 +215,14 @@ class HybridRetriever:
     def __init__(self, store: PersistentDocumentStore) -> None:
         self.store = store
         self.embedding_model = self._load_embedding_model()
-        self.embedding_matrix: Optional[np.ndarray] = None
+        self.embedding_matrix = None
         self.tfidf_vectorizer = None
         self.tfidf_matrix = None
         self.rebuild()
 
     def _load_embedding_model(self) -> Any:
         if os.getenv("RAG_DISABLE_EMBEDDINGS", "1").lower() in {"1", "true", "yes"}:
-            logger.info("Embedding model disabled by RAG_DISABLE_EMBEDDINGS, TF-IDF fallback enabled")
+            logger.info("Embedding model disabled by RAG_DISABLE_EMBEDDINGS, fallback retrieval enabled")
             return None
         model_name = str(RAG_CONFIG["embedding_model"])
         if "\\" in model_name or "/" in model_name:
@@ -241,7 +235,7 @@ class HybridRetriever:
 
             return SentenceTransformer(model_name)
         except Exception as exc:
-            logger.info("Embedding model unavailable, TF-IDF fallback enabled: %s", exc)
+            logger.info("Embedding model unavailable, fallback retrieval enabled: %s", exc)
             return None
 
     def rebuild(self) -> None:
@@ -257,7 +251,6 @@ class HybridRetriever:
             except Exception as exc:
                 logger.warning("Embedding index rebuild failed: %s", exc)
                 self.embedding_matrix = None
-
         self._ensure_tfidf_dependencies()
         if TfidfVectorizer:
             try:
@@ -310,6 +303,8 @@ class HybridRetriever:
         if self.tfidf_vectorizer is None or self.tfidf_matrix is None or cosine_similarity is None:
             return []
         try:
+            import numpy as np
+
             query_vec = self.tfidf_vectorizer.transform([query])
             scores = cosine_similarity(query_vec, self.tfidf_matrix).ravel()
             top_indices = np.argsort(scores)[::-1][:limit]
@@ -364,8 +359,7 @@ class AgenticRetriever:
         return self._dedupe(queries)[:6]
 
     def retrieve_documents(self, query: str, context: Optional[Dict[str, Any]] = None, k: int = 5) -> List[Document]:
-        queries = self.generate_queries(query, context)
-        return self.retriever.retrieve(queries, k=k)
+        return self.retriever.retrieve(self.generate_queries(query, context), k=k)
 
     def _dedupe(self, values: Iterable[str]) -> List[str]:
         seen = set()
@@ -422,13 +416,7 @@ class RAGPipeline:
     def query(self, question: str, context: Optional[Dict[str, Any]] = None, k: int = RAG_CONFIG["top_k"]) -> Dict[str, Any]:
         documents = self.retriever.retrieve_documents(question, context, k=k)
         if not documents:
-            return {
-                "answer": "没有检索到足够相关的知识。建议先在知识库中补充制度、流程、审计底稿或控制要求。",
-                "sources": [],
-                "confidence": 0.0,
-                "retrieved_docs_count": 0,
-            }
-
+            return {"answer": "没有检索到足够相关的知识。建议先补充制度、流程、底稿或控制要求。", "sources": [], "confidence": 0.0, "retrieved_docs_count": 0}
         answer = self._generate_answer(question, documents)
         confidence = self._calculate_confidence(documents)
         return {
@@ -447,15 +435,12 @@ class RAGPipeline:
         }
 
     def _generate_answer(self, question: str, documents: List[Document]) -> str:
-        context_text = "\n\n".join(
-            f"[{index + 1}] 来源：{doc.metadata.get('source', 'unknown')}\n{doc.page_content}"
-            for index, doc in enumerate(documents)
-        )
+        context_text = "\n\n".join(f"[{index + 1}] 来源：{doc.metadata.get('source', 'unknown')}\n{doc.page_content}" for index, doc in enumerate(documents))
         if self.llm:
             from langchain_core.messages import HumanMessage
 
             prompt = (
-                "你是审计知识库问答助手。仅基于检索上下文回答，若证据不足要说明缺口。"
+                "你是审计知识库问答助手。仅基于检索上下文回答；若证据不足，要说明缺口。"
                 "答案需要包含直接结论、审计依据、建议动作和引用来源编号。\n\n"
                 f"问题：{question}\n\n检索上下文：\n{context_text}"
             )
@@ -465,7 +450,6 @@ class RAGPipeline:
             except Exception as exc:
                 logger.warning("RAG LLM answer failed: %s", exc)
                 self.llm = None
-
         highlights = []
         for index, doc in enumerate(documents[:3], start=1):
             sentence = self._best_sentence(question, doc.page_content)
@@ -473,7 +457,7 @@ class RAGPipeline:
         return "基于知识库检索，相关依据如下：\n" + "\n".join(highlights)
 
     def _best_sentence(self, question: str, content: str) -> str:
-        sentences = [part.strip() for part in re.split(r"[。！？!?]\s*", content) if part.strip()]
+        sentences = [part.strip() for part in re.split(r"[。！？；;.!?]\s*", content) if part.strip()]
         if not sentences:
             return content[:220]
         query_chars = set(question)
@@ -485,8 +469,7 @@ class RAGPipeline:
             return 0.0
         top_score = max(scores)
         coverage = min(len(documents) / max(1, RAG_CONFIG["top_k"]), 1.0)
-        confidence = min(1.0, top_score * 0.75 + coverage * 0.25)
-        return round(confidence, 3)
+        return round(min(1.0, top_score * 0.75 + coverage * 0.25), 3)
 
     def get_statistics(self) -> Dict[str, Any]:
         return {

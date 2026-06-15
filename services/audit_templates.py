@@ -1,4 +1,4 @@
-"""Audit engagement templates for industry scenarios."""
+"""Audit engagement templates for common industry scenarios."""
 
 from __future__ import annotations
 
@@ -55,6 +55,16 @@ AUDIT_TEMPLATES: List[Dict[str, Any]] = [
         "scope": ["备份策略", "备份成功率", "恢复演练", "RPO/RTO", "灾备切换", "问题整改"],
         "evidence": ["备份策略", "备份日志", "恢复演练报告", "RPO/RTO 定义", "灾备预案", "整改记录"],
         "deliverables": ["备份恢复测试底稿", "业务连续性缺口清单", "恢复能力评估", "整改计划"],
+    },
+    {
+        "template_id": "tpl-third-party",
+        "name": "第三方服务与外包安全审计",
+        "audit_type": "合规审计",
+        "standard": "ISO27001",
+        "risk_level": "中",
+        "scope": ["供应商准入", "合同安全条款", "数据访问", "服务级别", "退出机制", "安全评估"],
+        "evidence": ["供应商台账", "合同条款", "权限清单", "SLA 报告", "安全评估报告", "退出交接记录"],
+        "deliverables": ["供应商风险评级", "外包访问清单", "合同合规缺口", "退出风险清单"],
     },
 ]
 

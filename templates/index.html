@@ -3,118 +3,88 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>&#26234;&#33021;&#23457;&#35745; Agent &#24179;&#21488; - &#26234;&#33021;&#23457;&#35745; Agent &#24179;&#21488;</title>
+  <title>&#23457;&#33033; AuditPilot</title>
   <link rel="stylesheet" href="../static/app.css">
 </head>
 <body>
   <div class="app-shell">
-
     <aside class="sidebar">
-      <div class="brand"><div class="brand-icon">&#23457;</div><span>&#26234;&#33021;&#23457;&#35745; Agent &#24179;&#21488;</span></div>
-      <nav class="nav-list">
-        <a class="nav-link active" href="/">&#8962; <span>&#24635;&#35272;</span></a>
-        <a class="nav-link" href="/chat">&#9679; <span>&#23457;&#35745;&#23545;&#35805;</span></a>
-        <a class="nav-link" href="/audit">&#8981; <span>&#23457;&#35745;&#20998;&#26512;</span></a>
-        <a class="nav-link" href="/knowledge">&#9638; <span>&#30693;&#35782;&#24211;</span></a>
-        <a class="nav-link" href="/training">&#9633; <span>&#35780;&#20272;</span></a>
-        <a class="nav-link" href="/skills">&#9671; <span>Skills</span></a>
-      </nav>
-      <div class="sidebar-note">&#34892;&#19994;&#33853;&#22320;&#33021;&#21147;&#65306;&#23457;&#35745;&#39033;&#30446;&#12289;&#35777;&#25454;&#35831;&#27714;&#12289;&#25511;&#21046;&#27979;&#35797;&#12289;&#24213;&#31295;&#32034;&#24341;&#12289;&#36136;&#37327;&#38376;&#21644;&#25972;&#25913;&#38381;&#29615;&#12290;</div>
+      <div class="brand"><div class="brand-icon">AP</div><span>&#23457;&#33033; AuditPilot</span></div>
+      <nav class="nav-list"><a class="nav-link active" href="/">⌂ <span>&#24635;&#35272;</span></a>
+<a class="nav-link " href="/chat">● <span>&#23457;&#35745;&#23545;&#35805;</span></a>
+<a class="nav-link " href="/audit">⌕ <span>&#23457;&#35745;&#24037;&#20316;&#21488;</span></a>
+<a class="nav-link " href="/knowledge">▦ <span>&#30693;&#35782;&#24211;</span></a>
+<a class="nav-link " href="/training">□ <span>&#35780;&#27979;</span></a>
+<a class="nav-link " href="/skills">◇ <span>Skills</span></a></nav>
+      <div class="sidebar-note">&#20197;&#23457;&#35745;&#20132;&#20184;&#20026;&#20027;&#32447;&#65306;&#30693;&#35782;&#26816;&#32034;&#12289;&#25511;&#21046;&#27979;&#35797;&#12289;&#24213;&#31295;&#12289;&#22797;&#26680;&#21644;&#25972;&#25913;&#38381;&#29615;&#12290;</div>
     </aside>
-
     <main class="main">
       <div class="topbar">
-        <div class="page-title">
-          <h1>&#26234;&#33021;&#23457;&#35745; Agent &#24179;&#21488;</h1>
-          <p>&#38754;&#21521;&#23457;&#35745;&#34892;&#19994;&#20132;&#20184;&#22330;&#26223;&#30340;&#20225;&#19994; Agent &#24037;&#20316;&#21488;</p>
-        </div>
+        <div class="page-title"><h1>&#23457;&#35745;&#20132;&#20184;&#24635;&#35272;</h1><p>&#34892;&#19994;&#33853;&#22320;&#33021;&#21147;&#65306;&#23457;&#35745;&#39033;&#30446;&#12289;&#35777;&#25454;&#35831;&#27714;&#12289;&#25511;&#21046;&#27979;&#35797;&#12289;&#24213;&#31295;&#32034;&#24341;&#12289;&#36136;&#37327;&#38376;&#21644;&#25972;&#25913;&#38381;&#29615;&#12290;</p></div>
         <div class="status-pill"><span class="status-dot"></span><span id="healthText">&#21152;&#36733;&#29366;&#24577;&#20013;</span></div>
       </div>
-
-      <section class="hero-console">
-        <div class="panel console-hero">
-          <div>
-            <div class="hero-eyebrow">Audit Delivery Workbench</div>
-            <h2 class="hero-title">&#38754;&#21521;&#23457;&#35745;&#34892;&#19994;&#20132;&#20184;&#30340;&#20225;&#19994; Agent &#24037;&#20316;&#21488;</h2>
-            <p class="hero-copy">&#22260;&#32469;&#23457;&#35745;&#39033;&#30446;&#30495;&#27491;&#38656;&#35201;&#30340;&#33539;&#22260;&#12289;&#35777;&#25454;&#12289;&#25511;&#21046;&#27979;&#35797;&#12289;&#24213;&#31295;&#32034;&#24341;&#12289;&#21457;&#29616;&#25972;&#25913;&#21644;&#22797;&#26680;&#31614;&#23383;&#24418;&#25104;&#23436;&#25972;&#20132;&#20184;&#21253;&#65292;&#32780;&#19981;&#26159;&#20572;&#30041;&#22312;&#38382;&#31572;&#28436;&#31034;&#12290;</p>
-            <div class="hero-actions">
-              <a class="btn primary" href="/audit">&#21551;&#21160;&#23457;&#35745;</a>
-              <a class="btn" href="/knowledge">&#31649;&#29702;&#30693;&#35782;&#24211;</a>
-              <a class="btn" href="/skills">&#26597;&#30475; Agent &#33021;&#21147;</a>
-            </div>
-          </div>
-          <div class="kpi-row mt-16">
-            <div class="card metric"><div class="metric-value" id="runCount">0</div><div class="metric-label">&#23457;&#35745;&#26723;&#26696;</div></div>
-            <div class="card metric"><div class="metric-value" id="taskCount">0</div><div class="metric-label">&#24453;&#21150;&#25972;&#25913;</div></div>
-            <div class="card metric"><div class="metric-value" id="qualityAvg">0</div><div class="metric-label">&#24179;&#22343;&#36136;&#37327;</div></div>
-            <div class="card metric"><div class="metric-value" id="docCount">0</div><div class="metric-label">&#30693;&#35782;&#20999;&#29255;</div></div>
-            <div class="card metric"><div class="metric-value" id="skillCount">7</div><div class="metric-label">Skills</div></div>
-          </div>
-        </div>
-        <aside class="panel">
-          <h2 class="panel-title">&#36816;&#33829;&#20449;&#21495;</h2>
-          <div id="signals" class="signal-list"></div>
-        </aside>
-      </section>
-
-      <div class="section-title"><div><h2>&#39118;&#38505;&#21488;&#36134;</h2><p>&#25104;&#29087;&#23457;&#35745;&#20135;&#21697;&#38656;&#35201;&#30452;&#25509;&#31649;&#29702;&#39118;&#38505;&#12289;&#36131;&#20219;&#20154;&#12289;&#29366;&#24577;&#21644;&#19979;&#19968;&#27493;&#21160;&#20316;&#12290;</p></div></div>
-      <section class="panel"><div id="riskRegister" class="list dense"></div></section>
-
-      <div class="section-title"><div><h2>&#35777;&#25454;&#35831;&#27714;&#38431;&#21015;</h2><p>&#25226;&#32570;&#22833;&#35777;&#25454;&#21464;&#25104;&#21487;&#36319;&#36394;&#30340;&#19994;&#21153;&#35831;&#27714;&#65292;&#20943;&#23569;&#23457;&#35745;&#20154;&#21592;&#32447;&#19979;&#36861;&#38382;&#12290;</p></div></div>
-      <section id="evidenceRequests" class="grid grid-4"></section>
-
-      <div class="section-title"><div><h2>&#25511;&#21046;&#20581;&#24247;&#24230;</h2><p>&#25353;&#25511;&#21046;&#39046;&#22495;&#32858;&#21512;&#25104;&#29087;&#24230;&#12289;&#20363;&#22806;&#25968;&#37327;&#21644;&#20581;&#24247;&#35780;&#20998;&#12290;</p></div></div>
-      <section id="controlHealth" class="connector-grid"></section>
-
-      <div class="section-title"><div><h2>Agent &#25191;&#34892;&#27969;&#27700;&#32447;</h2><p>&#25226;&#25104;&#29087;&#23457;&#35745;&#26041;&#27861;&#22266;&#21270;&#20026;&#21487;&#35266;&#23519;&#12289;&#21487;&#22797;&#26680;&#12289;&#21487;&#25193;&#23637;&#30340;&#24037;&#20316;&#27969;&#12290;</p></div></div>
-      <section id="pipeline" class="pipeline-grid"></section>
-
-      <div class="section-title"><div><h2>&#20225;&#19994;&#36830;&#25509;&#19982;&#33021;&#21147;&#23618;</h2><p>&#30693;&#35782;&#24211;&#12289;&#23457;&#35745;&#26723;&#26696;&#12289;Skill Registry&#12289;&#27169;&#22411;&#32593;&#20851;&#21644;&#21487;&#36873;&#25968;&#25454;&#28304;&#30340;&#36816;&#34892;&#29366;&#24577;&#12290;</p></div></div>
-      <section id="connectors" class="connector-grid"></section>
+      
+<section class="hero-console">
+  <div class="panel console-hero">
+    <div>
+      <div class="hero-eyebrow">Enterprise Audit Agent</div>
+      <h2 class="hero-title">&#38754;&#21521;&#23457;&#35745;&#34892;&#19994;&#20132;&#20184;&#30340;&#20225;&#19994;&#32423; Agent &#24037;&#20316;&#21488;</h2>
+      <p class="hero-copy">&#25226;&#23457;&#35745;&#33539;&#22260;&#12289;&#35777;&#25454;&#35831;&#27714;&#12289;&#25511;&#21046;&#27979;&#35797;&#12289;&#25277;&#26679;&#24213;&#31295;&#12289;&#23457;&#35745;&#21457;&#29616;&#12289;&#20154;&#24037;&#22797;&#26680;&#21644;&#25972;&#25913;&#36319;&#36394;&#25918;&#22312;&#21516;&#19968;&#26465;&#21487;&#36861;&#28335;&#38142;&#36335;&#19978;&#65292;&#24110;&#21161;&#23457;&#35745;&#22242;&#38431;&#20174;&#38382;&#31572;&#28436;&#31034;&#36208;&#21521;&#30495;&#23454;&#39033;&#30446;&#20132;&#20184;&#12290;</p>
+      <div class="hero-actions">
+        <a class="btn primary" href="/audit">&#21551;&#21160;&#23457;&#35745;&#39033;&#30446;</a>
+        <a class="btn" href="/knowledge">&#32500;&#25252;&#30693;&#35782;&#24211;</a>
+        <a class="btn" href="/skills">&#26597;&#30475; Skills / MCP</a>
+      </div>
+    </div>
+    <div class="kpi-row">
+      <div class="card metric"><div class="metric-value" id="runCount">0</div><div class="metric-label">&#23457;&#35745;&#26723;&#26696;</div></div>
+      <div class="card metric"><div class="metric-value" id="openTasks">0</div><div class="metric-label">&#24320;&#25918;&#25972;&#25913;</div></div>
+      <div class="card metric"><div class="metric-value" id="avgCompliance">0</div><div class="metric-label">&#24179;&#22343;&#21512;&#35268;</div></div>
+      <div class="card metric"><div class="metric-value" id="knowledgeChunks">0</div><div class="metric-label">&#30693;&#35782;&#20999;&#29255;</div></div>
+      <div class="card metric"><div class="metric-value" id="skillCount">0</div><div class="metric-label">Skills</div></div>
+    </div>
+  </div>
+  <aside class="panel">
+    <h2 class="panel-title">&#20132;&#20184;&#20449;&#21495;</h2>
+    <div class="signal-list" id="signals"><p class="muted">&#21152;&#36733;&#20013;</p></div>
+  </aside>
+</section>
+<section class="section-title"><div><h2>&#39118;&#38505;&#21488;&#36134;</h2><p>&#25104;&#29087;&#23457;&#35745;&#20135;&#21697;&#38656;&#35201;&#30452;&#25509;&#31649;&#29702;&#39118;&#38505;&#12289;&#36131;&#20219;&#20154;&#12289;&#29366;&#24577;&#21644;&#19979;&#19968;&#27493;&#21160;&#20316;&#12290;</p></div></section>
+<section class="grid grid-3" id="riskRegister"></section>
+<section class="section-title"><div><h2>&#35777;&#25454;&#35831;&#27714;&#38431;&#21015;</h2><p>&#25226;&#32570;&#22833;&#35777;&#25454;&#21464;&#25104;&#21487;&#36319;&#36394;&#30340;&#19994;&#21153;&#35831;&#27714;&#65292;&#20943;&#23569;&#32447;&#19979;&#36861;&#38382;&#12290;</p></div></section>
+<section class="grid grid-3" id="evidenceRequests"></section>
+<section class="section-title"><div><h2>&#25511;&#21046;&#20581;&#24247;</h2><p>&#25353;&#25511;&#21046;&#39046;&#22495;&#32858;&#21512;&#25104;&#29087;&#24230;&#12289;&#20363;&#22806;&#21644;&#39118;&#38505;&#28909;&#21306;&#12290;</p></div></section>
+<section class="connector-grid" id="controlHealth"></section>
+<script>
+async function loadOverview() {
+  const overview = (await apiFetch("/api/product/overview")).overview;
+  const summary = overview.summary || {};
+  setText("#runCount", summary.audit_runs || 0);
+  setText("#openTasks", summary.open_tasks || 0);
+  setText("#avgCompliance", summary.avg_compliance || 0);
+  setText("#knowledgeChunks", summary.knowledge_chunks || 0);
+  setText("#skillCount", summary.skills || 0);
+  const signals = qs("#signals"); clearNode(signals);
+  [
+    ["知识库", `${summary.knowledge_chunks || 0} 个切片可检索`, "ok"],
+    ["整改", `${summary.open_tasks || 0} 个开放任务`, summary.overdue_tasks ? "danger" : "warning"],
+    ["质量", `平均置信度 ${summary.avg_quality || 0}`, "ok"]
+  ].forEach(([name, detail, tone]) => signals.appendChild(el("div", { class: `signal ${tone}` }, [el("span", { class: "signal-dot" }), el("div", {}, [el("strong", { text: name }), el("div", { class: "muted", text: detail })]), el("span", { class: "status-chip", text: tone === "danger" ? "需关注" : "正常" })])));
+  const risk = qs("#riskRegister"); clearNode(risk);
+  (overview.risk_register || []).slice(0, 6).forEach((item) => risk.appendChild(el("div", { class: "card value-card" }, [el("strong", { text: `${item.risk_id} · ${item.audit_item}` }), el("p", { class: "muted", text: `风险：${item.risk_level} · 状态：${item.status}` }), el("div", { text: item.next_action })])));
+  if (!(overview.risk_register || []).length) risk.appendChild(el("div", { class: "card value-card" }, [el("h3", { class: "panel-title", text: "暂无风险台账" }), el("p", { class: "muted", text: "运行审计项目后自动生成。" })]));
+  const evidence = qs("#evidenceRequests"); clearNode(evidence);
+  (overview.evidence_requests || []).slice(0, 6).forEach((item) => evidence.appendChild(el("div", { class: "card value-card" }, [el("strong", { text: item.evidence }), el("p", { class: "muted", text: `${item.audit_item} · ${item.owner} · ${item.priority}` }), el("div", { text: item.status })])));
+  if (!(overview.evidence_requests || []).length) evidence.appendChild(el("div", { class: "card value-card" }, [el("h3", { class: "panel-title", text: "暂无证据请求" }), el("p", { class: "muted", text: "质量门通过时不会产生补证队列。" })]));
+  const health = qs("#controlHealth"); clearNode(health);
+  (overview.control_health || []).slice(0, 6).forEach((item) => health.appendChild(el("div", { class: "card connector" }, [el("strong", { text: item.domain }), el("div", { class: "muted", text: `控制 ${item.controls} · 成熟度 ${item.avg_maturity} · 例外 ${item.exceptions}` }), el("div", { class: "progress-track" }, [el("div", { class: "progress-bar", style: `width:${Math.min(item.health_score || 0, 100)}%` })])])));
+  if (!(overview.control_health || []).length) health.appendChild(el("div", { class: "card connector" }, [el("strong", { text: "暂无控制健康数据" }), el("div", { class: "muted", text: "运行审计后自动聚合控制领域。" })]));
+}
+document.addEventListener("DOMContentLoaded", loadOverview);
+</script>
 
     </main>
   </div>
   <script src="../static/app.js"></script>
-
-  <script>
-    function pct(value) { return `${Math.round((Number(value) || 0) * 100)}%`; }
-    function renderOverview(data) {
-      const overview = data.overview || {};
-      const summary = overview.summary || {};
-      setText("#runCount", summary.audit_runs || 0);
-      setText("#taskCount", summary.open_tasks || 0);
-      setText("#qualityAvg", summary.avg_quality ? pct(summary.avg_quality) : "0%");
-      setText("#docCount", summary.knowledge_chunks || 0);
-      setText("#skillCount", summary.skills || 0);
-
-      const signals = qs("#signals"); clearNode(signals);
-      [
-        ["知识库", `${summary.knowledge_chunks || 0} 个切片可检索`, "ok"],
-        ["整改", `${summary.open_tasks || 0} 个开放任务`, summary.overdue_tasks ? "danger" : "warning"],
-        ["质量门", `平均置信度 ${summary.avg_quality ? pct(summary.avg_quality) : "0%"}`, "ok"],
-        ["合规", `平均评分 ${summary.avg_compliance || 0}`, "ok"],
-      ].forEach(([name, detail, tone]) => signals.appendChild(el("div", { class: `signal ${tone}` }, [el("span", { class: "signal-dot" }), el("div", {}, [el("strong", { text: name }), el("div", { class: "muted", text: detail })]), el("span", { class: "status-chip", text: tone === "danger" ? "需关注" : "正常" })])));
-
-      const risks = qs("#riskRegister"); clearNode(risks);
-      if (!(overview.risk_register || []).length) risks.appendChild(el("p", { class: "muted", text: "暂无风险台账，运行审计后自动生成。" }));
-      (overview.risk_register || []).slice(0, 8).forEach((risk) => risks.appendChild(el("div", { class: "item run-row" }, [el("strong", { text: `${risk.risk_id} · ${risk.audit_item}` }), riskBadge(risk.risk_level), el("div", { class: "muted", text: risk.status }), el("div", { class: "muted", text: risk.next_action })])));
-
-      const evidence = qs("#evidenceRequests"); clearNode(evidence);
-      if (!(overview.evidence_requests || []).length) evidence.appendChild(el("div", { class: "card value-card" }, [el("h3", { class: "panel-title", text: "暂无证据请求" }), el("p", { class: "muted", text: "质量门通过时不会产生补证队列。" })]));
-      (overview.evidence_requests || []).slice(0, 8).forEach((req) => evidence.appendChild(el("div", { class: "card value-card" }, [el("div", { class: "connector-head" }, [el("strong", { text: req.evidence }), el("span", { class: "status-chip warning", text: req.priority })]), el("p", { class: "muted", text: req.audit_item }), el("div", { text: `负责人：${req.owner}` }), el("div", { class: "muted", text: req.status })])));
-
-      const health = qs("#controlHealth"); clearNode(health);
-      if (!(overview.control_health || []).length) health.appendChild(el("div", { class: "card connector" }, [el("strong", { text: "暂无控制健康数据" }), el("div", { class: "muted", text: "运行审计后自动聚合控制领域。" })]));
-      (overview.control_health || []).slice(0, 6).forEach((item) => health.appendChild(el("div", { class: "card connector" }, [el("div", { class: "connector-head" }, [el("strong", { text: item.domain }), el("span", { class: "status-chip", text: `${item.health_score}` })]), el("div", { class: "muted", text: `控制 ${item.controls} · 例外 ${item.exceptions}` }), el("div", { class: "progress-track" }, [el("div", { class: "progress-bar", style: `width:${Math.min(item.health_score, 100)}%` })]), el("div", { class: "muted", text: `平均成熟度 ${item.avg_maturity}` })])));
-
-      const pipeline = qs("#pipeline"); clearNode(pipeline);
-      (overview.pipeline || []).forEach((step) => pipeline.appendChild(el("div", { class: "card pipeline-step" }, [el("div", { class: "step-code", text: step.stage }), el("h3", { class: "panel-title", text: step.title }), el("p", { class: "muted", text: step.detail })])));
-
-      const connectors = qs("#connectors"); clearNode(connectors);
-      (overview.connectors || []).forEach((item) => connectors.appendChild(el("div", { class: "card connector" }, [el("div", { class: "connector-head" }, [el("strong", { text: item.name }), el("span", { class: `status-chip ${item.status}`, text: item.status })]), el("div", { class: "muted", text: item.detail })])));
-    }
-    apiFetch("/api/product/overview").then(renderOverview).catch(() => {});
-  </script>
-
 </body>
 </html>
