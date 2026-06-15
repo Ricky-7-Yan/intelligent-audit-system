@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import re
 from dataclasses import dataclass
 from datetime import datetime
@@ -257,6 +258,8 @@ class AuditAgent:
         )
 
     def _init_llm(self) -> Any:
+        if os.getenv("AUDIT_DISABLE_LLM", "1").lower() in {"1", "true", "yes"}:
+            return None
         if not LLM_CONFIG.get("enabled"):
             return None
         try:

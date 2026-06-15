@@ -57,6 +57,26 @@ class AuditRunRepository:
         records.sort(key=lambda item: item.get("created_at") or "", reverse=True)
         return records[:limit]
 
+    def task_summary(self) -> Dict[str, Any]:
+        status_counts: Dict[str, int] = {}
+        open_tasks = 0
+        overdue_tasks = 0
+        for path in self.root.glob("*.json"):
+            try:
+                record = json.loads(path.read_text(encoding="utf-8"))
+            except Exception:
+                continue
+            created_at = self._parse_date(record.get("created_at"))
+            for task in record.get("remediation_tasks", []):
+                status = task.get("status", "未知")
+                status_counts[status] = status_counts.get(status, 0) + 1
+                if status not in {"已完成", "已关闭", "done", "closed"}:
+                    open_tasks += 1
+                    due_days = int(task.get("due_days") or 0)
+                    if created_at and due_days >= 0 and (datetime.now() - created_at).days > due_days:
+                        overdue_tasks += 1
+        return {"open_tasks": open_tasks, "overdue_tasks": overdue_tasks, "status_distribution": status_counts}
+
     def get_run(self, run_id: str) -> Optional[Dict[str, Any]]:
         path = self._path(run_id)
         if not path.exists():
@@ -255,3 +275,11 @@ class AuditRunRepository:
 
     def _clean_table(self, text: str) -> str:
         return str(text).replace("|", "/").replace("\n", " ")
+
+    def _parse_date(self, value: str | None) -> Optional[datetime]:
+        if not value:
+            return None
+        try:
+            return datetime.fromisoformat(value)
+        except ValueError:
+            return None

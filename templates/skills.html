@@ -10,7 +10,7 @@
   <div class="app-shell">
 
     <aside class="sidebar">
-      <div class="brand"><div class="brand-icon">&#23457;</div><span>&#26234;&#33021;&#23457;&#35745;</span></div>
+      <div class="brand"><div class="brand-icon">&#23457;</div><span>&#26234;&#33021;&#23457;&#35745; Agent &#24179;&#21488;</span></div>
       <nav class="nav-list">
         <a class="nav-link" href="/">&#8962; <span>&#24635;&#35272;</span></a>
         <a class="nav-link" href="/chat">&#9679; <span>&#23457;&#35745;&#23545;&#35805;</span></a>
@@ -19,32 +19,61 @@
         <a class="nav-link" href="/training">&#9633; <span>&#35780;&#20272;</span></a>
         <a class="nav-link active" href="/skills">&#9671; <span>Skills</span></a>
       </nav>
-      <div class="sidebar-note">Skill &#21644; MCP &#24037;&#20855;&#25551;&#36848;&#29992;&#20110;&#23637;&#31034;&#20225;&#19994; Agent &#24179;&#21488;&#21270;&#33021;&#21147;&#12290;</div>
+      <div class="sidebar-note">&#25104;&#29087;&#20135;&#21697;&#38656;&#35201;&#25226; Agent &#33021;&#21147;&#20174;&#20195;&#30721;&#20989;&#25968;&#21319;&#32423;&#20026;&#21487;&#27835;&#29702;&#30340;&#24037;&#20855;&#36164;&#20135;&#12290;</div>
     </aside>
 
     <main class="main">
       <div class="topbar">
         <div class="page-title">
           <h1>Skills / MCP &#24037;&#20855;&#23618;</h1>
-          <p>&#20197;&#21487;&#27880;&#20876;&#12289;&#21487;&#25551;&#36848;&#12289;&#21487;&#23457;&#35745;&#30340;&#26041;&#24335;&#31649;&#29702; Agent &#33021;&#21147;&#12290;</p>
+          <p>&#20225;&#19994; Agent &#30340;&#33021;&#21147;&#20013;&#24515;&#12289;&#24037;&#20855;&#21327;&#35758;&#23618;&#21644;&#35843;&#29992;&#23457;&#35745;&#21488;&#12290;</p>
         </div>
         <div class="status-pill"><span class="status-dot"></span><span id="healthText">&#21152;&#36733;&#29366;&#24577;&#20013;</span></div>
       </div>
 
-      <section class="grid layout-2">
-        <div class="panel"><h2 class="panel-title">Skill &#21015;&#34920;</h2><div id="skillList" class="list dense"><p class="muted">&#21152;&#36733;&#20013;</p></div></div>
-        <div class="panel"><h2 class="panel-title">&#25191;&#34892; Skill</h2><div class="field"><label>Skill &#21517;&#31216;</label><input id="skillName" value="audit.scope_planner"></div><div class="field mt-12"><label>&#36755;&#20837; JSON</label><textarea id="skillInput" rows="8">{"audit_item":"ERP系统权限管理","standard":"ISO27001","risk_topics":["权限","日志"]}</textarea></div><button class="btn primary mt-16" id="runSkill">&#25191;&#34892;</button><pre id="skillOutput" class="item prewrap mt-16">&#31561;&#24453;&#25191;&#34892;</pre></div>
+      <section class="hero-console">
+        <div class="panel console-hero">
+          <div>
+            <div class="hero-eyebrow">Agent Capability Center</div>
+            <h2 class="hero-title">&#25226; Agent &#33021;&#21147;&#20570;&#25104;&#21487;&#27835;&#29702;&#30340;&#20225;&#19994;&#24037;&#20855;&#23618;</h2>
+            <p class="hero-copy">&#27599;&#20010; Skill &#37117;&#21253;&#21547;&#36755;&#20837; Schema&#12289;&#26435;&#38480;&#22768;&#26126;&#12289;&#29256;&#26412;&#21644;&#35843;&#29992;&#26085;&#24535;&#65307;MCP &#39118;&#26684;&#25551;&#36848;&#35753;&#24037;&#20855;&#33021;&#21147;&#21487;&#20197;&#34987; Agent &#23458;&#25143;&#31471;&#21457;&#29616;&#21644;&#32534;&#25490;&#12290;</p>
+          </div>
+          <div class="kpi-row mt-16">
+            <div class="card metric"><div class="metric-value" id="skillTotal">0</div><div class="metric-label">Skills</div></div>
+            <div class="card metric"><div class="metric-value" id="toolTotal">0</div><div class="metric-label">MCP Tools</div></div>
+            <div class="card metric"><div class="metric-value" id="runTotal">0</div><div class="metric-label">&#35843;&#29992;&#35760;&#24405;</div></div>
+            <div class="card metric"><div class="metric-value">Schema</div><div class="metric-label">&#36755;&#20837;&#32422;&#26463;</div></div>
+            <div class="card metric"><div class="metric-value">Audit</div><div class="metric-label">&#21487;&#36861;&#28335;</div></div>
+          </div>
+        </div>
+        <div class="panel">
+          <h2 class="panel-title">&#25191;&#34892; Skill</h2>
+          <div class="field"><label>Skill &#21517;&#31216;</label><input id="skillName" value="audit.control_mapper"></div>
+          <div class="field mt-12"><label>&#36755;&#20837; JSON</label><textarea id="skillInput" rows="9">{"audit_item":"ERP系统权限管理","standard":"ISO27001","risk_topics":["权限","日志","变更"]}</textarea></div>
+          <button class="btn primary mt-16" id="runSkill">&#25191;&#34892;</button>
+        </div>
       </section>
-      <section class="grid grid-2 mt-16"><div class="panel"><h2 class="panel-title">MCP Tools &#25551;&#36848;</h2><div id="mcpTools" class="list dense"><p class="muted">&#21152;&#36733;&#20013;</p></div></div><div class="panel"><h2 class="panel-title">Skill &#35843;&#29992;&#26085;&#24535;</h2><button class="btn" id="refreshRuns">&#21047;&#26032;&#26085;&#24535;</button><div id="skillRuns" class="list dense mt-16"><p class="muted">&#26242;&#26080;&#26085;&#24535;</p></div></div></section>
+
+      <div class="section-title"><div><h2>Skill Registry</h2><p>&#20225;&#19994; Agent &#24179;&#21488;&#38656;&#35201;&#21487;&#21457;&#29616;&#12289;&#21487;&#23457;&#35745;&#12289;&#21487;&#28784;&#24230;&#25193;&#23637;&#30340;&#24037;&#20855;&#33021;&#21147;&#12290;</p></div></div>
+      <section id="skillList" class="connector-grid"></section>
+
+      <div class="section-title"><div><h2>MCP Tools</h2><p>&#38754;&#21521;&#24037;&#20855;&#21327;&#35758;&#30340;&#25551;&#36848;&#23618;&#65292;&#21253;&#21547; inputSchema &#19982;&#26435;&#38480;&#27880;&#35299;&#12290;</p></div></div>
+      <section id="mcpTools" class="grid grid-2"></section>
+
+      <div class="section-title"><div><h2>&#25191;&#34892;&#32467;&#26524;&#19982;&#26085;&#24535;</h2><p>&#23458;&#25143;&#20135;&#21697;&#37324;&#65292;&#20219;&#20309;&#33258;&#21160;&#21270;&#21160;&#20316;&#37117;&#24212;&#21487;&#36861;&#36394;&#12289;&#21487;&#35299;&#37322;&#12289;&#21487;&#22797;&#30424;&#12290;</p></div><button class="btn" id="refreshRuns">&#21047;&#26032;&#26085;&#24535;</button></div>
+      <section class="grid layout-2">
+        <pre id="skillOutput" class="item prewrap">&#31561;&#24453;&#25191;&#34892;</pre>
+        <div id="skillRuns" class="list dense"></div>
+      </section>
 
     </main>
   </div>
   <script src="../static/app.js"></script>
 
   <script>
-    async function loadSkills() { const data = await apiFetch("/api/skills"); const node = qs("#skillList"); clearNode(node); data.skills.forEach((skill) => node.appendChild(el("div", { class: "item compact" }, [el("strong", { text: `${skill.name} · ${skill.title}` }), el("p", { class: "muted", text: skill.description }), el("div", { text: `权限：${skill.permissions.join("、")}` })]))); }
-    async function loadMcpTools() { const data = await apiFetch("/api/mcp/tools"); const node = qs("#mcpTools"); clearNode(node); data.tools.forEach((tool) => node.appendChild(el("div", { class: "item compact" }, [el("strong", { text: tool.name }), el("p", { class: "muted", text: tool.description }), el("pre", { class: "prewrap", text: JSON.stringify(tool.inputSchema, null, 2) })]))); }
-    async function loadRuns() { const data = await apiFetch("/api/skills/runs"); const node = qs("#skillRuns"); clearNode(node); if (!data.runs.length) return node.appendChild(el("p", { class: "muted", text: "暂无日志" })); data.runs.forEach((run) => node.appendChild(el("div", { class: "item compact" }, [el("strong", { text: `${run.run_id} · ${run.skill} · ${run.status}` }), el("p", { class: "muted", text: run.finished_at }), el("pre", { class: "prewrap", text: JSON.stringify(run.output, null, 2) })]))); }
+    async function loadSkills() { const data = await apiFetch("/api/skills"); setText("#skillTotal", data.skills.length); const node = qs("#skillList"); clearNode(node); data.skills.forEach((skill) => node.appendChild(el("div", { class: "card connector" }, [el("div", { class: "connector-head" }, [el("strong", { text: skill.title }), el("span", { class: "status-chip", text: skill.version })]), el("div", { class: "muted", text: skill.name }), el("p", { class: "muted", text: skill.description }), el("div", { text: `权限：${skill.permissions.join("、")}` })]))); }
+    async function loadMcpTools() { const data = await apiFetch("/api/mcp/tools"); setText("#toolTotal", data.tools.length); const node = qs("#mcpTools"); clearNode(node); data.tools.forEach((tool) => node.appendChild(el("div", { class: "card" }, [el("h3", { class: "panel-title", text: tool.name }), el("p", { class: "muted", text: tool.description }), el("pre", { class: "prewrap", text: JSON.stringify(tool.inputSchema, null, 2) })]))); }
+    async function loadRuns() { const data = await apiFetch("/api/skills/runs"); setText("#runTotal", data.runs.length); const node = qs("#skillRuns"); clearNode(node); if (!data.runs.length) return node.appendChild(el("p", { class: "muted", text: "暂无日志" })); data.runs.forEach((run) => node.appendChild(el("div", { class: "item compact" }, [el("strong", { text: `${run.run_id} · ${run.skill} · ${run.status}` }), el("p", { class: "muted", text: run.finished_at }), el("pre", { class: "prewrap", text: JSON.stringify(run.output, null, 2) })]))); }
     qs("#runSkill").addEventListener("click", async () => { try { const input = JSON.parse(qs("#skillInput").value || "{}"); const name = qs("#skillName").value.trim(); const data = await apiFetch(`/api/skills/${encodeURIComponent(name)}/run`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ input }) }); qs("#skillOutput").textContent = JSON.stringify(data.run, null, 2); loadRuns(); } catch (error) { qs("#skillOutput").textContent = `执行失败：${error.message}`; } });
     qs("#refreshRuns").addEventListener("click", loadRuns);
     loadSkills(); loadMcpTools(); loadRuns();

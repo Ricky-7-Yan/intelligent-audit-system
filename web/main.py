@@ -21,6 +21,7 @@ from agents.audit_agent import AuditAgent, CONTROL_LIBRARY
 from config import LLM_CONFIG, PATHS, WEB_CONFIG
 from knowledge_graph.builder import KnowledgeGraphBuilder
 from services.audit_repository import AuditRunRepository
+from services.product_insights import ProductInsights
 from services.rag_evaluator import RAGEvaluator
 from services.skill_registry import SkillRegistry
 
@@ -33,6 +34,7 @@ kg_builder: Optional[KnowledgeGraphBuilder] = None
 evaluator = None
 audit_repository = AuditRunRepository()
 skill_registry = SkillRegistry()
+product_insights = ProductInsights(audit_repository, skill_registry)
 
 
 @asynccontextmanager
@@ -230,6 +232,12 @@ async def agent_capabilities_api():
         },
         "timestamp": datetime.now().isoformat(),
     }
+
+
+@app.get("/api/product/overview")
+async def product_overview_api():
+    rag_stats = rag_pipeline.get_statistics() if rag_pipeline is not None else {"total_documents": 0}
+    return {"success": True, "overview": product_insights.overview(rag_stats), "timestamp": datetime.now().isoformat()}
 
 
 @app.get("/api/skills")
