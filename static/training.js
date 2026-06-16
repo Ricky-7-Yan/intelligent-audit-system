@@ -180,6 +180,39 @@ function renderRagResults(results) {
   (results.closed_loop_suggestions || []).forEach((text) => node.appendChild(el("div", { class: "item compact" }, [el("strong", { text: "闭环建议" }), el("p", { class: "muted", text })])));
 }
 
+function renderRunGate(run) {
+  const gate = run.release_gate || {};
+  const status = gate.status || "review";
+  const cls = status === "pass" ? "pass" : status === "blocked" ? "blocked" : "review";
+  return el("span", { class: `badge ${cls}`, text: gate.label || "需复核" });
+}
+
+function renderEvaluationRuns(runs) {
+  const node = qs("#evaluationRuns");
+  clearNode(node);
+  if (!runs.length) {
+    node.appendChild(el("p", { class: "muted", text: "暂无评测记录。" }));
+    return;
+  }
+  runs.forEach((run) => {
+    const metrics = run.metrics || {};
+    const gate = run.release_gate || {};
+    node.appendChild(el("div", { class: "item eval-card" }, [
+      el("div", { class: "item-head" }, [
+        el("strong", { text: `${run.run_id} · ${run.run_type}` }),
+        renderRunGate(run),
+      ]),
+      el("div", { class: "trace-summary" }, [
+        el("span", { text: `得分 ${scoreText(metrics.overall_score)}` }),
+        el("span", { text: `通过率 ${percentText(metrics.pass_rate)}` }),
+        el("span", { text: `回归 ${metrics.regression_count ?? 0}` }),
+        el("span", { text: run.created_at || "" }),
+      ]),
+      el("p", { class: "muted", text: (gate.blockers || []).join("；") || "满足当前发布门禁。" }),
+    ]));
+  });
+}
+
 function avg(values) {
   const clean = values.filter((item) => item !== undefined && item !== null);
   return clean.length ? clean.reduce((sum, item) => sum + Number(item), 0) / clean.length : null;
@@ -231,33 +264,6 @@ function renderEvaluationPlan(plan) {
   }
 }
 
-function renderJdCoverage(coverage) {
-  const node = qs("#jdCoverage");
-  clearNode(node);
-  node.appendChild(el("div", { class: "item compact" }, [
-    el("strong", { text: "来源" }),
-    el("p", { class: "muted", text: coverage.source || "" }),
-  ]));
-  (coverage.official_tencent_posts || []).forEach((post) => {
-    node.appendChild(el("div", { class: "item eval-card" }, [
-      el("div", { class: "item-head" }, [
-        el("strong", { text: post.post }),
-        el("span", { class: "badge", text: post.updated }),
-      ]),
-      el("p", { class: "muted", text: `PostId: ${post.post_id}` }),
-      el("div", { class: "tag-row" }, (post.requirements || []).map((item) => el("span", { class: "badge", text: item }))),
-    ]));
-  });
-  (coverage.capabilities || []).forEach((capability) => {
-    node.appendChild(el("div", { class: "item eval-card" }, [
-      el("strong", { text: capability.jd_requirement }),
-      el("p", { class: "muted", text: `已实现：${(capability.implemented || []).join(" / ")}` }),
-      el("p", { class: "muted", text: `产品入口：${(capability.project_surface || []).join(" / ")}` }),
-      el("p", { class: "muted", text: `下一步：${capability.next_step || ""}` }),
-    ]));
-  });
-}
-
 async function runAgentEval(cases) {
   setBusy("Agent 评测运行中...");
   const data = await apiFetch("/api/training/evaluate", {
@@ -266,6 +272,7 @@ async function runAgentEval(cases) {
     body: JSON.stringify({ model_path: "current-agent", test_cases: cases }),
   });
   renderEvalResults(data.results);
+  await loadEvaluationRuns();
 }
 
 async function runRagEval(cases) {
@@ -276,6 +283,7 @@ async function runRagEval(cases) {
     body: JSON.stringify({ cases }),
   });
   renderRagResults(data.results);
+  await loadEvaluationRuns();
 }
 
 async function runResearchEval() {
@@ -284,9 +292,10 @@ async function runResearchEval() {
   const data = await apiFetch("/api/research/answer", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ question: testCase.question, context: { standard_type: qs("#caseCategory").value } }),
+    body: JSON.stringify({ question: testCase.question, context: { standard_type: qs("#caseCategory").value }, persist_evaluation: true }),
   });
   renderResearch(data.result);
+  await loadEvaluationRuns();
 }
 
 async function loadEvaluationPlan() {
@@ -299,12 +308,15 @@ async function loadEvaluationPlan() {
   }
 }
 
-async function loadJdCoverage() {
-  const node = qs("#jdCoverage");
-  clearNode(node);
-  node.appendChild(el("p", { class: "muted", text: "正在加载 JD 能力覆盖..." }));
-  const data = await apiFetch("/api/research/jd-coverage");
-  renderJdCoverage(data.coverage || {});
+async function loadEvaluationRuns() {
+  try {
+    const data = await apiFetch("/api/evaluation/runs?limit=12");
+    renderEvaluationRuns(data.runs || []);
+  } catch (error) {
+    const node = qs("#evaluationRuns");
+    clearNode(node);
+    node.appendChild(el("p", { class: "muted", text: `评测历史加载失败：${error.message}` }));
+  }
 }
 
 function setMode(mode) {
@@ -316,6 +328,7 @@ function bindTrainingPage() {
   renderMetricToggles();
   renderCustomCases();
   loadEvaluationPlan();
+  loadEvaluationRuns();
 
   qsa("#modeTabs .seg").forEach((button) => button.addEventListener("click", () => setMode(button.dataset.mode)));
 
@@ -351,7 +364,6 @@ function bindTrainingPage() {
       }
       if (activeMode === "rag") await runRagEval([item]);
       else if (activeMode === "research") await runResearchEval();
-      else if (activeMode === "jd") await loadJdCoverage();
       else await runAgentEval([item]);
     } catch (error) {
       setBusy(`评测失败：${error.message}`);
@@ -374,15 +386,7 @@ function bindTrainingPage() {
     }
   });
 
-  qs("#loadJdCoverage").addEventListener("click", async () => {
-    try {
-      await loadJdCoverage();
-    } catch (error) {
-      const node = qs("#jdCoverage");
-      clearNode(node);
-      node.appendChild(el("p", { class: "muted", text: `JD 覆盖加载失败：${error.message}` }));
-    }
-  });
+  qs("#refreshEvalRuns").addEventListener("click", loadEvaluationRuns);
 }
 
 document.addEventListener("DOMContentLoaded", bindTrainingPage);

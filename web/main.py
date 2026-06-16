@@ -23,6 +23,7 @@ from knowledge_graph.builder import KnowledgeGraphBuilder
 from services.audit_delivery import AuditDeliveryService
 from services.audit_repository import AuditRunRepository
 from services.audit_templates import list_audit_templates
+from services.evaluation_repository import EvaluationRunRepository
 from services.product_insights import ProductInsights
 from services.rag_evaluator import RAGEvaluator
 from services.research_agent import AuditResearchAgent
@@ -39,6 +40,7 @@ audit_repository = AuditRunRepository()
 skill_registry = SkillRegistry()
 product_insights = ProductInsights(audit_repository, skill_registry)
 audit_delivery = AuditDeliveryService(audit_repository)
+evaluation_repository = EvaluationRunRepository()
 
 
 @asynccontextmanager
@@ -58,7 +60,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="审脉 AuditPilot",
     description="面向审计交付场景的 Agentic RAG、风险评估、控制测试和整改闭环系统",
-    version="2.6.0",
+    version="2.7.0",
     lifespan=lifespan,
 )
 
@@ -109,6 +111,7 @@ class RAGEvaluationRequest(BaseModel):
 class ResearchRequest(BaseModel):
     question: str = Field(..., min_length=1, max_length=8000)
     context: Optional[Dict[str, Any]] = None
+    persist_evaluation: bool = False
 
 
 class SkillRunRequest(BaseModel):
@@ -277,7 +280,10 @@ async def agent_capabilities_api():
 @app.post("/api/research/answer")
 async def research_answer_api(request: ResearchRequest, research: AuditResearchAgent = Depends(get_research_agent)):
     result = research.answer(request.question, request.context)
-    return {"success": True, "result": result, "timestamp": datetime.now().isoformat()}
+    run = None
+    if request.persist_evaluation:
+        run = evaluation_repository.create_run("research", request.model_dump(), result)
+    return {"success": True, "result": result, "run": run, "timestamp": datetime.now().isoformat()}
 
 
 @app.get("/api/research/jd-coverage")
@@ -500,13 +506,28 @@ async def knowledge_stats_api(rag=Depends(get_rag_pipeline)):
 async def evaluate_model_api(request: EvaluationRequest, benchmark=Depends(get_evaluator)):
     test_cases = request.test_cases or benchmark.create_test_cases()
     results = benchmark.evaluate_agent(test_cases)
-    return {"success": True, "results": results, "timestamp": datetime.now().isoformat()}
+    run = evaluation_repository.create_run("agent", request.model_dump(), results)
+    return {"success": True, "run": run, "results": results, "timestamp": datetime.now().isoformat()}
 
 
 @app.post("/api/evaluation/rag")
 async def evaluate_rag_api(request: RAGEvaluationRequest, rag=Depends(get_rag_pipeline)):
     results = RAGEvaluator(rag).evaluate(request.cases)
-    return {"success": True, "results": results, "timestamp": datetime.now().isoformat()}
+    run = evaluation_repository.create_run("rag", request.model_dump(), results)
+    return {"success": True, "run": run, "results": results, "timestamp": datetime.now().isoformat()}
+
+
+@app.get("/api/evaluation/runs")
+async def evaluation_runs_api(limit: int = 20):
+    return {"success": True, "runs": evaluation_repository.list_runs(limit), "timestamp": datetime.now().isoformat()}
+
+
+@app.get("/api/evaluation/runs/{run_id}")
+async def evaluation_run_detail_api(run_id: str):
+    record = evaluation_repository.get_run(run_id)
+    if not record:
+        raise HTTPException(status_code=404, detail="评测记录不存在")
+    return {"success": True, "run": record, "timestamp": datetime.now().isoformat()}
 
 
 @app.get("/api/session/history/{session_id}")
@@ -521,7 +542,7 @@ async def health_check():
         services.update(audit_agent.get_service_status())
     if rag_pipeline is not None:
         services["rag_documents"] = rag_pipeline.get_statistics().get("total_documents", 0)
-    return JSONResponse(content={"status": "healthy", "timestamp": datetime.now().isoformat(), "version": "2.6.0", "services": services})
+    return JSONResponse(content={"status": "healthy", "timestamp": datetime.now().isoformat(), "version": "2.7.0", "services": services})
 
 
 if __name__ == "__main__":
