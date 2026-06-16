@@ -34,6 +34,7 @@ class AuditRunRepository:
             "remediation_tasks": self._build_remediation_tasks(run_id, result),
             "evidence_requests": self._build_evidence_requests(run_id, result),
             "control_tests": self._build_control_tests(result),
+            "evidence_analyses": [],
             "reviews": [],
             "events": [{"at": datetime.now().isoformat(), "type": "created", "message": "审计项目已创建"}],
         }
@@ -164,6 +165,77 @@ class AuditRunRepository:
                 self._write(record)
                 return record
         return None
+
+    def attach_evidence_analysis(self, run_id: str, analysis: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        record = self.get_run(run_id)
+        if not record:
+            return None
+        analysis_id = analysis.get("analysis_id")
+        if not analysis_id:
+            return record
+
+        attached = record.setdefault("evidence_analyses", [])
+        if not any(item.get("analysis_id") == analysis_id for item in attached):
+            attached.append(
+                {
+                    "analysis_id": analysis_id,
+                    "file_name": analysis.get("file_name"),
+                    "created_at": analysis.get("created_at"),
+                    "risk_count": len(analysis.get("risk_signals", [])),
+                    "control_count": len(analysis.get("mapped_controls", [])),
+                    "quality_gate": analysis.get("quality_gate", {}),
+                    "workpaper_ref": f"WP-EA-{len(attached) + 1:02d}",
+                }
+            )
+
+        existing_evidence = {item.get("evidence") for item in record.get("evidence_requests", [])}
+        for request in analysis.get("evidence_requests", []):
+            evidence = request.get("evidence")
+            if not evidence or evidence in existing_evidence:
+                continue
+            record.setdefault("evidence_requests", []).append(
+                {
+                    "request_id": f"{run_id}-EA-EV-{len(record.get('evidence_requests', [])) + 1:02d}",
+                    "evidence": evidence,
+                    "source": f"证据分析 {analysis_id}",
+                    "usage": request.get("usage", "补充证据分析识别的底稿"),
+                    "owner": "审计员",
+                    "status": "待收集",
+                    "priority": request.get("priority", "中"),
+                    "required_fields": request.get("required_fields", []),
+                    "created_at": datetime.now().isoformat(),
+                    "updated_at": datetime.now().isoformat(),
+                    "notes": [],
+                }
+            )
+            existing_evidence.add(evidence)
+
+        existing_controls = {item.get("control_id") for item in record.get("control_tests", [])}
+        for control in analysis.get("mapped_controls", []):
+            control_id = control.get("control_id")
+            if not control_id or control_id in existing_controls:
+                continue
+            record.setdefault("control_tests", []).append(
+                {
+                    "control_id": control_id,
+                    "domain": control.get("domain"),
+                    "assertion": "完整性、授权、可追溯性",
+                    "procedure": control.get("test_procedure"),
+                    "workpaper_ref": f"WP-EA-{analysis_id}",
+                    "sample_method": "基于证据文件分析结果执行定向抽样",
+                    "result": "待执行",
+                    "tester": "审计员",
+                    "exceptions": [],
+                    "updated_at": datetime.now().isoformat(),
+                }
+            )
+            existing_controls.add(control_id)
+
+        record["lifecycle_stage"] = "取证"
+        record["status"] = "待现场验证"
+        self._append_event(record, "evidence_analysis_attached", f"证据分析 {analysis_id} 已归档到审计项目")
+        self._write(record)
+        return record
 
     def render_markdown_report(self, run_id: str) -> Optional[str]:
         record = self.get_run(run_id)
@@ -392,6 +464,7 @@ class AuditRunRepository:
             record["evidence_requests"] = self._build_evidence_requests(record.get("run_id", "AR"), result)
         if "control_tests" not in record:
             record["control_tests"] = self._build_control_tests(result)
+        record.setdefault("evidence_analyses", [])
         record.setdefault("events", [])
         return record
 

@@ -1,4 +1,5 @@
 let currentRunId = null;
+let currentEvidenceAnalysisId = null;
 
 function normalizeRisk(value) {
   if (value === "高" || value === "high") return "high";
@@ -227,11 +228,18 @@ function renderDeliveryPreview(pkg) {
   clearNode(node);
   const cards = [["底稿索引", pkg.workpaper_index?.length || 0], ["证据请求", pkg.evidence_request_list?.length || 0], ["控制测试", pkg.control_test_plan?.length || 0], ["访谈计划", pkg.interview_plan?.length || 0], ["现场日程", pkg.fieldwork_calendar?.length || 0], ["发现跟踪", pkg.finding_tracker?.length || 0], ["复核要求", pkg.signoff?.review_required ? "是" : "否"], ["项目阶段", pkg.engagement?.lifecycle_stage || "-"]];
   cards.forEach(([label, value]) => node.appendChild(el("div", { class: "card delivery-card" }, [el("div", { class: "delivery-number", text: String(value) }), el("div", { class: "metric-label", text: label })])));
+  if (pkg.evidence_analysis_index && pkg.evidence_analysis_index.length) {
+    node.appendChild(el("div", { class: "card delivery-card" }, [
+      el("div", { class: "delivery-number", text: String(pkg.evidence_analysis_index.length) }),
+      el("div", { class: "metric-label", text: "证据分析底稿" }),
+    ]));
+  }
 }
 
 function renderEvidenceAnalysis(analysis) {
   const node = qs("#evidenceAnalysisResult");
   clearNode(node);
+  currentEvidenceAnalysisId = analysis.analysis_id;
   const profile = analysis.profile || {};
   const gate = analysis.quality_gate || {};
   node.appendChild(el("div", { class: "grid grid-4" }, [
@@ -241,7 +249,10 @@ function renderEvidenceAnalysis(analysis) {
     el("div", { class: "card metric" }, [el("div", { class: "metric-value small", text: String(gate.confidence || 0) }), el("div", { class: "metric-label", text: gate.status || "review" })]),
   ]));
   node.appendChild(el("div", { class: "item compact" }, [
-    el("strong", { text: "字段画像" }),
+    el("div", { class: "item-head" }, [
+      el("strong", { text: `字段画像 · ${analysis.analysis_id}` }),
+      el("button", { class: "btn", onclick: attachCurrentEvidenceAnalysis, text: "归档到当前项目" }),
+    ]),
     el("p", { class: "muted", text: (profile.fields || []).slice(0, 24).join("、") || "未识别到结构化字段" }),
   ]));
   renderListCard(node, analysis.risk_signals || [], "未发现明显风险信号", (signal) => el("div", { class: "item compact" }, [
@@ -322,6 +333,31 @@ async function analyzeEvidenceFile() {
   } catch (error) {
     clearNode(node);
     node.appendChild(el("p", { class: "muted", text: `证据分析失败：${error.message}` }));
+  }
+}
+
+async function attachCurrentEvidenceAnalysis() {
+  const node = qs("#evidenceAnalysisResult");
+  if (!currentRunId) {
+    node.appendChild(el("p", { class: "muted", text: "请先运行或选择一个审计项目，再归档证据分析。" }));
+    return;
+  }
+  if (!currentEvidenceAnalysisId) {
+    node.appendChild(el("p", { class: "muted", text: "请先完成一次证据分析。" }));
+    return;
+  }
+  try {
+    const data = await apiFetch(`/api/audit/runs/${encodeURIComponent(currentRunId)}/evidence-analyses`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json; charset=utf-8" },
+      body: JSON.stringify({ analysis_id: currentEvidenceAnalysisId }),
+    });
+    renderRunRecord(data.run);
+    loadRuns();
+    loadDelivery(currentRunId);
+    node.appendChild(el("div", { class: "item compact" }, [el("strong", { text: "已归档" }), el("p", { class: "muted", text: "证据分析已进入当前项目的底稿索引、补证清单和控制测试工作台。" })]));
+  } catch (error) {
+    node.appendChild(el("p", { class: "muted", text: `归档失败：${error.message}` }));
   }
 }
 

@@ -39,9 +39,10 @@ class AuditDeliveryService:
                 "key_questions": request.get("key_questions"),
                 "existing_evidence": request.get("existing_evidence"),
             },
-            "workpaper_index": self._workpaper_index(result),
+            "workpaper_index": self._workpaper_index(result, record),
             "evidence_request_list": self._evidence_request_list(record, result),
             "control_test_plan": self._control_test_plan(record, controls, procedures),
+            "evidence_analysis_index": record.get("evidence_analyses", []),
             "finding_tracker": self._finding_tracker(findings, tasks),
             "interview_plan": self._interview_plan(result),
             "fieldwork_calendar": self._fieldwork_calendar(result),
@@ -55,7 +56,7 @@ class AuditDeliveryService:
             },
         }
 
-    def _workpaper_index(self, result: Dict[str, Any]) -> List[Dict[str, Any]]:
+    def _workpaper_index(self, result: Dict[str, Any], record: Dict[str, Any]) -> List[Dict[str, Any]]:
         rows = [
             {"ref": "WP-00", "name": "审计范围与目标", "source": "task_plan", "owner": "审计经理"},
             {"ref": "WP-10", "name": "RAG 证据检索记录", "source": "evidence_pack", "owner": "审计员"},
@@ -71,6 +72,15 @@ class AuditDeliveryService:
                     "name": f"{control.get('control_id')} {control.get('domain')} 控制测试",
                     "source": control.get("control_id"),
                     "owner": "控制测试员",
+                }
+            )
+        for item in record.get("evidence_analyses", []):
+            rows.append(
+                {
+                    "ref": item.get("workpaper_ref") or item.get("analysis_id"),
+                    "name": f"证据文件分析 - {item.get('file_name', '')}",
+                    "source": item.get("analysis_id"),
+                    "owner": "审计员",
                 }
             )
         return rows

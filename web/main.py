@@ -62,7 +62,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="审脉 AuditPilot",
     description="面向审计交付场景的 Agentic RAG、风险评估、控制测试和整改闭环系统",
-    version="2.8.0",
+    version="2.9.0",
     lifespan=lifespan,
 )
 
@@ -142,6 +142,10 @@ class ControlTestUpdateRequest(BaseModel):
     result: str = Field(..., max_length=100)
     tester: str = ""
     exception: str = Field("", max_length=2000)
+
+
+class EvidenceAttachRequest(BaseModel):
+    analysis_id: str = Field(..., min_length=1, max_length=100)
 
 
 def init_rag_lazy():
@@ -391,6 +395,17 @@ async def audit_control_test_update_api(run_id: str, control_id: str, request: C
     return {"success": True, "run": record, "timestamp": datetime.now().isoformat()}
 
 
+@app.post("/api/audit/runs/{run_id}/evidence-analyses")
+async def audit_attach_evidence_analysis_api(run_id: str, request: EvidenceAttachRequest):
+    analysis = evidence_analyzer.get_analysis(request.analysis_id)
+    if not analysis:
+        raise HTTPException(status_code=404, detail="证据分析记录不存在")
+    record = audit_repository.attach_evidence_analysis(run_id, analysis)
+    if not record:
+        raise HTTPException(status_code=404, detail="审计运行记录不存在")
+    return {"success": True, "run": record, "timestamp": datetime.now().isoformat()}
+
+
 @app.get("/api/audit/runs/{run_id}/report.md", response_class=PlainTextResponse)
 async def audit_run_report_api(run_id: str):
     report = audit_repository.render_markdown_report(run_id)
@@ -439,6 +454,17 @@ async def audit_delivery_markdown_api(run_id: str):
     ]
     for item in package["workpaper_index"]:
         lines.append(f"| {item['ref']} | {item['name']} | {item['source']} | {item['owner']} |")
+    lines.extend(["", "## 证据文件分析", ""])
+    if not package.get("evidence_analysis_index"):
+        lines.append("暂无已归档的证据文件分析。")
+    else:
+        lines.extend(["| 分析编号 | 文件 | 风险信号 | 映射控制 | 质量门 |", "| --- | --- | --- | --- | --- |"])
+        for item in package.get("evidence_analysis_index", []):
+            gate = item.get("quality_gate", {})
+            lines.append(
+                f"| {item.get('analysis_id')} | {item.get('file_name')} | {item.get('risk_count', 0)} | "
+                f"{item.get('control_count', 0)} | {gate.get('status', '')} / {gate.get('confidence', '')} |"
+            )
     lines.extend(["", "## 证据请求清单", "", "| ID | 来源 | 摘要 | 用途 | 责任人 | 状态 |", "| --- | --- | --- | --- | --- | --- |"])
     for item in package["evidence_request_list"]:
         lines.append(f"| {item['id']} | {item['source']} | {item['summary']} | {item['usage']} | {item.get('owner', '')} | {item['status']} |")
@@ -578,7 +604,7 @@ async def health_check():
         services.update(audit_agent.get_service_status())
     if rag_pipeline is not None:
         services["rag_documents"] = rag_pipeline.get_statistics().get("total_documents", 0)
-    return JSONResponse(content={"status": "healthy", "timestamp": datetime.now().isoformat(), "version": "2.8.0", "services": services})
+    return JSONResponse(content={"status": "healthy", "timestamp": datetime.now().isoformat(), "version": "2.9.0", "services": services})
 
 
 if __name__ == "__main__":
