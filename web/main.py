@@ -20,6 +20,7 @@ from pydantic import BaseModel, Field
 from agents.audit_agent import AuditAgent, CONTROL_LIBRARY
 from config import LLM_CONFIG, PATHS, WEB_CONFIG
 from knowledge_graph.builder import KnowledgeGraphBuilder
+from services.agent_runtime import AgentRuntime
 from services.audit_delivery import AuditDeliveryService
 from services.audit_repository import AuditRunRepository
 from services.audit_templates import list_audit_templates
@@ -28,6 +29,7 @@ from services.evidence_analyzer import EvidenceAnalyzer
 from services.product_insights import ProductInsights
 from services.rag_evaluator import RAGEvaluator
 from services.research_agent import AuditResearchAgent
+from services.safety_gate import SafetyGate
 from services.skill_registry import SkillRegistry
 
 
@@ -39,6 +41,8 @@ kg_builder: Optional[KnowledgeGraphBuilder] = None
 evaluator = None
 audit_repository = AuditRunRepository()
 skill_registry = SkillRegistry()
+safety_gate = SafetyGate()
+agent_runtime = AgentRuntime(skill_registry, safety_gate)
 product_insights = ProductInsights(audit_repository, skill_registry)
 audit_delivery = AuditDeliveryService(audit_repository)
 evaluation_repository = EvaluationRunRepository()
@@ -62,7 +66,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="审脉 AuditPilot",
     description="面向审计交付场景的 Agentic RAG、风险评估、控制测试和整改闭环系统",
-    version="2.9.0",
+    version="3.0.0",
     lifespan=lifespan,
 )
 
@@ -118,6 +122,23 @@ class ResearchRequest(BaseModel):
 
 class SkillRunRequest(BaseModel):
     input: Dict[str, Any] = Field(default_factory=dict)
+
+
+class AgentTaskRequest(BaseModel):
+    objective: str = Field(..., min_length=1, max_length=2000)
+    context: Dict[str, Any] = Field(default_factory=dict)
+
+
+class AgentTaskStepRequest(BaseModel):
+    name: str = Field(..., min_length=1, max_length=200)
+    stage: str = Field("manual", max_length=100)
+    skill: str = Field(..., min_length=1, max_length=200)
+    purpose: str = Field("", max_length=1000)
+
+
+class SafetyGateRequest(BaseModel):
+    payload: Dict[str, Any] = Field(default_factory=dict)
+    stage: str = Field("runtime", max_length=100)
 
 
 class ReviewRequest(BaseModel):
@@ -274,9 +295,20 @@ async def agent_capabilities_api():
     return {
         "success": True,
         "capabilities": {
-            "agent_architecture": ["任务规划", "Skill 注册与执行", "MCP 风格工具描述", "工具调用", "Agentic RAG", "质量门", "人工复核闭环"],
+            "agent_architecture": [
+                "任务规划",
+                "Skill 注册与执行",
+                "MCP 风格工具描述",
+                "A2A 风格任务协议",
+                "Agent Runtime",
+                "工具调用",
+                "Agentic RAG",
+                "安全门禁",
+                "质量门",
+                "人工复核闭环",
+            ],
             "rag": ["混合检索", "查询扩展", "来源引用", "降级检索", "RAG 评测"],
-            "engineering": ["FastAPI", "持久化审计档案", "报告导出", "健康检查", "Docker 部署"],
+            "engineering": ["FastAPI", "持久化审计档案", "报告导出", "健康检查", "Docker 部署", "运行时观测", "工具成功率与延迟指标"],
             "audit_business": ["审计程序", "抽样计划", "证据请求中心", "控制测试工作台", "审计发现草稿", "整改任务跟踪"],
         },
         "timestamp": datetime.now().isoformat(),
@@ -345,6 +377,58 @@ async def skill_run_api(skill_name: str, request: SkillRunRequest):
 @app.get("/api/skills/runs")
 async def skill_runs_api(limit: int = 20):
     return {"success": True, "runs": skill_registry.recent_runs(limit), "timestamp": datetime.now().isoformat()}
+
+
+@app.get("/api/skills/metrics")
+async def skill_metrics_api(limit: int = 500):
+    return {"success": True, "metrics": skill_registry.metrics(limit), "timestamp": datetime.now().isoformat()}
+
+
+@app.post("/api/safety/check")
+async def safety_check_api(request: SafetyGateRequest):
+    return {"success": True, "gate": safety_gate.inspect(request.payload, request.stage), "timestamp": datetime.now().isoformat()}
+
+
+@app.post("/api/agent/tasks")
+async def agent_task_create_api(request: AgentTaskRequest):
+    task = agent_runtime.create_task(request.objective, request.context)
+    return {"success": task["status"] != "blocked", "task": task, "timestamp": datetime.now().isoformat()}
+
+
+@app.get("/api/agent/tasks")
+async def agent_tasks_api(limit: int = 30):
+    return {"success": True, "tasks": agent_runtime.list_tasks(limit), "timestamp": datetime.now().isoformat()}
+
+
+@app.get("/api/agent/tasks/{task_id}")
+async def agent_task_detail_api(task_id: str):
+    task = agent_runtime.get_task(task_id)
+    if not task:
+        raise HTTPException(status_code=404, detail="Agent 任务不存在")
+    return {"success": True, "task": task, "timestamp": datetime.now().isoformat()}
+
+
+@app.post("/api/agent/tasks/{task_id}/run-next")
+async def agent_task_run_next_api(task_id: str):
+    try:
+        task = agent_runtime.run_next_step(task_id)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail="Agent 任务不存在") from exc
+    return {"success": task["status"] != "blocked", "task": task, "timestamp": datetime.now().isoformat()}
+
+
+@app.post("/api/agent/tasks/{task_id}/steps")
+async def agent_task_add_step_api(task_id: str, request: AgentTaskStepRequest):
+    try:
+        task = agent_runtime.add_step(task_id, request.model_dump())
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail="Agent 任务不存在") from exc
+    return {"success": True, "task": task, "timestamp": datetime.now().isoformat()}
+
+
+@app.get("/api/agent/observability")
+async def agent_observability_api():
+    return {"success": True, "observability": agent_runtime.observability(), "timestamp": datetime.now().isoformat()}
 
 
 @app.get("/api/audit/runs")
@@ -599,12 +683,20 @@ async def get_session_history(session_id: str, agent: AuditAgent = Depends(get_a
 
 @app.get("/api/health")
 async def health_check():
-    services = {"llm": bool(LLM_CONFIG.get("enabled")), "mysql": False, "neo4j": False, "rag": rag_pipeline is not None, "rag_documents": 0}
+    services = {
+        "llm": bool(LLM_CONFIG.get("enabled")),
+        "mysql": False,
+        "neo4j": False,
+        "rag": rag_pipeline is not None,
+        "rag_documents": 0,
+        "agent_runtime": True,
+        "skills": len(skill_registry.skills),
+    }
     if audit_agent is not None:
         services.update(audit_agent.get_service_status())
     if rag_pipeline is not None:
         services["rag_documents"] = rag_pipeline.get_statistics().get("total_documents", 0)
-    return JSONResponse(content={"status": "healthy", "timestamp": datetime.now().isoformat(), "version": "2.9.0", "services": services})
+    return JSONResponse(content={"status": "healthy", "timestamp": datetime.now().isoformat(), "version": "3.0.0", "services": services})
 
 
 if __name__ == "__main__":

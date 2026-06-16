@@ -29,6 +29,9 @@ data/**/*.db
 data/audit_runs/
 data/skill_runs/
 data/uploads/
+data/agent_runtime/
+data/evaluation_runs/
+data/evidence_analyses/
 
 # Large local model artifacts
 models/

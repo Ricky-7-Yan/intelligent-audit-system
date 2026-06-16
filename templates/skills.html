@@ -3,75 +3,261 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Skills / MCP &#24037;&#20855;&#23618;</title>
+  <title>Agent 能力中心 - 审脉 AuditPilot</title>
   <link rel="stylesheet" href="../static/app.css">
 </head>
 <body>
   <div class="app-shell">
     <aside class="sidebar">
-      <div class="brand"><div class="brand-icon">AP</div><span>&#23457;&#33033; AuditPilot</span></div>
-      <nav class="nav-list"><a class="nav-link " href="/">⌂ <span>&#24635;&#35272;</span></a>
-<a class="nav-link " href="/chat">● <span>&#23457;&#35745;&#23545;&#35805;</span></a>
-<a class="nav-link " href="/audit">⌕ <span>&#23457;&#35745;&#24037;&#20316;&#21488;</span></a>
-<a class="nav-link " href="/knowledge">▦ <span>&#30693;&#35782;&#24211;</span></a>
-<a class="nav-link " href="/training">□ <span>&#35780;&#27979;</span></a>
-<a class="nav-link active" href="/skills">◇ <span>Skills</span></a></nav>
-      <div class="sidebar-note">&#20197;&#23457;&#35745;&#20132;&#20184;&#20026;&#20027;&#32447;&#65306;&#30693;&#35782;&#26816;&#32034;&#12289;&#25511;&#21046;&#27979;&#35797;&#12289;&#24213;&#31295;&#12289;&#22797;&#26680;&#21644;&#25972;&#25913;&#38381;&#29615;&#12290;</div>
+      <div class="brand"><div class="brand-icon">AP</div><span>审脉 AuditPilot</span></div>
+      <nav class="nav-list">
+        <a class="nav-link" href="/">⌂ <span>总览</span></a>
+        <a class="nav-link" href="/chat">● <span>审计对话</span></a>
+        <a class="nav-link" href="/audit">⌕ <span>审计工作台</span></a>
+        <a class="nav-link" href="/knowledge">▦ <span>知识库</span></a>
+        <a class="nav-link" href="/training">□ <span>评测</span></a>
+        <a class="nav-link active" href="/skills">◇ <span>Skills</span></a>
+      </nav>
+      <div class="sidebar-note">以审计交付为主线：知识检索、控制测试、底稿、复核和整改闭环。</div>
     </aside>
+
     <main class="main">
       <div class="topbar">
-        <div class="page-title"><h1>Agent &#33021;&#21147;&#20013;&#24515;</h1><p>&#25226; Agent &#33021;&#21147;&#20174;&#20195;&#30721;&#20989;&#25968;&#21319;&#32423;&#20026;&#21487;&#27835;&#29702;&#30340;&#24037;&#20855;&#36164;&#20135;&#12290;</p></div>
-        <div class="status-pill"><span class="status-dot"></span><span id="healthText">&#21152;&#36733;&#29366;&#24577;&#20013;</span></div>
+        <div class="page-title">
+          <h1>Agent 能力中心</h1>
+          <p>把 Agent 能力从函数调用升级为可编排、可观测、可审计、可治理的企业级运行时。</p>
+        </div>
+        <div class="status-pill"><span class="status-dot"></span><span id="healthText">加载状态中</span></div>
       </div>
-      
-<section class="hero-console">
-  <div class="panel console-hero">
-    <div>
-      <div class="hero-eyebrow">Skill / MCP</div>
-      <h2 class="hero-title">&#20225;&#19994; Agent &#30340;&#33021;&#21147;&#20013;&#24515;&#19982;&#24037;&#20855;&#27835;&#29702;&#23618;</h2>
-      <p class="hero-copy">&#27599;&#20010; Skill &#37117;&#21253;&#21547;&#36755;&#20837; Schema&#12289;&#26435;&#38480;&#22768;&#26126;&#12289;&#29256;&#26412;&#21644;&#35843;&#29992;&#26085;&#24535;&#65307;MCP &#39118;&#26684;&#25551;&#36848;&#35753;&#24037;&#20855;&#33021;&#21147;&#21487;&#20197;&#34987; Agent &#23458;&#25143;&#31471;&#21457;&#29616;&#12289;&#32534;&#25490;&#21644;&#23457;&#35745;&#12290;</p>
-    </div>
+
+      <section class="hero-console">
+        <div class="panel console-hero">
+          <div>
+            <div class="hero-eyebrow">Runtime / Skill / MCP</div>
+            <h2 class="hero-title">面向审计交付的 Agent Runtime 与工具治理层</h2>
+            <p class="hero-copy">每个任务会形成协议化任务包，记录计划、工具调用、产物、安全门禁和指标；每个 Skill 包含输入 Schema、权限声明、版本和调用日志，便于审计团队复盘和交付。</p>
+          </div>
+          <div class="kpi-row">
+            <div class="card metric"><div class="metric-value" id="taskCount">0</div><div class="metric-label">任务数</div></div>
+            <div class="card metric"><div class="metric-value" id="toolCalls">0</div><div class="metric-label">工具调用</div></div>
+            <div class="card metric"><div class="metric-value" id="toolSuccess">0</div><div class="metric-label">成功率</div></div>
+            <div class="card metric"><div class="metric-value" id="avgLatency">0</div><div class="metric-label">平均耗时</div></div>
+            <div class="card metric"><div class="metric-value" id="blockedTasks">0</div><div class="metric-label">阻断任务</div></div>
+          </div>
+        </div>
+        <aside class="panel">
+          <h2 class="panel-title">运行原则</h2>
+          <div class="signal-list">
+            <div class="signal"><span class="signal-dot"></span><div><strong>协议化</strong><div class="muted">任务、计划、步骤、产物统一封装</div></div><span class="status-chip">A2A</span></div>
+            <div class="signal"><span class="signal-dot"></span><div><strong>可观测</strong><div class="muted">成功率、延迟、失败类型和安全状态</div></div><span class="status-chip">Trace</span></div>
+            <div class="signal"><span class="signal-dot"></span><div><strong>可治理</strong><div class="muted">工具权限、输入结构和安全门禁</div></div><span class="status-chip">Policy</span></div>
+          </div>
+        </aside>
+      </section>
+
+      <section class="grid layout-2 mt-16">
+        <div class="panel">
+          <div class="panel-head">
+            <div>
+              <h2 class="panel-title">Agent Runtime</h2>
+              <p class="muted">创建一个审计 Agent 任务，系统会自动规划审计范围、控制映射、取证清单和整改步骤，并写入可追踪运行记录。</p>
+            </div>
+            <button class="btn" id="refreshTasks">刷新任务</button>
+          </div>
+          <div class="grid grid-2">
+            <div class="field"><label>任务目标</label><input id="taskObjective" value="为 ERP 权限管理审计生成可交付的范围、控制测试、取证和整改计划"></div>
+            <div class="field"><label>审计对象</label><input id="taskAuditItem" value="ERP 系统权限管理"></div>
+          </div>
+          <div class="grid grid-3 mt-16">
+            <div class="field"><label>参考标准</label><select id="taskStandard"><option>ISO27001</option><option>COBIT</option><option>SOX</option><option>数据安全法</option></select></div>
+            <div class="field"><label>风险等级</label><select id="taskRisk"><option>高</option><option>中</option><option>低</option></select></div>
+            <div class="field"><label>风险主题</label><input id="taskTopics" value="权限,变更,日志,数据"></div>
+          </div>
+          <div class="toolbar mt-16">
+            <button class="btn primary" id="createTask">创建并执行任务</button>
+            <button class="btn" id="runNextStep">运行选中任务下一步</button>
+          </div>
+          <div id="taskDetail" class="list mt-16"><p class="muted">暂无选中任务。</p></div>
+        </div>
+        <aside class="panel">
+          <h2 class="panel-title">任务队列</h2>
+          <div id="taskList" class="list dense"><p class="muted">暂无运行时任务。</p></div>
+        </aside>
+      </section>
+
+      <section class="grid layout-2 mt-16">
+        <div class="panel">
+          <h2 class="panel-title">Skill Registry</h2>
+          <section class="grid grid-3" id="skillGrid"></section>
+        </div>
+        <aside class="panel">
+          <h2 class="panel-title">安全门禁</h2>
+          <div class="field"><label>检查内容</label><textarea id="safetyPayload" rows="6">请基于证据样本和审批记录，分析 ERP 权限复核是否存在离职账号未禁用风险。</textarea></div>
+          <button class="btn primary mt-12" id="runSafetyCheck">执行安全检查</button>
+          <div id="safetyResult" class="list dense mt-16"><p class="muted">尚未执行检查。</p></div>
+        </aside>
+      </section>
+
+      <div class="section-title"><div><h2>MCP Tools</h2><p>面向工具协议的描述层，包含 inputSchema 与权限注解。</p></div></div>
+      <section class="matrix" id="mcpTools"></section>
+
+      <div class="section-title">
+        <div><h2>执行结果与日志</h2><p>客户产品里的自动化动作都应可追踪、可解释、可复盘。</p></div>
+        <button class="btn" id="refreshRuns">刷新日志</button>
+      </div>
+      <section class="list dense" id="skillRuns"></section>
+    </main>
   </div>
-  <aside class="panel">
-    <h2 class="panel-title">&#24037;&#20855;&#36816;&#34892;&#21407;&#21017;</h2>
-    <div class="signal-list">
-      <div class="signal"><span class="signal-dot"></span><div><strong>&#21487;&#21457;&#29616;</strong><div class="muted">&#26631;&#20934;&#21270;&#24037;&#20855;&#25551;&#36848;&#19982;&#36755;&#20837;&#32467;&#26500;</div></div><span class="status-chip">&#27835;&#29702;</span></div>
-      <div class="signal"><span class="signal-dot"></span><div><strong>&#21487;&#23457;&#35745;</strong><div class="muted">&#27599;&#27425;&#35843;&#29992;&#20889;&#20837;&#36816;&#34892;&#26085;&#24535;</div></div><span class="status-chip">&#30041;&#30165;</span></div>
-      <div class="signal"><span class="signal-dot"></span><div><strong>&#21487;&#25193;&#23637;</strong><div class="muted">&#38754;&#21521;&#23457;&#35745;&#27969;&#31243;&#27785;&#28096;&#19987;&#19994;&#33021;&#21147;</div></div><span class="status-chip">&#25193;&#23637;</span></div>
-    </div>
-  </aside>
-</section>
-<div class="section-title"><div><h2>Skill Registry</h2><p>&#21487;&#27835;&#29702;&#12289;&#21487;&#21457;&#29616;&#12289;&#21487;&#23457;&#35745;&#30340;&#23457;&#35745;&#24037;&#20855;&#33021;&#21147;&#12290;</p></div></div>
-<section class="grid grid-3" id="skillGrid"></section>
-<div class="section-title"><div><h2>MCP Tools</h2><p>&#38754;&#21521;&#24037;&#20855;&#21327;&#35758;&#30340;&#25551;&#36848;&#23618;&#65292;&#21253;&#21547; inputSchema &#19982;&#26435;&#38480;&#27880;&#35299;&#12290;</p></div></div>
-<section class="matrix" id="mcpTools"></section>
-<div class="section-title"><div><h2>&#25191;&#34892;&#32467;&#26524;&#19982;&#26085;&#24535;</h2><p>&#23458;&#25143;&#20135;&#21697;&#37324;&#65292;&#20219;&#20309;&#33258;&#21160;&#21270;&#21160;&#20316;&#37117;&#24212;&#21487;&#36861;&#36394;&#12289;&#21487;&#35299;&#37322;&#12289;&#21487;&#22797;&#30424;&#12290;</p></div><button class="btn" id="refreshRuns">&#21047;&#26032;&#26085;&#24535;</button></div>
-<section class="list dense" id="skillRuns"></section>
-<script>
+  <script src="../static/app.js"></script>
+  <script>
+let selectedTaskId = null;
+
 async function loadSkills() {
   const data = await apiFetch("/api/skills");
   const grid = qs("#skillGrid"); clearNode(grid);
-  data.skills.forEach((skill) => grid.appendChild(el("div", { class: "card value-card" }, [el("strong", { text: skill.title }), el("p", { class: "muted", text: skill.description }), el("div", { class: "muted", text: `${skill.name} · v${skill.version} · ${(skill.permissions || []).join(", ")}` })])));
+  data.skills.forEach((skill) => grid.appendChild(el("div", { class: "card value-card" }, [
+    el("strong", { text: skill.title }),
+    el("p", { class: "muted", text: skill.description }),
+    el("div", { class: "muted", text: `${skill.name} · v${skill.version} · ${(skill.permissions || []).join(", ")}` })
+  ])));
   const tools = await apiFetch("/api/mcp/tools");
   const mcp = qs("#mcpTools"); clearNode(mcp);
-  const table = el("table"); table.appendChild(el("thead", {}, [el("tr", {}, ["工具", "说明", "权限"].map((text) => el("th", { text })))]));
+  const table = el("table");
+  table.appendChild(el("thead", {}, [el("tr", {}, ["工具", "说明", "权限"].map((text) => el("th", { text })))]));
   const body = el("tbody");
-  tools.tools.forEach((tool) => body.appendChild(el("tr", {}, [el("td", { text: tool.name }), el("td", { text: tool.description }), el("td", { text: (tool.annotations?.permissions || []).join(", ") })])));
+  tools.tools.forEach((tool) => body.appendChild(el("tr", {}, [
+    el("td", { text: tool.name }),
+    el("td", { text: tool.description }),
+    el("td", { text: (tool.annotations?.permissions || []).join(", ") })
+  ])));
   table.appendChild(body); mcp.appendChild(table);
-  loadRuns();
 }
+
+async function loadObservability() {
+  const data = await apiFetch("/api/agent/observability");
+  const obs = data.observability || {};
+  setText("#taskCount", obs.tasks || 0);
+  setText("#toolCalls", obs.tool_calls || 0);
+  setText("#toolSuccess", `${Math.round((obs.tool_success_rate || 0) * 100)}%`);
+  setText("#avgLatency", `${obs.avg_latency_ms || 0}ms`);
+  setText("#blockedTasks", obs.blocked_tasks || 0);
+}
+
+async function loadTasks() {
+  const data = await apiFetch("/api/agent/tasks?limit=20");
+  const node = qs("#taskList"); clearNode(node);
+  if (!data.tasks.length) {
+    node.appendChild(el("div", { class: "item muted", text: "暂无运行时任务" }));
+    return;
+  }
+  data.tasks.forEach((task) => node.appendChild(el("div", { class: "item clickable", onclick: () => renderTask(task) }, [
+    el("strong", { text: `${task.task_id} · ${task.status}` }),
+    el("div", { class: "muted", text: task.objective }),
+    el("div", { class: "trace-summary" }, [
+      el("span", { text: `步骤 ${task.steps?.length || 0}/${task.plan?.length || 0}` }),
+      el("span", { text: `安全 ${task.safety_gate?.status || "-"}` })
+    ])
+  ])));
+}
+
+function renderTask(task) {
+  selectedTaskId = task.task_id;
+  const node = qs("#taskDetail"); clearNode(node);
+  node.appendChild(el("div", { class: "item" }, [
+    el("strong", { text: `${task.task_id} · ${task.status}` }),
+    el("div", { class: "muted", text: task.objective }),
+    el("div", { class: "score-grid" }, [
+      metricPill("工具调用", task.metrics?.tool_calls || 0),
+      metricPill("成功", task.metrics?.successful_tool_calls || 0),
+      metricPill("失败", task.metrics?.failed_tool_calls || 0),
+      metricPill("平均耗时", `${task.metrics?.avg_latency_ms || 0}ms`)
+    ])
+  ]));
+  (task.plan || []).forEach((step) => {
+    const done = (task.steps || []).find((item) => item.step_id === step.step_id);
+    node.appendChild(el("div", { class: "item compact" }, [
+      el("strong", { text: `${step.step_id} · ${step.name}` }),
+      el("div", { class: "muted", text: `${step.skill} · ${done?.status || "待执行"} · ${step.purpose || ""}` })
+    ]));
+  });
+  (task.artifacts || []).forEach((artifact) => node.appendChild(el("div", { class: "item compact" }, [
+    el("strong", { text: `产物 · ${artifact.name}` }),
+    el("div", { class: "muted", text: artifact.summary })
+  ])));
+}
+
+function metricPill(name, value) {
+  return el("div", { class: "score-pill" }, [el("span", { text: name }), el("strong", { text: String(value) })]);
+}
+
+async function createTask() {
+  const topics = qs("#taskTopics").value.split(",").map((item) => item.trim()).filter(Boolean);
+  const payload = {
+    objective: qs("#taskObjective").value,
+    context: {
+      audit_item: qs("#taskAuditItem").value,
+      standard: qs("#taskStandard").value,
+      risk_level: qs("#taskRisk").value,
+      risk_topics: topics
+    }
+  };
+  const data = await apiFetch("/api/agent/tasks", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload)
+  });
+  renderTask(data.task);
+  await loadTasks();
+  await loadObservability();
+  await loadRuns();
+}
+
+async function runNextStep() {
+  if (!selectedTaskId) return;
+  const data = await apiFetch(`/api/agent/tasks/${selectedTaskId}/run-next`, { method: "POST" });
+  renderTask(data.task);
+  await loadTasks();
+  await loadObservability();
+  await loadRuns();
+}
+
+async function runSafetyCheck() {
+  const data = await apiFetch("/api/safety/check", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ stage: "audit", payload: { text: qs("#safetyPayload").value } })
+  });
+  const node = qs("#safetyResult"); clearNode(node);
+  const gate = data.gate || {};
+  node.appendChild(el("div", { class: "item" }, [
+    el("strong", { text: `状态：${gate.status} · 分数：${gate.score}` }),
+    el("div", { class: "muted", text: (gate.findings || []).map((item) => item.message).join("；") || "未发现阻断项" })
+  ]));
+}
+
 async function loadRuns() {
   const node = qs("#skillRuns"); clearNode(node);
   const data = await apiFetch("/api/skills/runs?limit=12");
   if (!data.runs.length) return node.appendChild(el("div", { class: "item muted", text: "暂无 Skill 运行日志" }));
-  data.runs.forEach((run) => node.appendChild(el("div", { class: "item compact" }, [el("strong", { text: `${run.run_id} · ${run.skill} · ${run.status}` }), el("div", { class: "muted", text: `${run.started_at} -> ${run.finished_at}` })])));
+  data.runs.forEach((run) => node.appendChild(el("div", { class: "item compact" }, [
+    el("strong", { text: `${run.run_id} · ${run.skill} · ${run.status}` }),
+    el("div", { class: "muted", text: `${run.duration_ms || 0}ms · ${run.started_at} -> ${run.finished_at}` })
+  ])));
 }
-document.addEventListener("DOMContentLoaded", loadSkills);
-document.addEventListener("DOMContentLoaded", () => qs("#refreshRuns").addEventListener("click", loadRuns));
-</script>
 
-    </main>
-  </div>
-  <script src="../static/app.js"></script>
+document.addEventListener("DOMContentLoaded", async () => {
+  await loadSkills();
+  await loadTasks();
+  await loadObservability();
+  await loadRuns();
+});
+document.addEventListener("DOMContentLoaded", () => {
+  qs("#createTask").addEventListener("click", createTask);
+  qs("#runNextStep").addEventListener("click", runNextStep);
+  qs("#runSafetyCheck").addEventListener("click", runSafetyCheck);
+  qs("#refreshTasks").addEventListener("click", loadTasks);
+  qs("#refreshRuns").addEventListener("click", loadRuns);
+});
+  </script>
 </body>
 </html>
