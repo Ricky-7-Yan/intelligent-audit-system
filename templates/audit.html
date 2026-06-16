@@ -97,6 +97,28 @@
         <div id="deliveryPreview" class="delivery-grid"><p class="muted">&#36873;&#25321;&#25110;&#36816;&#34892;&#23457;&#35745;&#26723;&#26696;&#21518;&#23637;&#31034;&#24213;&#31295;&#12289;&#35777;&#25454;&#12289;&#35775;&#35848;&#12289;&#29616;&#22330;&#26085;&#31243;&#21644;&#22797;&#26680;&#36712;&#36857;&#12290;</p></div>
       </section>
 
+      <section class="grid layout-2 mt-16">
+        <div class="panel">
+          <div class="panel-head">
+            <div>
+              <h2 class="panel-title">&#35777;&#25454;&#25991;&#20214;&#20998;&#26512;</h2>
+              <p class="muted">&#19978;&#20256; CSV&#12289;JSON&#12289;&#26085;&#24535;&#25110;&#25991;&#26412;&#24213;&#31295;&#65292;&#33258;&#21160;&#29983;&#25104;&#23383;&#27573;&#30011;&#20687;&#12289;&#39118;&#38505;&#20449;&#21495;&#12289;&#25511;&#21046;&#26144;&#23556;&#21644;&#34917;&#35777;&#24314;&#35758;&#12290;</p>
+            </div>
+            <button class="btn" id="refreshEvidenceAnalyses">&#21047;&#26032;&#21382;&#21490;</button>
+          </div>
+          <div class="grid grid-3">
+            <div class="field"><label>&#35777;&#25454;&#25991;&#20214;</label><input id="evidenceFile" type="file" accept=".txt,.md,.csv,.tsv,.json,.log"></div>
+            <div class="field"><label>&#20998;&#26512;&#31867;&#22411;</label><select id="evidenceAnalysisType"><option value="fieldwork">&#29616;&#22330;&#21462;&#35777;</option><option value="access_review">&#26435;&#38480;&#22797;&#26680;</option><option value="change_log">&#21464;&#26356;&#26085;&#24535;</option><option value="transaction_sample">&#20132;&#26131;&#25277;&#26679;</option></select></div>
+            <div class="field"><label>&#25191;&#34892;</label><button class="btn primary" id="analyzeEvidence">&#20998;&#26512;&#35777;&#25454;</button></div>
+          </div>
+          <div id="evidenceAnalysisResult" class="list mt-16"><p class="muted">&#23578;&#26410;&#19978;&#20256;&#35777;&#25454;&#25991;&#20214;&#12290;</p></div>
+        </div>
+        <aside class="panel">
+          <h2 class="panel-title">&#35777;&#25454;&#20998;&#26512;&#21382;&#21490;</h2>
+          <div id="evidenceAnalysisHistory" class="list dense"><p class="muted">&#26242;&#26080;&#35777;&#25454;&#20998;&#26512;&#35760;&#24405;&#12290;</p></div>
+        </aside>
+      </section>
+
       <section class="grid grid-2 mt-16">
         <div class="panel"><h2 class="panel-title">&#20219;&#21153;&#35745;&#21010;</h2><div id="taskPlan" class="timeline"><p class="muted">&#31561;&#24453;&#32467;&#26524;</p></div></div>
         <div class="panel"><h2 class="panel-title">&#35777;&#25454;&#21253;</h2><div id="evidencePack" class="list dense"><p class="muted">&#31561;&#24453;&#32467;&#26524;</p></div></div>

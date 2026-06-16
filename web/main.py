@@ -24,6 +24,7 @@ from services.audit_delivery import AuditDeliveryService
 from services.audit_repository import AuditRunRepository
 from services.audit_templates import list_audit_templates
 from services.evaluation_repository import EvaluationRunRepository
+from services.evidence_analyzer import EvidenceAnalyzer
 from services.product_insights import ProductInsights
 from services.rag_evaluator import RAGEvaluator
 from services.research_agent import AuditResearchAgent
@@ -41,6 +42,7 @@ skill_registry = SkillRegistry()
 product_insights = ProductInsights(audit_repository, skill_registry)
 audit_delivery = AuditDeliveryService(audit_repository)
 evaluation_repository = EvaluationRunRepository()
+evidence_analyzer = EvidenceAnalyzer()
 
 
 @asynccontextmanager
@@ -60,7 +62,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="审脉 AuditPilot",
     description="面向审计交付场景的 Agentic RAG、风险评估、控制测试和整改闭环系统",
-    version="2.7.0",
+    version="2.8.0",
     lifespan=lifespan,
 )
 
@@ -479,6 +481,40 @@ async def upload_knowledge_file(file: UploadFile = File(...), rag=Depends(get_ra
     return {"success": True, "file": file.filename, "result": result, "timestamp": datetime.now().isoformat()}
 
 
+@app.post("/api/evidence/analyze")
+async def analyze_evidence_api(
+    file: UploadFile = File(...),
+    audit_item: str = Form(""),
+    audit_type: str = Form(""),
+    standard_type: str = Form(""),
+):
+    suffix = Path(file.filename or "").suffix.lower()
+    if suffix not in {".txt", ".md", ".csv", ".tsv", ".json", ".log"}:
+        raise HTTPException(status_code=400, detail="当前证据分析支持 .txt、.md、.csv、.tsv、.json、.log 文件")
+    content = await file.read()
+    if len(content) > 5 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="证据文件超过 5MB，请先拆分或抽样上传")
+    result = evidence_analyzer.analyze_file(
+        file.filename or "evidence",
+        content,
+        {"audit_item": audit_item, "audit_type": audit_type, "standard_type": standard_type},
+    )
+    return {"success": True, "analysis": result, "timestamp": datetime.now().isoformat()}
+
+
+@app.get("/api/evidence/analyses")
+async def evidence_analyses_api(limit: int = 20):
+    return {"success": True, "analyses": evidence_analyzer.list_analyses(limit), "timestamp": datetime.now().isoformat()}
+
+
+@app.get("/api/evidence/analyses/{analysis_id}")
+async def evidence_analysis_detail_api(analysis_id: str):
+    record = evidence_analyzer.get_analysis(analysis_id)
+    if not record:
+        raise HTTPException(status_code=404, detail="证据分析记录不存在")
+    return {"success": True, "analysis": record, "timestamp": datetime.now().isoformat()}
+
+
 @app.get("/api/knowledge/query")
 async def query_knowledge_api(question: str, context: Optional[str] = None, rag=Depends(get_rag_pipeline)):
     context_dict = None
@@ -542,7 +578,7 @@ async def health_check():
         services.update(audit_agent.get_service_status())
     if rag_pipeline is not None:
         services["rag_documents"] = rag_pipeline.get_statistics().get("total_documents", 0)
-    return JSONResponse(content={"status": "healthy", "timestamp": datetime.now().isoformat(), "version": "2.7.0", "services": services})
+    return JSONResponse(content={"status": "healthy", "timestamp": datetime.now().isoformat(), "version": "2.8.0", "services": services})
 
 
 if __name__ == "__main__":

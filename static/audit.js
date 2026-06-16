@@ -229,6 +229,102 @@ function renderDeliveryPreview(pkg) {
   cards.forEach(([label, value]) => node.appendChild(el("div", { class: "card delivery-card" }, [el("div", { class: "delivery-number", text: String(value) }), el("div", { class: "metric-label", text: label })])));
 }
 
+function renderEvidenceAnalysis(analysis) {
+  const node = qs("#evidenceAnalysisResult");
+  clearNode(node);
+  const profile = analysis.profile || {};
+  const gate = analysis.quality_gate || {};
+  node.appendChild(el("div", { class: "grid grid-4" }, [
+    el("div", { class: "card metric" }, [el("div", { class: "metric-value small", text: String(profile.rows || 0) }), el("div", { class: "metric-label", text: "记录行数" })]),
+    el("div", { class: "card metric" }, [el("div", { class: "metric-value small", text: String(profile.field_count || 0) }), el("div", { class: "metric-label", text: "字段数量" })]),
+    el("div", { class: "card metric" }, [el("div", { class: "metric-value small", text: String((analysis.risk_signals || []).length) }), el("div", { class: "metric-label", text: "风险信号" })]),
+    el("div", { class: "card metric" }, [el("div", { class: "metric-value small", text: String(gate.confidence || 0) }), el("div", { class: "metric-label", text: gate.status || "review" })]),
+  ]));
+  node.appendChild(el("div", { class: "item compact" }, [
+    el("strong", { text: "字段画像" }),
+    el("p", { class: "muted", text: (profile.fields || []).slice(0, 24).join("、") || "未识别到结构化字段" }),
+  ]));
+  renderListCard(node, analysis.risk_signals || [], "未发现明显风险信号", (signal) => el("div", { class: "item compact" }, [
+    el("strong", { text: `${signal.title} · ${signal.severity}` }),
+    el("div", { class: "muted", text: `影响行数 ${signal.affected_rows || 0} · 置信度 ${signal.confidence}` }),
+    el("p", { class: "muted", text: signal.audit_implication }),
+  ]));
+  renderListCard(node, analysis.mapped_controls || [], "暂无控制映射", (control) => el("div", { class: "item compact" }, [
+    el("strong", { text: `${control.control_id} · ${control.domain}` }),
+    el("p", { class: "muted", text: control.test_procedure }),
+    el("div", { text: `命中关键词：${(control.hit_keywords || []).join("、")}` }),
+  ]));
+  renderListCard(node, analysis.evidence_requests || [], "暂无补证建议", (request) => el("div", { class: "item compact" }, [
+    el("strong", { text: `${request.evidence} · ${request.priority}` }),
+    el("p", { class: "muted", text: request.usage }),
+    el("div", { text: `建议字段：${(request.required_fields || []).join("、")}` }),
+  ]));
+  (analysis.recommended_next_steps || []).forEach((step) => node.appendChild(el("div", { class: "item compact" }, [el("strong", { text: "下一步" }), el("p", { class: "muted", text: step })])));
+}
+
+function renderEvidenceAnalysisHistory(items) {
+  const node = qs("#evidenceAnalysisHistory");
+  clearNode(node);
+  if (!(items || []).length) {
+    node.appendChild(el("p", { class: "muted", text: "暂无证据分析记录。" }));
+    return;
+  }
+  items.forEach((item) => {
+    const card = el("div", { class: "item compact clickable" }, [
+      el("strong", { text: `${item.analysis_id} · ${item.file_name}` }),
+      el("div", { class: "muted", text: `风险 ${item.risk_count || 0} · 控制 ${item.control_count || 0} · ${item.quality_gate?.label || item.quality_gate?.status || "review"}` }),
+      el("div", { class: "muted", text: item.created_at || "" }),
+    ]);
+    card.addEventListener("click", () => loadEvidenceAnalysis(item.analysis_id));
+    node.appendChild(card);
+  });
+}
+
+async function loadEvidenceAnalyses() {
+  try {
+    const data = await apiFetch("/api/evidence/analyses?limit=10");
+    renderEvidenceAnalysisHistory(data.analyses || []);
+  } catch (error) {
+    const node = qs("#evidenceAnalysisHistory");
+    clearNode(node);
+    node.appendChild(el("p", { class: "muted", text: `证据分析历史加载失败：${error.message}` }));
+  }
+}
+
+async function loadEvidenceAnalysis(analysisId) {
+  const data = await apiFetch(`/api/evidence/analyses/${encodeURIComponent(analysisId)}`);
+  renderEvidenceAnalysis(data.analysis);
+}
+
+async function analyzeEvidenceFile() {
+  const input = qs("#evidenceFile");
+  const file = input.files && input.files[0];
+  const node = qs("#evidenceAnalysisResult");
+  clearNode(node);
+  if (!file) {
+    node.appendChild(el("p", { class: "muted", text: "请先选择证据文件。" }));
+    return;
+  }
+  node.appendChild(el("p", { class: "muted", text: "正在分析证据文件..." }));
+  const form = new FormData();
+  form.append("file", file);
+  form.append("audit_item", qs("#auditItem").value || "");
+  form.append("audit_type", qs("#evidenceAnalysisType").value || qs("#auditType").value || "");
+  form.append("standard_type", qs("#standardType").value || "");
+  try {
+    const data = await fetch(apiUrl("/api/evidence/analyze"), { method: "POST", body: form }).then(async (response) => {
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok || payload.success === false) throw new Error(payload.detail || `请求失败: ${response.status}`);
+      return payload;
+    });
+    renderEvidenceAnalysis(data.analysis);
+    loadEvidenceAnalyses();
+  } catch (error) {
+    clearNode(node);
+    node.appendChild(el("p", { class: "muted", text: `证据分析失败：${error.message}` }));
+  }
+}
+
 async function loadDelivery(runId) {
   try {
     const data = await apiFetch(`/api/audit/runs/${encodeURIComponent(runId)}/delivery`);
@@ -423,6 +519,8 @@ document.addEventListener("DOMContentLoaded", () => {
   });
   qs("#runResearch").addEventListener("click", runResearch);
   qs("#refreshRuns").addEventListener("click", loadRuns);
+  qs("#analyzeEvidence").addEventListener("click", analyzeEvidenceFile);
+  qs("#refreshEvidenceAnalyses").addEventListener("click", loadEvidenceAnalyses);
   qs("#submitReview").addEventListener("click", async () => {
     if (!currentRunId) {
       setText("#reviewResult", "请先运行或选择一条审计档案");
@@ -444,4 +542,5 @@ document.addEventListener("DOMContentLoaded", () => {
   }));
   loadTemplates();
   loadRuns();
+  loadEvidenceAnalyses();
 });

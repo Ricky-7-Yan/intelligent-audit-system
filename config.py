@@ -52,6 +52,7 @@ PATHS: Dict[str, Path] = {
     "uploads": PROJECT_ROOT / "data" / "uploads",
     "rag_store": PROJECT_ROOT / "data" / "rag_store",
     "evaluation_runs": PROJECT_ROOT / "data" / "evaluation_runs",
+    "evidence_analyses": PROJECT_ROOT / "data" / "evidence_analyses",
 }
 
 for path in PATHS.values():
