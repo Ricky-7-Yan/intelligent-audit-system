@@ -672,6 +672,103 @@ label { display: block; margin-bottom: 6px; color: var(--muted); font-size: 13px
   font-weight: 700;
 }
 
+.metric-toggle-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.metric-toggle {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr);
+  gap: 8px;
+  align-items: start;
+  min-height: 72px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  cursor: pointer;
+  margin: 0;
+}
+
+.metric-toggle input {
+  width: 16px;
+  min-height: 16px;
+  margin: 2px 0 0;
+}
+
+.metric-toggle-text {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.metric-toggle-text small {
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.score-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  margin: 10px 0;
+}
+
+.score-pill {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  align-items: center;
+  min-height: 34px;
+  padding: 7px 9px;
+  border-radius: 8px;
+  background: var(--surface-muted);
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.score-pill span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.score-pill strong {
+  color: var(--primary);
+  white-space: nowrap;
+}
+
+.item-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 6px;
+}
+
+.eval-card {
+  display: grid;
+  gap: 8px;
+}
+
+.trace-summary,
+.tag-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.trace-summary span {
+  min-height: 24px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: #edf7f3;
+  color: #17634f;
+  font-size: 12px;
+}
+
 .badge {
   display: inline-flex;
   align-items: center;
@@ -709,7 +806,7 @@ label { display: block; margin-bottom: 6px; color: var(--muted); font-size: 13px
   .nav-link span { display: none; }
   .main { padding: 18px; }
   .grid-2, .grid-3, .grid-4, .layout-2, .kpi-row, .quality { grid-template-columns: 1fr; }
-  .hero-console, .pipeline-grid, .connector-grid, .command-panel, .scenario-grid, .delivery-grid { grid-template-columns: 1fr; }
+  .hero-console, .pipeline-grid, .connector-grid, .command-panel, .scenario-grid, .delivery-grid, .metric-toggle-grid, .score-grid { grid-template-columns: 1fr; }
   .pipeline-step::after { display: none; }
   .run-row { grid-template-columns: 1fr; }
   .toolbar.stretch { grid-template-columns: 1fr; }

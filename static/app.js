@@ -25,7 +25,8 @@ function el(tag, attrs = {}, children = []) {
     else if (key === "text") node.textContent = value;
     else if (key === "style") node.setAttribute("style", value);
     else if (key.startsWith("on") && typeof value === "function") node.addEventListener(key.slice(2), value);
-    else node.setAttribute(key, value);
+    else if (value === true) node.setAttribute(key, key);
+    else if (value !== false && value !== null && value !== undefined) node.setAttribute(key, value);
   });
   children.forEach((child) => node.appendChild(typeof child === "string" ? document.createTextNode(child) : child));
   return node;

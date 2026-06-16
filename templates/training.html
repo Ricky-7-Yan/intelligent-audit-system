@@ -3,47 +3,123 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Agent &#35780;&#20272; - &#26234;&#33021;&#23457;&#35745; Agent &#24179;&#21488;</title>
+  <title>Agent &#35780;&#20272;&#19982;&#21457;&#24067;&#38376;&#31105; - &#23457;&#33033; AuditPilot</title>
   <link rel="stylesheet" href="../static/app.css">
 </head>
 <body>
   <div class="app-shell">
-
     <aside class="sidebar">
-      <div class="brand"><div class="brand-icon">&#23457;</div><span>&#26234;&#33021;&#23457;&#35745;</span></div>
+      <div class="brand"><div class="brand-icon">AP</div><span>&#23457;&#33033; AuditPilot</span></div>
       <nav class="nav-list">
         <a class="nav-link" href="/">&#8962; <span>&#24635;&#35272;</span></a>
         <a class="nav-link" href="/chat">&#9679; <span>&#23457;&#35745;&#23545;&#35805;</span></a>
-        <a class="nav-link" href="/audit">&#8981; <span>&#23457;&#35745;&#20998;&#26512;</span></a>
+        <a class="nav-link" href="/audit">&#8981; <span>&#23457;&#35745;&#24037;&#20316;&#21488;</span></a>
         <a class="nav-link" href="/knowledge">&#9638; <span>&#30693;&#35782;&#24211;</span></a>
-        <a class="nav-link active" href="/training">&#9633; <span>&#35780;&#20272;</span></a>
+        <a class="nav-link active" href="/training">&#9633; <span>&#35780;&#27979;</span></a>
         <a class="nav-link" href="/skills">&#9671; <span>Skills</span></a>
       </nav>
-      <div class="sidebar-note">&#32447;&#19978;&#36816;&#34892;&#36731;&#37327;&#35780;&#20272;&#65307;&#22823;&#27169;&#22411;&#24494;&#35843;&#24314;&#35758;&#36208;&#31163;&#32447;&#20219;&#21153;&#12290;</div>
+      <div class="sidebar-note">&#38754;&#21521;&#30495;&#23454;&#23457;&#35745; Agent &#30340;&#21457;&#24067;&#38376;&#31105;&#65306;&#35206;&#30422;&#22238;&#31572;&#36136;&#37327;&#12289;RAG&#12289;Deep Research&#12289;Tool Use&#12289;&#36712;&#36857;&#21644;&#22238;&#24402;&#39118;&#38505;&#12290;</div>
     </aside>
 
     <main class="main">
       <div class="topbar">
         <div class="page-title">
-          <h1>Agent &#35780;&#20272;</h1>
-          <p>&#35780;&#20272;&#24403;&#21069;&#23457;&#35745; Agent &#19982; RAG &#22312;&#27835;&#29702;&#12289;&#39118;&#38505;&#12289;&#21512;&#35268;&#21644;&#23433;&#20840;&#38382;&#39064;&#19978;&#30340;&#36136;&#37327;&#12290;</p>
+          <h1>Agent &#35780;&#20272;&#19982;&#21457;&#24067;&#38376;&#31105;</h1>
+          <p>&#23558;&#23457;&#35745; Agent &#25353;&#20225;&#19994;&#32423;&#26631;&#20934;&#35780;&#20272;&#65306;&#30495;&#23454;&#24615;&#12289;&#26435;&#23041;&#24615;&#12289;&#24037;&#20855;&#35843;&#29992;&#12289;&#36712;&#36857;&#36136;&#37327;&#12289;&#20154;&#24037;&#22797;&#26680;&#21644; badcase &#38381;&#29615;&#12290;</p>
         </div>
         <div class="status-pill"><span class="status-dot"></span><span id="healthText">&#21152;&#36733;&#29366;&#24577;&#20013;</span></div>
       </div>
 
-      <section class="panel"><h2 class="panel-title">&#35780;&#20272;&#20219;&#21153;</h2><p class="muted">&#36816;&#34892;&#36731;&#37327; Benchmark&#65292;&#35780;&#20272; Agent &#22238;&#31572;&#36136;&#37327;&#21644; RAG &#26816;&#32034;&#25928;&#26524;&#12290;</p><div class="toolbar"><button class="btn primary" id="runEval">&#36816;&#34892; Agent &#35780;&#20272;</button><button class="btn" id="runRagEval">RAG &#35780;&#27979;</button></div></section>
-      <section class="kpi-row mt-16"><div class="card metric"><div class="metric-value" id="overallScore">-</div><div class="metric-label">&#24635;&#20307;&#24471;&#20998;</div></div><div class="card metric"><div class="metric-value" id="totalTests">-</div><div class="metric-label">&#27979;&#35797;&#29992;&#20363;</div></div><div class="card metric"><div class="metric-value">7</div><div class="metric-label">Skills</div></div><div class="card metric"><div class="metric-value">MCP</div><div class="metric-label">&#24037;&#20855;&#21327;&#35758;</div></div><div class="card metric"><div class="metric-value">2.4.0</div><div class="metric-label">&#26550;&#26500;&#29256;&#26412;</div></div></section>
-      <section class="panel mt-16"><h2 class="panel-title">&#35780;&#20272;&#32467;&#26524;</h2><div id="evalResults" class="list"><p class="muted">&#23578;&#26410;&#36816;&#34892;&#35780;&#20272;</p></div></section>
+      <section class="hero-console">
+        <div class="panel console-hero">
+          <div>
+            <div class="hero-eyebrow">Audit Agent Evaluation</div>
+            <h2 class="hero-title">&#20174;&#8220;&#33021;&#22238;&#31572;&#8221;&#21319;&#32423;&#21040;&#8220;&#21487;&#20132;&#20184;&#12289;&#21487;&#22797;&#26680;&#12289;&#21487;&#22238;&#24402;&#8221;</h2>
+            <p class="hero-copy">&#35780;&#27979;&#19981;&#21482;&#26159;&#36305;&#20998;&#65306;&#36825;&#37324;&#20250;&#26816;&#26597; Agent &#26159;&#21542;&#33021;&#20570;&#24847;&#22270;&#29702;&#35299;&#12289;&#26597;&#35810;&#25913;&#20889;&#12289;&#22810;&#28304;&#26816;&#32034;&#12289;&#25512;&#29702;&#35777;&#25454;&#21270;&#12289;&#24037;&#20855;&#35843;&#29992;&#12289;&#22833;&#36133;&#38477;&#32423;&#12289;&#20154;&#24037;&#22797;&#26680;&#21644;&#23457;&#35745;&#25972;&#25913;&#38381;&#29615;&#12290;</p>
+          </div>
+          <div class="hero-actions">
+            <button class="btn primary" id="runEval">&#36816;&#34892; Agent &#35780;&#20272;</button>
+            <button class="btn" id="runRagEval">RAG &#35780;&#27979;</button>
+            <button class="btn" id="runResearchEval">Deep Research</button>
+            <button class="btn" id="loadJdCoverage">JD &#33021;&#21147;&#35206;&#30422;</button>
+          </div>
+        </div>
+        <aside class="panel">
+          <h2 class="panel-title">&#21457;&#24067;&#38376;&#31105;</h2>
+          <div class="quality">
+            <div class="quality-ring" id="qualityRing" style="--score: 0"><span id="overallScore">-</span></div>
+            <div class="list dense">
+              <div class="item compact"><strong>&#27979;&#35797;&#29992;&#20363;</strong><div class="muted" id="totalTests">-</div></div>
+              <div class="item compact"><strong>&#36890;&#36807;&#29575;</strong><div class="muted" id="passRate">-</div></div>
+              <div class="item compact"><strong>&#22238;&#24402;&#39118;&#38505;</strong><div class="muted" id="regressionCount">-</div></div>
+            </div>
+          </div>
+        </aside>
+      </section>
 
+      <section class="grid layout-2 mt-16">
+        <div class="panel">
+          <div class="panel-head">
+            <div>
+              <h2 class="panel-title">&#35780;&#27979;&#22330;&#26223;&#35774;&#35745;</h2>
+              <p class="muted">&#21487;&#29992;&#20110;&#33258;&#23450;&#20041;&#23457;&#35745;&#22330;&#26223;&#12289;&#39044;&#26399;&#31572;&#26696;&#12289;&#20851;&#38190;&#35777;&#25454;&#28857;&#21644;&#25351;&#26631;&#65292;&#29992;&#26469;&#20570;&#21457;&#24067;&#21069;&#22238;&#24402;&#12290;</p>
+            </div>
+            <div class="segmented" id="modeTabs">
+              <button class="seg active" data-mode="agent">Agent</button>
+              <button class="seg" data-mode="rag">RAG</button>
+              <button class="seg" data-mode="research">Research</button>
+              <button class="seg" data-mode="jd">JD</button>
+            </div>
+          </div>
+          <div class="grid grid-3">
+            <div class="field"><label>&#22330;&#26223;&#31867;&#22411;</label><select id="caseCategory"><option value="audit_scope_planning">&#23457;&#35745;&#33539;&#22260;&#35268;&#21010;</option><option value="rag_grounding">RAG &#20381;&#25454;&#24615;</option><option value="control_mapping">&#25511;&#21046;&#26144;&#23556;</option><option value="evidence_request">&#21462;&#35777;&#19982;&#25972;&#25913;</option><option value="agentic_workflow">Agentic &#24037;&#20316;&#27969;</option><option value="deep_research">Deep Research</option></select></div>
+            <div class="field"><label>&#29992;&#20363; ID</label><input id="caseId" value="CUSTOM-001"></div>
+            <div class="field"><label>&#21028;&#23450;&#38408;&#20540;</label><input id="releaseGate" value="0.75"></div>
+          </div>
+          <div class="field mt-16"><label>&#35780;&#27979;&#38382;&#39064;</label><textarea id="caseQuestion" rows="4">请为 ERP 权限管理审计设计范围、关键风险、取证清单和控制测试步骤。</textarea></div>
+          <div class="grid grid-2 mt-16">
+            <div class="field"><label>&#39044;&#26399;&#31572;&#26696;&#25688;&#35201;</label><textarea id="expectedAnswer" rows="4">审计范围、账号生命周期、角色权限、职责分离、特权账号、定期复核、证据清单、控制测试、抽样、复核。</textarea></div>
+            <div class="field"><label>&#39044;&#26399;&#20851;&#38190;&#35789;</label><textarea id="expectedTerms" rows="4">范围, 账号生命周期, 职责分离, 特权账号, 复核, 证据, 控制测试</textarea></div>
+          </div>
+          <div class="metric-toggle-grid mt-16" id="metricToggles"></div>
+          <div class="toolbar mt-16">
+            <button class="btn primary" id="runCustomEval">&#29992;&#24403;&#21069;&#29992;&#20363;&#35780;&#27979;</button>
+            <button class="btn" id="addGoldenCase">&#21152;&#20837;&#29992;&#20363;&#38598;</button>
+            <button class="btn" id="clearCases">&#28165;&#31354;&#33258;&#23450;&#20041;</button>
+          </div>
+        </div>
+        <aside class="panel">
+          <h2 class="panel-title">&#33258;&#23450;&#20041;&#29992;&#20363;&#38598;</h2>
+          <div id="customCases" class="list dense"><p class="muted">&#26242;&#26080;&#33258;&#23450;&#20041;&#29992;&#20363;&#12290;</p></div>
+        </aside>
+      </section>
+
+      <section class="kpi-row mt-16">
+        <div class="card metric"><div class="metric-value" id="faithfulnessScore">-</div><div class="metric-label">&#30495;&#23454;&#24615;</div></div>
+        <div class="card metric"><div class="metric-value" id="toolScore">-</div><div class="metric-label">Tool / Trace</div></div>
+        <div class="card metric"><div class="metric-value" id="authorityScore">-</div><div class="metric-label">&#26435;&#23041;&#24615;</div></div>
+        <div class="card metric"><div class="metric-value" id="latencyScore">-</div><div class="metric-label">&#24179;&#22343;&#32791;&#26102;</div></div>
+        <div class="card metric"><div class="metric-value">2.6.0</div><div class="metric-label">&#35780;&#27979;&#29256;&#26412;</div></div>
+      </section>
+
+      <section class="grid layout-2 mt-16">
+        <div class="panel">
+          <h2 class="panel-title">&#35780;&#27979;&#32467;&#26524;</h2>
+          <div id="evalResults" class="list"><p class="muted">&#23578;&#26410;&#36816;&#34892;&#35780;&#27979;&#12290;</p></div>
+        </div>
+        <aside class="panel">
+          <h2 class="panel-title">&#25351;&#26631;&#26706;&#26550;</h2>
+          <div id="evaluationPlan" class="list dense"><p class="muted">&#27491;&#22312;&#21152;&#36733;&#35780;&#27979;&#25351;&#26631;&#12290;</p></div>
+        </aside>
+      </section>
+
+      <section class="panel mt-16">
+        <h2 class="panel-title">&#33150;&#35759;&#12289;&#23383;&#33410;&#31561; Agent JD &#33021;&#21147;&#35206;&#30422;</h2>
+        <div id="jdCoverage" class="list dense"><p class="muted">&#28857;&#20987; JD &#33021;&#21147;&#35206;&#30422;&#21518;&#23637;&#31034;&#26469;&#28304;&#12289;&#35201;&#27714;&#19982;&#39033;&#30446;&#23545;&#24212;&#12290;</p></div>
+      </section>
     </main>
   </div>
   <script src="../static/app.js"></script>
-
-  <script>
-    function renderEvalResults(results) { const node = qs("#evalResults"); clearNode(node); Object.entries(results.overall_metrics?.category_scores || {}).forEach(([category, score]) => node.appendChild(el("div", { class: "item" }, [el("strong", { text: category }), el("div", { class: "muted", text: `得分：${score}` })]))); (results.results || []).forEach((item) => node.appendChild(el("div", { class: "item" }, [el("strong", { text: item.question }), el("p", { class: "muted", text: `类别：${item.category}` }), el("div", { class: "prewrap", text: item.actual_answer || JSON.stringify(item, null, 2) })]))); }
-    qs("#runEval").addEventListener("click", async () => { const node = qs("#evalResults"); clearNode(node); node.appendChild(el("p", { class: "muted", text: "评估运行中..." })); try { const data = await apiFetch("/api/training/evaluate", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ model_path: "current-agent" }) }); const metrics = data.results.overall_metrics || {}; setText("#overallScore", metrics.overall_score ?? "-"); setText("#totalTests", metrics.total_tests ?? "-"); renderEvalResults(data.results); } catch (error) { clearNode(node); node.appendChild(el("p", { class: "muted", text: `评估失败：${error.message}` })); } });
-    qs("#runRagEval").addEventListener("click", async () => { const node = qs("#evalResults"); clearNode(node); node.appendChild(el("p", { class: "muted", text: "RAG 评测运行中..." })); try { const data = await apiFetch("/api/evaluation/rag", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({}) }); setText("#overallScore", data.results.overall_score); setText("#totalTests", data.results.total_cases); clearNode(node); data.results.results.forEach((item) => node.appendChild(el("div", { class: "item" }, [el("strong", { text: item.question }), el("div", { class: "muted", text: `overall=${item.overall} · sources=${item.retrieved_docs_count}` })]))); } catch (error) { clearNode(node); node.appendChild(el("p", { class: "muted", text: `RAG 评测失败：${error.message}` })); } });
-  </script>
-
+  <script src="../static/training.js"></script>
 </body>
 </html>

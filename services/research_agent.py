@@ -15,12 +15,7 @@ class ResearchStep:
 
 
 class AuditResearchAgent:
-    """A deterministic deep-research layer over the existing RAG pipeline.
-
-    The class is intentionally usable without paid model calls. When an LLM is
-    available, the web layer can still use the same structured plan and sources
-    as grounding facts.
-    """
+    """A deterministic deep-research layer over the existing RAG pipeline."""
 
     def __init__(self, rag_pipeline: Any) -> None:
         self.rag_pipeline = rag_pipeline
@@ -47,55 +42,119 @@ class AuditResearchAgent:
 
     def jd_coverage(self) -> Dict[str, Any]:
         return {
-            "source": "字节跳动招聘官网 Seed/搜索问答 Agent 相关岗位 JD + 用户提供岗位描述",
+            "source": "腾讯招聘官网 careers.tencent.com 2026-05 至 2026-06 Agent/大模型岗位 + 字节 Seed 搜索问答 Agent JD",
+            "official_tencent_posts": [
+                {
+                    "post": "Agent Evaluation Intern 107491",
+                    "post_id": "2057058794919346176",
+                    "updated": "2026-05-20",
+                    "requirements": [
+                        "自动化评估流水线、执行产物采集、回归检测",
+                        "评估 tool use、参数准确性、错误处理和不必要调用",
+                        "分析 traces、logs、中间步骤、最终输出，定位推理失败和上下文误用",
+                        "设计成功率、工具精度、恢复率、重试、延迟、成本和安全失败率指标",
+                        "用合成用例、黄金流程和匿名真实执行构建可复用数据集",
+                    ],
+                },
+                {
+                    "post": "元宝-Agent架构工程师",
+                    "post_id": "2016726997581058048",
+                    "updated": "2026-06-04",
+                    "requirements": [
+                        "Agent Runtime、Tool、Memory、Context 抽象",
+                        "多 Agent 协作模式与 Human-in-the-loop",
+                        "结合模型边界、产品功能和架构约束设计整体方案",
+                    ],
+                },
+                {
+                    "post": "微信搜索-Agent算法专家",
+                    "post_id": "2062097072978575360",
+                    "updated": "2026-06-11",
+                    "requirements": [
+                        "Search Agent、DeepSearch、DeepResearch 和真实世界复杂任务 Agentic 能力",
+                        "Mid-Train、SFT、GRM、PRM、RLVR、Agentic RL、Agent 自进化",
+                        "Context 管理、Memory 以及大模型结合搜索的下一代产品范式",
+                    ],
+                },
+                {
+                    "post": "腾讯视频-AI Agent工程师",
+                    "post_id": "2049051430010122240",
+                    "updated": "2026-06-09",
+                    "requirements": [
+                        "任务规划、工具调用、记忆管理、多轮决策",
+                        "高并发 Agent 服务框架、调度系统、工作流引擎和稳定性治理",
+                        "Workflow/DAG/多 Agent 协作、Function Calling、Tool Use、RAG、上下文管理",
+                        "效果评估、badcase 分析和迭代",
+                    ],
+                },
+            ],
             "capabilities": [
                 {
-                    "jd_requirement": "端到端智能问答：意图理解、查询改写、检索增强、多源融合、答案生成",
+                    "jd_requirement": "端到端搜索问答：意图理解、查询改写、RAG、多源融合和答案生成",
                     "implemented": ["intent", "query_rewrites", "hybrid_rag", "source_fusion", "grounded_answer"],
                     "project_surface": ["/api/research/answer", "/knowledge", "/audit"],
+                    "next_step": "为每个来源增加 authority_level、effective_date 和 evidence_type 元数据。",
                 },
                 {
                     "jd_requirement": "Deep Research：复杂问题、多轮对话、跨文档推理",
                     "implemented": ["multi_query_plan", "cross_source_reasoning", "evidence_gap_detection"],
                     "project_surface": ["/api/research/answer", "execution_trace"],
+                    "next_step": "把用户会话摘要写入 Memory，并在下一轮查询中显式引用。",
                 },
                 {
-                    "jd_requirement": "Reasoning：多步推理、自我反思与验证",
-                    "implemented": ["reasoning_trace", "answer_evaluation", "quality_gate"],
-                    "project_surface": ["/api/research/answer", "/api/evaluation/rag", "/api/audit"],
+                    "jd_requirement": "Agent 轨迹评估：日志、trace、中间步骤、最终输出和回归检测",
+                    "implemented": ["execution_trace", "trajectory_score", "regression_risks", "badcase_suggestions"],
+                    "project_surface": ["/api/training/evaluate", "/training"],
+                    "next_step": "增加版本对比和历史评测趋势图。",
                 },
                 {
-                    "jd_requirement": "Agentic 能力：自主决策、工具调用、任务编排",
-                    "implemented": ["audit_planner", "skill_registry", "mcp_tool_descriptions", "human_review_loop"],
-                    "project_surface": ["/api/agent/capabilities", "/api/skills", "/api/mcp/tools"],
+                    "jd_requirement": "Tool Use：工具选择、参数准确性、错误恢复、避免无效调用",
+                    "implemented": ["skill_registry", "mcp_tool_descriptions", "tool_trace_quality"],
+                    "project_surface": ["/api/skills", "/api/mcp/tools", "/training"],
+                    "next_step": "为每个工具调用记录 input/output/error 和 retry policy。",
                 },
                 {
-                    "jd_requirement": "高价值场景落地：从信息获取到理解和决策",
-                    "implemented": ["audit_templates", "risk_register", "evidence_requests", "control_testing", "remediation"],
-                    "project_surface": ["/audit", "/api/product/overview"],
+                    "jd_requirement": "Agent Runtime：Tool/Memory/Context 抽象、多 Agent、Human-in-the-loop",
+                    "implemented": ["audit_planner", "session_memory", "quality_gate", "review_api"],
+                    "project_surface": ["/audit", "/api/audit/runs/{run_id}/review"],
+                    "next_step": "把质量门升级为可配置策略，并支持多角色审计员协作。",
                 },
                 {
-                    "jd_requirement": "评测闭环：真实性、时效性、权威性、相关性、用户体验",
-                    "implemented": ["faithfulness", "authority", "relevance", "completeness", "actionability"],
-                    "project_surface": ["/api/research/evaluation-plan", "/training"],
+                    "jd_requirement": "工程闭环：指标体系、自动化评测、badcase 分析、数据-模型-系统优化",
+                    "implemented": ["evaluation_plan", "rag_evaluator", "benchmark_cases", "closed_loop_suggestions"],
+                    "project_surface": ["/api/research/evaluation-plan", "/api/evaluation/rag", "/training"],
+                    "next_step": "将评测结果持久化，形成版本发布前准入门禁。",
                 },
             ],
         }
 
     def evaluation_plan(self) -> Dict[str, Any]:
         metrics = [
-            {"metric": "faithfulness", "name": "真实性", "rule": "答案必须能回溯到至少一个来源，不能新增未被证据支持的事实。"},
-            {"metric": "freshness", "name": "时效性", "rule": "对可变事实标注来源时间；高时效问题要求联网或企业实时数据源。"},
+            {"metric": "faithfulness", "name": "真实性", "rule": "答案必须能回溯到来源、证据或审计底稿，不能新增无依据事实。"},
+            {"metric": "freshness", "name": "时效性", "rule": "对可变事实标注来源时间；高时效问题要求联网或接入企业实时数据源。"},
             {"metric": "authority", "name": "权威性", "rule": "优先使用监管、标准、制度、审计底稿和企业系统数据。"},
-            {"metric": "relevance", "name": "相关性", "rule": "检索来源应覆盖问题中的对象、风险主题和标准。"},
-            {"metric": "ux", "name": "用户体验", "rule": "答案应给出结论、依据、风险、动作和证据缺口。"},
+            {"metric": "relevance", "name": "相关性", "rule": "检索来源应覆盖审计对象、风险主题、标准和业务上下文。"},
+            {"metric": "tool_use", "name": "工具调用", "rule": "检查工具选择、参数、调用必要性、错误恢复和重试策略。"},
+            {"metric": "trajectory", "name": "轨迹质量", "rule": "评估规划、检索、推理、质量门、人工复核等中间步骤是否完整。"},
+            {"metric": "ux", "name": "用户体验", "rule": "答案应给出结论、依据、风险、动作、证据缺口和下一步。"},
         ]
         cases = [
             {"case_id": "DR-01", "question": "ERP 权限审计如何覆盖职责分离、特权账号和复核证据？", "expected": ["权限", "职责分离", "证据", "复核"]},
             {"case_id": "DR-02", "question": "SOX ITGC 变更管理测试需要哪些抽样底稿？", "expected": ["变更单", "审批", "测试", "上线"]},
             {"case_id": "DR-03", "question": "数据安全审计如何判断分类分级和共享审批是否充分？", "expected": ["数据目录", "分类分级", "共享审批", "日志"]},
+            {"case_id": "DR-04", "question": "Agent 工具调用失败后如何降级、重试并触发人工复核？", "expected": ["工具", "降级", "重试", "人工复核"]},
         ]
-        return {"metrics": metrics, "benchmark_cases": cases, "closed_loop": ["采集失败样例", "分析检索/推理缺口", "补充知识或规则", "回归评测", "发布版本"]}
+        return {
+            "metrics": metrics,
+            "benchmark_cases": cases,
+            "closed_loop": ["采集失败样例", "分析检索/推理/工具缺口", "补充知识或规则", "回归评测", "发布版本"],
+            "release_gate": {
+                "overall_score": ">= 0.75",
+                "faithfulness": ">= 0.70",
+                "tool_trace_quality": ">= 0.80",
+                "critical_regressions": "0",
+            },
+        }
 
     def _classify_intent(self, question: str) -> Dict[str, Any]:
         q = question.lower()
@@ -112,8 +171,7 @@ class AuditResearchAgent:
 
     def _rewrite_queries(self, question: str, intent: Dict[str, Any], context: Dict[str, Any]) -> List[str]:
         domains = intent.get("domains") or []
-        rewrites = [question]
-        rewrites.append(f"{question} 审计证据 控制测试 质量门")
+        rewrites = [question, f"{question} 审计证据 控制测试 质量门"]
         if context.get("standard_type"):
             rewrites.append(f"{question} {context['standard_type']} 审计要求")
         for domain in domains[:3]:
