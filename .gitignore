@@ -49,3 +49,4 @@ homepage-screenshot.png
 
 # Docker/local deployment
 .docker/
+node_modules/
