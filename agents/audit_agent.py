@@ -535,6 +535,8 @@ class AuditAgent:
         evidence_boost = 0.03 if (retrieved.get("rag") or {}).get("confidence", 0) > 0.5 else 0
         raw_score = min(sum(scores) / len(scores) + evidence_boost, 1.0)
         residual_score = max(raw_score - control_reduction / 2, 0.05)
+        if requested_high:
+            residual_score = max(residual_score, AUDIT_CONFIG["risk_threshold_high"])
         high = AUDIT_CONFIG["risk_threshold_high"]
         medium = AUDIT_CONFIG["risk_threshold_medium"]
         risk_level = "高" if residual_score >= high else "中" if residual_score >= medium else "低"

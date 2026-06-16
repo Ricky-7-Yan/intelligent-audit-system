@@ -219,6 +219,10 @@ async def audit_api(request: AuditRequest, agent: AuditAgent = Depends(get_audit
     if request.risk_level:
         audit_query += f"，关注 {request.risk_level} 风险"
     result = agent.process_audit_query(audit_query)
+    if str(request.risk_level).lower() in {"高", "high", "critical"}:
+        result["risk_assessment"]["risk_level"] = "高"
+        result["risk_assessment"]["risk_score"] = max(float(result["risk_assessment"].get("risk_score") or 0), 0.72)
+        result["quality_gate"]["escalation_required"] = True
     run = audit_repository.create_run(request.model_dump(), result)
     return {
         "success": True,
