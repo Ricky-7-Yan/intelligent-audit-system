@@ -43,7 +43,7 @@ def write() -> None:
           <div class="panel-head">
             <div>
               <h2 class="panel-title">{ent('审计指挥栏')}</h2>
-              <p class="muted">{ent('选择高频审计场景，或按客户项目输入审计对象与标准。')}</p>
+              <p class="muted">{ent('这里发起的是一次审计项目分析：Agent 会基于对象、范围、期间、问题和证据生成风险判断、控制测试、证据请求和交付包。')}</p>
             </div>
             <div class="segmented">
               <button class="seg active" data-view="execute">{ent('执行')}</button>
@@ -56,7 +56,16 @@ def write() -> None:
             <div class="field"><label>{ent('审计对象')}</label><input id="auditItem" value="{ent('ERP 系统权限管理')}"></div>
             <div class="field"><label>{ent('审计类型')}</label><select id="auditType"><option>{ent('安全审计')}</option><option>{ent('合规审计')}</option><option>{ent('风险评估')}</option><option>{ent('内部控制审计')}</option></select></div>
             <div class="field"><label>{ent('参考标准')}</label><select id="standardType"><option>ISO27001</option><option>COBIT</option><option>SOX</option><option>{ent('数据安全法')}</option></select></div>
-            <div class="field"><label>{ent('关注风险')}</label><select id="riskLevel"><option>{ent('高')}</option><option>{ent('中')}</option><option>{ent('低')}</option></select></div>
+            <div class="field"><label>{ent('关注风险')}</label><select id="riskLevel"><option value="high">{ent('高')}</option><option value="medium">{ent('中')}</option><option value="low">{ent('低')}</option></select></div>
+          </div>
+          <div class="grid grid-2 mt-16">
+            <div class="field"><label>{ent('业务背景')}</label><textarea id="businessContext" rows="3" placeholder="{ent('例如：该 ERP 支撑采购、付款、总账和报表流程，近期进行了组织架构调整。')}"></textarea></div>
+            <div class="field"><label>{ent('审计范围')}</label><textarea id="auditScope" rows="3" placeholder="{ent('例如：账号生命周期、角色授权、职责分离、特权账号、定期复核。')}"></textarea></div>
+          </div>
+          <div class="grid grid-3 mt-16">
+            <div class="field"><label>{ent('审计期间')}</label><input id="auditPeriod" value="{ent('2026 Q2')}"></div>
+            <div class="field"><label>{ent('重点问题')}</label><input id="keyQuestions" placeholder="{ent('例如：是否存在离职未禁用、SoD 冲突、特权账号无复核。')}"></div>
+            <div class="field"><label>{ent('已有证据')}</label><input id="existingEvidence" placeholder="{ent('例如：用户清单、角色矩阵、最近一次权限复核记录。')}"></div>
           </div>
           <div class="toolbar mt-16">
             <button class="btn primary" id="runAudit">{ent('运行 Agent 审计')}</button>

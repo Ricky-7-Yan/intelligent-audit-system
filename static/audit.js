@@ -1,5 +1,12 @@
 let currentRunId = null;
 
+function normalizeRisk(value) {
+  if (value === "高" || value === "high") return "high";
+  if (value === "中" || value === "medium") return "medium";
+  if (value === "低" || value === "low") return "low";
+  return value || "medium";
+}
+
 function badge(status) {
   return el("span", { class: `badge ${status || ""}`, text: status || "-" });
 }
@@ -278,6 +285,11 @@ async function runAudit() {
         audit_type: qs("#auditType").value,
         standard_type: qs("#standardType").value,
         risk_level: qs("#riskLevel").value,
+        business_context: qs("#businessContext").value,
+        audit_scope: qs("#auditScope").value,
+        audit_period: qs("#auditPeriod").value,
+        key_questions: qs("#keyQuestions").value,
+        existing_evidence: qs("#existingEvidence").value,
       }),
     });
     currentRunId = data.run_id;
@@ -369,7 +381,10 @@ function bindScenarios() {
     qs("#auditItem").value = node.dataset.item;
     qs("#auditType").value = node.dataset.type;
     qs("#standardType").value = node.dataset.standard;
-    qs("#riskLevel").value = node.dataset.risk;
+    qs("#riskLevel").value = normalizeRisk(node.dataset.risk);
+    qs("#auditScope").value = node.dataset.scope || "";
+    qs("#existingEvidence").value = node.dataset.evidence || "";
+    qs("#keyQuestions").value = node.dataset.questions || "";
   }));
 }
 
@@ -379,7 +394,16 @@ async function loadTemplates() {
     const grid = qs("#scenarioGrid");
     clearNode(grid);
     data.templates.forEach((tpl) => {
-      grid.appendChild(el("div", { class: "card scenario", "data-item": tpl.name, "data-type": tpl.audit_type, "data-standard": tpl.standard, "data-risk": tpl.risk_level }, [
+      grid.appendChild(el("div", {
+        class: "card scenario",
+        "data-item": tpl.name,
+        "data-type": tpl.audit_type,
+        "data-standard": tpl.standard,
+        "data-risk": tpl.risk_level,
+        "data-scope": (tpl.scope || []).join("、"),
+        "data-evidence": (tpl.evidence || []).slice(0, 8).join("、"),
+        "data-questions": `${tpl.name} 的关键控制是否设计有效、运行证据是否充分、例外是否闭环？`,
+      }, [
         el("strong", { text: tpl.name }),
         el("p", { class: "muted", text: `范围：${(tpl.scope || []).slice(0, 4).join("、")}` }),
         el("div", { class: "muted", text: `交付物：${(tpl.deliverables || []).slice(0, 2).join("、")}` }),

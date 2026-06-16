@@ -85,6 +85,11 @@ class AuditRequest(BaseModel):
     audit_type: str = Field(..., min_length=1, max_length=200)
     standard_type: Optional[str] = None
     risk_level: Optional[str] = None
+    business_context: Optional[str] = Field(None, max_length=4000)
+    audit_scope: Optional[str] = Field(None, max_length=4000)
+    audit_period: Optional[str] = Field(None, max_length=500)
+    key_questions: Optional[str] = Field(None, max_length=4000)
+    existing_evidence: Optional[str] = Field(None, max_length=4000)
 
 
 class KnowledgeRequest(BaseModel):
@@ -218,6 +223,16 @@ async def audit_api(request: AuditRequest, agent: AuditAgent = Depends(get_audit
         audit_query += f"，参考 {request.standard_type} 标准"
     if request.risk_level:
         audit_query += f"，关注 {request.risk_level} 风险"
+    if request.audit_period:
+        audit_query += f"。审计期间：{request.audit_period}"
+    if request.business_context:
+        audit_query += f"。业务背景：{request.business_context}"
+    if request.audit_scope:
+        audit_query += f"。审计范围：{request.audit_scope}"
+    if request.key_questions:
+        audit_query += f"。重点问题：{request.key_questions}"
+    if request.existing_evidence:
+        audit_query += f"。已有证据：{request.existing_evidence}"
     result = agent.process_audit_query(audit_query)
     if str(request.risk_level).lower() in {"高", "high", "critical"}:
         result["risk_assessment"]["risk_level"] = "高"
@@ -403,6 +418,11 @@ async def audit_delivery_markdown_api(run_id: str):
         f"- 参考标准：{package['engagement'].get('standard')}",
         f"- 当前状态：{package['engagement'].get('status')}",
         f"- 项目阶段：{package['engagement'].get('lifecycle_stage')}",
+        f"- 审计期间：{package['engagement'].get('audit_period') or ''}",
+        f"- 业务背景：{package['engagement'].get('business_context') or ''}",
+        f"- 审计范围：{package['engagement'].get('audit_scope') or ''}",
+        f"- 重点问题：{package['engagement'].get('key_questions') or ''}",
+        f"- 已有证据：{package['engagement'].get('existing_evidence') or ''}",
         "",
         "## 底稿索引",
         "",
