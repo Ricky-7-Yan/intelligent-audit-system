@@ -93,7 +93,7 @@ LLM_CONFIG["enabled"] = bool(LLM_CONFIG["api_key"])
 
 WEB_CONFIG: Dict[str, Any] = {
     "host": os.getenv("WEB_HOST", "0.0.0.0"),
-    "port": _int_env("WEB_PORT", 8000),
+    "port": _int_env("PORT", _int_env("WEB_PORT", 8000)),
     "debug": _bool_env("DEBUG", True),
     "cors_origins": _list_env("CORS_ORIGINS", "http://localhost:8000,http://127.0.0.1:8000"),
 }

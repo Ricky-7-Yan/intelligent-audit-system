@@ -1,0 +1,22 @@
+services:
+  - type: web
+    name: auditpilot
+    runtime: docker
+    plan: starter
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /api/health
+    envVars:
+      - key: WEB_HOST
+        value: 0.0.0.0
+      - key: DEBUG
+        value: "False"
+      - key: LLM_PROVIDER
+        value: deepseek
+      - key: DEEPSEEK_BASE_URL
+        value: https://api.deepseek.com
+      - key: DEEPSEEK_MODEL
+        value: deepseek-chat
+      - key: CORS_ORIGINS
+        sync: false
+      - key: DEEPSEEK_API_KEY
+        sync: false

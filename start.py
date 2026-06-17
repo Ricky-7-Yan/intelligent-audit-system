@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Start the Intelligent Audit System web server."""
+"""Start the AuditPilot web server."""
 
 from __future__ import annotations
 
@@ -35,8 +35,8 @@ def check_dependencies() -> bool:
     optional_missing = [module for module in optional_modules if not _can_import(module)]
 
     if missing:
-        logger.error("缺少必需依赖: %s", ", ".join(missing))
-        logger.error("请运行: pip install -r requirements.txt")
+        logger.error("缺少必要依赖: %s", ", ".join(missing))
+        logger.error("请运行 pip install -r requirements.txt")
         return False
 
     if optional_missing:
@@ -67,12 +67,12 @@ def start_web_server() -> None:
     from config import WEB_CONFIG
     from web.main import app
 
-    logger.info("系统启动完成，访问地址: http://localhost:%s", WEB_CONFIG["port"])
+    logger.info("系统启动完成，监听地址: %s:%s", WEB_CONFIG["host"], WEB_CONFIG["port"])
     uvicorn.run(app, host=WEB_CONFIG["host"], port=WEB_CONFIG["port"])
 
 
 def main() -> None:
-    logger.info("智能审计 Agent 平台启动中...")
+    logger.info("审脉 AuditPilot Agent 平台启动中...")
     if not check_dependencies():
         sys.exit(1)
     check_directories()
