@@ -1,56 +1,38 @@
-# 审脉 AuditPilot：Agent 岗位能力覆盖说明
+# 审脉 AuditPilot：大厂 Agent JD 能力覆盖
 
-本文件用于项目复盘、简历和面试讲解，不面向客户界面展示。能力规划参考用户提供的字节 Seed 搜索问答 Agent JD，并结合 2026 年公开招聘信息中高频出现的 Agent Runtime、Tool/Memory/Context、MCP/Skill、Deep Research、评测闭环和安全治理要求。
+本文件记录截至 2026-07-06 的项目能力基线。更完整的简历与面试材料见 [docs/05-JD对齐与简历面试指南.md](docs/05-JD对齐与简历面试指南.md)。
 
-## 已覆盖能力
+## 核心映射
 
-### 1. 搜索问答与 Deep Research
+| 招聘高频要求 | 已落地实现 | 验证方式 |
+| --- | --- | --- |
+| Planning / Multi-step | 依赖计划、逐步执行、任务预算 | `/skills` 创建任务 |
+| Memory / Context | 工作、情景、画像、相关历史 | `/chat` 连续对话 |
+| Reflection | 每步反思、置信度、问题、下一动作 | Runtime 任务详情 |
+| Multi-Agent | 融合路由选择多个领域 Agent | `POST /api/agent/route` |
+| RAG / Knowledge | 切块、混合检索、查询扩展、来源与降级 | `/knowledge` |
+| Skills / Tools / MCP | Schema、权限、版本、MCP 描述 | `/api/mcp/tools` |
+| 工具可靠性 | 超时、TTL 缓存、熔断、重试、日志 | `/api/skills/runs` |
+| Eval / Regression | Agent/RAG/Research、基线差异、发布门禁 | `/training` |
+| Safety / HITL | 安全门、证据质量门、人工复核 | `/audit` |
+| 业务落地 | 立项、证据、控制、发现、整改、交付包 | `/audit` |
+| 工程化 | Python、FastAPI、Docker、OpenAPI、持久化 | `/docs`、部署文件 |
 
-- `services/research_agent.py` 支持意图识别、查询改写、多源检索融合、推理轨迹、证据缺口和答案质量评估。
-- `rag/agentic_rag.py` 支持持久化知识库、种子知识、语义检索降级、关键词检索、来源引用和 RAG 评估。
-- `/api/research/answer`、`/api/evaluation/rag`、`/api/research/evaluation-plan` 提供 Deep Research 与评测入口。
+## 字节方向
 
-### 2. Agent Runtime 与任务协议
+公开岗位常强调 Planning、Memory、Reflection、多步推理、多 Agent、Skills/Tools、RAG、Self-evolving/Evaluator 和真实端到端系统。本项目已覆盖上述应用工程链，并通过审计交付场景提供可验证产物。
 
-- `services/agent_runtime.py` 新增 `audit-agent-task-v1` 任务包，包含 `objective`、`context`、`plan`、`steps`、`artifacts`、`tool_calls`、`safety_gate`、`metrics`。
-- `/api/agent/tasks` 支持创建持久化任务；`/api/agent/tasks/{task_id}/run-next` 支持逐步执行；`/api/agent/observability` 输出运行时观测指标。
-- 任务执行会自动调用 Skill Registry，形成可复盘的计划、工具调用和产物链路。
+## 腾讯方向
 
-### 3. Tool Use、MCP 与 Skill 治理
+公开岗位常强调复杂工作流、RAG/Function Calling、Agent Runtime、Tool/Memory/Context 抽象、可靠性和评测基础设施。本项目已落地融合路由、Runtime、工具治理、记忆、反思、观测和发布门禁。
 
-- `services/skill_registry.py` 提供 Skill 注册、输入 Schema、权限声明、版本、MCP 风格工具描述和运行日志。
-- `/api/skills`、`/api/mcp/tools`、`/api/skills/runs`、`/api/skills/metrics` 覆盖工具发现、工具调用、日志和指标。
-- Skill 覆盖审计范围规划、控制矩阵映射、证据清单、发现草稿、RAG 查询、评测用例设计和整改任务生成。
+## 阿里方向
 
-### 4. 安全门禁与 Human-in-the-loop
+公开岗位常强调大模型服务端、Prompt/模型编排、RAG/Multi-Agent、缓存、服务治理、容器化和业务产品化。本项目覆盖 Agent 应用服务、工具缓存/熔断、Docker、健康检查与完整审计业务闭环；多模型网关和分布式队列列入生产化演进。
 
-- `services/safety_gate.py` 新增运行时安全检查，覆盖密钥泄漏、破坏性动作、证据不足等风险。
-- `/api/safety/check` 提供独立安全检查接口；Agent Runtime 每个任务和步骤都会执行安全门禁。
-- 审计工作台保留人工复核、补证、退回和审批闭环，避免无证据自动下结论。
+## 不夸大的边界
 
-### 5. 评测体系与工程闭环
-
-- `/training` 已升级为 Agent 评估与发布门禁工作台，覆盖 Agent、RAG、Deep Research、工具轨迹、真实性、权威性、相关性和用户体验。
-- `services/evaluation_repository.py` 持久化评测记录，便于形成版本回归和 badcase 闭环。
-- Skill 与 Agent Runtime 增加成功率、平均耗时、P95 延迟、失败分布、输入/输出大小和成本占位指标。
-
-### 6. 审计行业落地能力
-
-- `/audit` 覆盖审计立项、范围、业务背景、重点问题、证据、控制测试、质量门、底稿索引、报告下载、交付包、人工复核和整改任务。
-- `services/evidence_analyzer.py` 支持 CSV、JSON、日志和文本证据分析，生成字段画像、风险信号、控制映射和补证建议。
-- `services/audit_delivery.py` 将审计运行、证据分析、控制测试和整改内容组织为交付包。
-
-## 与公开 JD 要求的映射
-
-- 腾讯元宝 Agent 架构类岗位强调 Agent Runtime、Tool/Memory/Context 抽象、多 Agent 协作、Human-in-the-loop 和在线系统架构，本项目已落地 Runtime、Tool 抽象、安全门禁、人工复核与持久化运行记录。
-- 腾讯 Agent Evaluation 类岗位强调真实 Agent 系统的评估和可靠性基础设施，本项目已覆盖 Skill 指标、Agent 运行时观测、评测历史、发布门禁和 badcase 数据基础。
-- 微信搜索/字节 Seed 搜索 Agent 类岗位强调 Search Agent、DeepSearch/DeepResearch、复杂任务、多轮推理、Context/Memory、自反思、工具学习和评测闭环，本项目已覆盖 Deep Research、RAG、推理轨迹、工具执行、证据缺口、评测和人工复核。
-- 阿里 AI Agent / Infra / Skill 方向常见要求强调工程化 Agent 应用、工具平台化、稳定性、服务化和业务场景落地，本项目已覆盖 FastAPI 服务、Docker 部署、工具注册、观测指标和审计业务闭环。
-
-## 后续可继续增强
-
-- 增加真正的多 Agent 角色协同：Planner、Retriever、Controller、Reviewer、Reporter。
-- 增加长期 Memory：把项目历史、复核意见、整改状态压缩为可检索记忆。
-- 增加异步任务队列和 SSE 流式执行：提升复杂任务体验和并发能力。
-- 增加权限体系：租户、角色、审计项目隔离和操作审计。
-- 增加生产级数据库后端：将当前 JSONL/JSON 持久化升级为 PostgreSQL 或 MySQL。
+- 未完成正式压测，不声明线上并发和可用性数字。
+- 内置评测不等于真实客户准确率。
+- 当前文件 Repository 是可运行实现，生产规模应迁移到数据库、对象存储和任务队列。
+- 当前核心是 Agent 应用工程；SFT/RLHF 仅保留离线入口，不包装成已完成训练平台。

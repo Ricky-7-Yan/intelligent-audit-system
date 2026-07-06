@@ -3,59 +3,251 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>&#23457;&#33033; AuditPilot</title>
-  <link rel="stylesheet" href="../static/app.css">
+  <title>审脉 AuditPilot · 审计交付总览</title>
+  <link rel="stylesheet" href="../static/app.css?v=4.0.2">
 </head>
 <body>
   <div class="app-shell">
     <aside class="sidebar">
-      <div class="brand"><div class="brand-icon">AP</div><span>&#23457;&#33033; AuditPilot</span></div>
-      <nav class="nav-list"><a class="nav-link active" href="/">⌂ <span>&#24635;&#35272;</span></a>
-<a class="nav-link " href="/chat">● <span>&#23457;&#35745;&#23545;&#35805;</span></a>
-<a class="nav-link " href="/audit">⌕ <span>&#23457;&#35745;&#24037;&#20316;&#21488;</span></a>
-<a class="nav-link " href="/knowledge">▦ <span>&#30693;&#35782;&#24211;</span></a>
-<a class="nav-link " href="/training">□ <span>&#35780;&#27979;</span></a>
-<a class="nav-link " href="/skills">◇ <span>Skills</span></a></nav>
-      <div class="sidebar-note">&#20197;&#23457;&#35745;&#20132;&#20184;&#20026;&#20027;&#32447;&#65306;&#30693;&#35782;&#26816;&#32034;&#12289;&#25511;&#21046;&#27979;&#35797;&#12289;&#24213;&#31295;&#12289;&#22797;&#26680;&#21644;&#25972;&#25913;&#38381;&#29615;&#12290;</div>
+      <div class="brand">
+        <div class="brand-icon">AP</div>
+        <div><span>审脉 AuditPilot</span><small>Enterprise Agent</small></div>
+      </div>
+      <nav class="nav-list" aria-label="主导航">
+        <a class="nav-link active" href="/"><span>工作台</span></a>
+        <a class="nav-link" href="/audit"><span>审计项目</span></a>
+        <a class="nav-link" href="/chat"><span>Agent 协作</span></a>
+        <a class="nav-link" href="/knowledge"><span>知识与证据</span></a>
+        <a class="nav-link" href="/skills"><span>Agent 运行时</span></a>
+        <a class="nav-link" href="/training"><span>评测与发布</span></a>
+      </nav>
+      <div class="sidebar-footer">
+        <div class="sidebar-health"><span class="status-dot"></span><span>本地工作区运行中</span></div>
+        <small>v4.0 · 全链路可追溯</small>
+      </div>
     </aside>
+
     <main class="main">
-      <div class="topbar">
-        <div class="page-title"><h1>&#23457;&#35745;&#20132;&#20184;&#24635;&#35272;</h1><p>&#34892;&#19994;&#33853;&#22320;&#33021;&#21147;&#65306;&#23457;&#35745;&#39033;&#30446;&#12289;&#35777;&#25454;&#35831;&#27714;&#12289;&#25511;&#21046;&#27979;&#35797;&#12289;&#24213;&#31295;&#32034;&#24341;&#12289;&#36136;&#37327;&#38376;&#21644;&#25972;&#25913;&#38381;&#29615;&#12290;</p></div>
-        <div class="status-pill"><span class="status-dot"></span><span id="healthText">&#21152;&#36733;&#29366;&#24577;&#20013;</span></div>
-      </div>
-      
-<section class="hero-console">
-  <div class="panel console-hero">
-    <div>
-      <div class="hero-eyebrow">Enterprise Audit Agent</div>
-      <h2 class="hero-title">&#38754;&#21521;&#23457;&#35745;&#34892;&#19994;&#20132;&#20184;&#30340;&#20225;&#19994;&#32423; Agent &#24037;&#20316;&#21488;</h2>
-      <p class="hero-copy">&#25226;&#23457;&#35745;&#33539;&#22260;&#12289;&#35777;&#25454;&#35831;&#27714;&#12289;&#25511;&#21046;&#27979;&#35797;&#12289;&#25277;&#26679;&#24213;&#31295;&#12289;&#23457;&#35745;&#21457;&#29616;&#12289;&#20154;&#24037;&#22797;&#26680;&#21644;&#25972;&#25913;&#36319;&#36394;&#25918;&#22312;&#21516;&#19968;&#26465;&#21487;&#36861;&#28335;&#38142;&#36335;&#19978;&#65292;&#24110;&#21161;&#23457;&#35745;&#22242;&#38431;&#20174;&#38382;&#31572;&#28436;&#31034;&#36208;&#21521;&#30495;&#23454;&#39033;&#30446;&#20132;&#20184;&#12290;</p>
-      <div class="hero-actions">
-        <a class="btn primary" href="/audit">&#21551;&#21160;&#23457;&#35745;&#39033;&#30446;</a>
-        <a class="btn" href="/knowledge">&#32500;&#25252;&#30693;&#35782;&#24211;</a>
-        <a class="btn" href="/skills">&#26597;&#30475; Skills / MCP</a>
-      </div>
-    </div>
-    <div class="kpi-row">
-      <div class="card metric"><div class="metric-value" id="runCount">0</div><div class="metric-label">&#23457;&#35745;&#26723;&#26696;</div></div>
-      <div class="card metric"><div class="metric-value" id="openTasks">0</div><div class="metric-label">&#24320;&#25918;&#25972;&#25913;</div></div>
-      <div class="card metric"><div class="metric-value" id="avgCompliance">0</div><div class="metric-label">&#24179;&#22343;&#21512;&#35268;</div></div>
-      <div class="card metric"><div class="metric-value" id="knowledgeChunks">0</div><div class="metric-label">&#30693;&#35782;&#20999;&#29255;</div></div>
-      <div class="card metric"><div class="metric-value" id="skillCount">0</div><div class="metric-label">Skills</div></div>
-    </div>
+      <header class="workspace-header">
+        <div class="page-title">
+          <h1>审计交付总览</h1>
+          <p>从立项、取证、控制测试到整改复核，一条链路完成审计交付。</p>
+        </div>
+        <div class="workspace-actions">
+          <label class="global-search">
+            <span>搜索</span>
+            <input id="globalSearch" type="search" placeholder="项目、风险或证据">
+          </label>
+          <div class="status-pill"><span class="status-dot"></span><span id="healthText">加载状态中</span></div>
+          <a class="btn primary" href="/audit">新建审计项目</a>
+        </div>
+      </header>
+
+      <section class="metric-strip" aria-label="核心指标">
+        <article class="metric-cell">
+          <span class="metric-label">审计项目</span>
+          <strong class="metric-value" id="runCount">0</strong>
+          <small>已归档与进行中</small>
+        </article>
+        <article class="metric-cell">
+          <span class="metric-label">开放整改</span>
+          <strong class="metric-value" id="openTasks">0</strong>
+          <small id="overdueHint">持续跟踪中</small>
+        </article>
+        <article class="metric-cell">
+          <span class="metric-label">平均合规</span>
+          <strong class="metric-value" id="avgCompliance">0</strong>
+          <small>基于已完成控制</small>
+        </article>
+        <article class="metric-cell">
+          <span class="metric-label">知识切片</span>
+          <strong class="metric-value" id="knowledgeChunks">0</strong>
+          <small>可检索并引用</small>
+        </article>
+        <article class="metric-cell">
+          <span class="metric-label">Agent Skills</span>
+          <strong class="metric-value" id="skillCount">0</strong>
+          <small>受治理的工具能力</small>
+        </article>
+      </section>
+
+      <section class="overview-grid">
+        <article class="panel project-board">
+          <div class="panel-head">
+            <div>
+              <h2 class="panel-title">进行中的审计项目</h2>
+              <p class="muted">优先处理高风险、低置信度与证据不完整的项目。</p>
+            </div>
+            <a class="text-link" href="/audit">进入项目工作台</a>
+          </div>
+          <div class="matrix">
+            <table class="project-table">
+              <thead>
+                <tr><th>项目</th><th>风险</th><th>阶段</th><th>质量门</th><th>下一步</th></tr>
+              </thead>
+              <tbody id="projectRows"></tbody>
+            </table>
+          </div>
+          <div class="empty-state hidden" id="projectEmpty">
+            <strong>还没有审计项目</strong>
+            <p>创建项目后，Agent 会自动规划范围、控制、证据与整改步骤。</p>
+          </div>
+        </article>
+
+        <aside class="panel agent-rail">
+          <div class="panel-head">
+            <div>
+              <h2 class="panel-title">Agent 执行轨迹</h2>
+              <p class="muted">最近的工具调用与运行状态。</p>
+            </div>
+            <a class="text-link" href="/skills">运行时</a>
+          </div>
+          <div class="agent-stage-line" aria-label="标准执行阶段">
+            <span class="done">计划</span><span class="done">检索</span><span class="active">映射</span><span>评估</span><span>复核</span>
+          </div>
+          <div class="trace-feed" id="traceFeed"></div>
+        </aside>
+      </section>
+
+      <section class="lower-grid">
+        <article class="panel">
+          <div class="panel-head">
+            <div>
+              <h2 class="panel-title">控制健康度</h2>
+              <p class="muted">按控制领域聚合成熟度、例外与风险热区。</p>
+            </div>
+            <span class="subtle-label">近 200 个项目</span>
+          </div>
+          <div class="control-bars" id="controlHealth"></div>
+        </article>
+
+        <article class="panel">
+          <div class="panel-head">
+            <div>
+              <h2 class="panel-title">待补充证据</h2>
+              <p class="muted">把证据缺口转化为可跟踪请求。</p>
+            </div>
+            <a class="text-link" href="/audit">查看全部</a>
+          </div>
+          <div class="evidence-queue" id="evidenceRequests"></div>
+        </article>
+
+        <article class="panel delivery-panel">
+          <div class="panel-head">
+            <div>
+              <h2 class="panel-title">交付就绪度</h2>
+              <p class="muted">知识、整改和质量门状态。</p>
+            </div>
+          </div>
+          <div class="readiness-list" id="signals"></div>
+        </article>
+      </section>
+    </main>
   </div>
-  <aside class="panel">
-    <h2 class="panel-title">&#20132;&#20184;&#20449;&#21495;</h2>
-    <div class="signal-list" id="signals"><p class="muted">&#21152;&#36733;&#20013;</p></div>
-  </aside>
-</section>
-<section class="section-title"><div><h2>&#39118;&#38505;&#21488;&#36134;</h2><p>&#25104;&#29087;&#23457;&#35745;&#20135;&#21697;&#38656;&#35201;&#30452;&#25509;&#31649;&#29702;&#39118;&#38505;&#12289;&#36131;&#20219;&#20154;&#12289;&#29366;&#24577;&#21644;&#19979;&#19968;&#27493;&#21160;&#20316;&#12290;</p></div></section>
-<section class="grid grid-3" id="riskRegister"></section>
-<section class="section-title"><div><h2>&#35777;&#25454;&#35831;&#27714;&#38431;&#21015;</h2><p>&#25226;&#32570;&#22833;&#35777;&#25454;&#21464;&#25104;&#21487;&#36319;&#36394;&#30340;&#19994;&#21153;&#35831;&#27714;&#65292;&#20943;&#23569;&#32447;&#19979;&#36861;&#38382;&#12290;</p></div></section>
-<section class="grid grid-3" id="evidenceRequests"></section>
-<section class="section-title"><div><h2>&#25511;&#21046;&#20581;&#24247;</h2><p>&#25353;&#25511;&#21046;&#39046;&#22495;&#32858;&#21512;&#25104;&#29087;&#24230;&#12289;&#20363;&#22806;&#21644;&#39118;&#38505;&#28909;&#21306;&#12290;</p></div></section>
-<section class="connector-grid" id="controlHealth"></section>
-<script>
+
+  <script src="../static/app.js"></script>
+  <script>
+function statusBadge(text, tone = "") {
+  return el("span", { class: `badge ${tone}`, text });
+}
+
+function renderProjects(runs) {
+  const body = qs("#projectRows");
+  clearNode(body);
+  qs("#projectEmpty").classList.toggle("hidden", Boolean(runs.length));
+  runs.slice(0, 8).forEach((run) => {
+    const risk = String(run.risk_level || "低");
+    const quality = Number(run.quality_confidence || 0);
+    const tone = risk === "高" ? "high" : risk === "中" ? "medium" : "low";
+    const gate = quality >= 0.75 ? ["通过", "pass"] : quality >= 0.55 ? ["需复核", "review"] : ["待补证", "blocked"];
+    const row = el("tr", { class: "project-row", "data-search": `${run.audit_item || ""} ${risk} ${run.status || ""}`.toLowerCase() }, [
+      el("td", {}, [
+        el("strong", { text: run.audit_item || "未命名审计项目" }),
+        el("small", { text: run.run_id || "待分配编号" })
+      ]),
+      el("td", {}, [statusBadge(risk, tone)]),
+      el("td", { text: run.lifecycle_stage || run.status || "执行中" }),
+      el("td", {}, [statusBadge(gate[0], gate[1])]),
+      el("td", { text: quality < 0.75 ? "补充证据并提交复核" : "归档并纳入持续监控" })
+    ]);
+    body.appendChild(row);
+  });
+}
+
+function renderTrace(runs) {
+  const node = qs("#traceFeed");
+  clearNode(node);
+  if (!runs.length) {
+    node.appendChild(el("div", { class: "empty-compact" }, [
+      el("strong", { text: "暂无运行记录" }),
+      el("span", { text: "执行审计项目后会在这里显示规划、工具调用和反思。" })
+    ]));
+    return;
+  }
+  runs.slice(0, 6).forEach((run) => node.appendChild(el("div", { class: "trace-row" }, [
+    el("span", { class: `trace-mark ${run.status === "success" ? "success" : "danger"}` }),
+    el("div", {}, [
+      el("strong", { text: run.skill || "Agent step" }),
+      el("small", { text: `${run.status || "unknown"} · ${run.duration_ms || 0}ms` })
+    ])
+  ])));
+}
+
+function renderControls(items) {
+  const node = qs("#controlHealth");
+  clearNode(node);
+  if (!items.length) {
+    node.appendChild(el("div", { class: "empty-compact" }, [
+      el("strong", { text: "等待首个控制测试" }),
+      el("span", { text: "项目执行后自动聚合控制成熟度。" })
+    ]));
+    return;
+  }
+  items.slice(0, 6).forEach((item) => node.appendChild(el("div", { class: "control-row" }, [
+    el("div", { class: "control-meta" }, [
+      el("strong", { text: item.domain }),
+      el("span", { text: `${item.controls} 项控制 · ${item.exceptions} 个例外` })
+    ]),
+    el("div", { class: "progress-track" }, [
+      el("div", { class: "progress-bar", style: `width:${Math.min(item.health_score || 0, 100)}%` })
+    ]),
+    el("strong", { class: "control-score", text: `${Math.round(item.health_score || 0)}` })
+  ])));
+}
+
+function renderEvidence(items) {
+  const node = qs("#evidenceRequests");
+  clearNode(node);
+  if (!items.length) {
+    node.appendChild(el("div", { class: "empty-compact" }, [
+      el("strong", { text: "当前没有补证请求" }),
+      el("span", { text: "质量门识别到缺口后会自动进入队列。" })
+    ]));
+    return;
+  }
+  items.slice(0, 5).forEach((item) => node.appendChild(el("div", { class: "queue-row", "data-search": `${item.evidence || ""} ${item.audit_item || ""}`.toLowerCase() }, [
+    el("div", {}, [
+      el("strong", { text: item.evidence || "待补充证据" }),
+      el("small", { text: `${item.audit_item || "审计项目"} · ${item.owner || "待分配"}` })
+    ]),
+    statusBadge(item.status || "待收集", item.priority === "高" ? "high" : "review")
+  ])));
+}
+
+function renderSignals(summary) {
+  const node = qs("#signals");
+  clearNode(node);
+  [
+    ["知识检索", `${summary.knowledge_chunks || 0} 个切片可引用`, summary.knowledge_chunks ? "pass" : "review"],
+    ["整改闭环", `${summary.open_tasks || 0} 个开放任务`, summary.overdue_tasks ? "blocked" : "pass"],
+    ["质量门", `平均置信度 ${summary.avg_quality || 0}`, Number(summary.avg_quality || 0) >= 0.7 ? "pass" : "review"]
+  ].forEach(([name, detail, tone]) => node.appendChild(el("div", { class: "readiness-row" }, [
+    el("span", { class: `readiness-mark ${tone}` }),
+    el("div", {}, [el("strong", { text: name }), el("small", { text: detail })]),
+    statusBadge(tone === "pass" ? "正常" : tone === "blocked" ? "阻断" : "关注", tone)
+  ])));
+}
+
 async function loadOverview() {
   const overview = (await apiFetch("/api/product/overview")).overview;
   const summary = overview.summary || {};
@@ -64,27 +256,26 @@ async function loadOverview() {
   setText("#avgCompliance", summary.avg_compliance || 0);
   setText("#knowledgeChunks", summary.knowledge_chunks || 0);
   setText("#skillCount", summary.skills || 0);
-  const signals = qs("#signals"); clearNode(signals);
-  [
-    ["知识库", `${summary.knowledge_chunks || 0} 个切片可检索`, "ok"],
-    ["整改", `${summary.open_tasks || 0} 个开放任务`, summary.overdue_tasks ? "danger" : "warning"],
-    ["质量", `平均置信度 ${summary.avg_quality || 0}`, "ok"]
-  ].forEach(([name, detail, tone]) => signals.appendChild(el("div", { class: `signal ${tone}` }, [el("span", { class: "signal-dot" }), el("div", {}, [el("strong", { text: name }), el("div", { class: "muted", text: detail })]), el("span", { class: "status-chip", text: tone === "danger" ? "需关注" : "正常" })])));
-  const risk = qs("#riskRegister"); clearNode(risk);
-  (overview.risk_register || []).slice(0, 6).forEach((item) => risk.appendChild(el("div", { class: "card value-card" }, [el("strong", { text: `${item.risk_id} · ${item.audit_item}` }), el("p", { class: "muted", text: `风险：${item.risk_level} · 状态：${item.status}` }), el("div", { text: item.next_action })])));
-  if (!(overview.risk_register || []).length) risk.appendChild(el("div", { class: "card value-card" }, [el("h3", { class: "panel-title", text: "暂无风险台账" }), el("p", { class: "muted", text: "运行审计项目后自动生成。" })]));
-  const evidence = qs("#evidenceRequests"); clearNode(evidence);
-  (overview.evidence_requests || []).slice(0, 6).forEach((item) => evidence.appendChild(el("div", { class: "card value-card" }, [el("strong", { text: item.evidence }), el("p", { class: "muted", text: `${item.audit_item} · ${item.owner} · ${item.priority}` }), el("div", { text: item.status })])));
-  if (!(overview.evidence_requests || []).length) evidence.appendChild(el("div", { class: "card value-card" }, [el("h3", { class: "panel-title", text: "暂无证据请求" }), el("p", { class: "muted", text: "质量门通过时不会产生补证队列。" })]));
-  const health = qs("#controlHealth"); clearNode(health);
-  (overview.control_health || []).slice(0, 6).forEach((item) => health.appendChild(el("div", { class: "card connector" }, [el("strong", { text: item.domain }), el("div", { class: "muted", text: `控制 ${item.controls} · 成熟度 ${item.avg_maturity} · 例外 ${item.exceptions}` }), el("div", { class: "progress-track" }, [el("div", { class: "progress-bar", style: `width:${Math.min(item.health_score || 0, 100)}%` })])])));
-  if (!(overview.control_health || []).length) health.appendChild(el("div", { class: "card connector" }, [el("strong", { text: "暂无控制健康数据" }), el("div", { class: "muted", text: "运行审计后自动聚合控制领域。" })]));
+  setText("#overdueHint", summary.overdue_tasks ? `${summary.overdue_tasks} 项已逾期` : "无逾期任务");
+  renderProjects(overview.recent_runs || []);
+  renderTrace(overview.recent_skill_runs || []);
+  renderControls(overview.control_health || []);
+  renderEvidence(overview.evidence_requests || []);
+  renderSignals(summary);
 }
-document.addEventListener("DOMContentLoaded", loadOverview);
-</script>
 
-    </main>
-  </div>
-  <script src="../static/app.js"></script>
+document.addEventListener("DOMContentLoaded", () => {
+  loadOverview().catch((error) => {
+    console.error(error);
+    setText("#healthText", "数据加载失败，请检查服务");
+  });
+  qs("#globalSearch").addEventListener("input", (event) => {
+    const query = event.target.value.trim().toLowerCase();
+    qsa("[data-search]").forEach((node) => {
+      node.classList.toggle("hidden", query && !node.getAttribute("data-search").includes(query));
+    });
+  });
+});
+  </script>
 </body>
 </html>

@@ -4,19 +4,19 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Agent 能力中心 - 审脉 AuditPilot</title>
-  <link rel="stylesheet" href="../static/app.css">
+  <link rel="stylesheet" href="../static/app.css?v=4.0.2">
 </head>
 <body>
   <div class="app-shell">
     <aside class="sidebar">
-      <div class="brand"><div class="brand-icon">AP</div><span>审脉 AuditPilot</span></div>
+      <div class="brand"><div class="brand-icon">AP</div><div><span>审脉 AuditPilot</span><small>Enterprise Agent</small></div></div>
       <nav class="nav-list">
-        <a class="nav-link" href="/">⌂ <span>总览</span></a>
-        <a class="nav-link" href="/chat">● <span>审计对话</span></a>
-        <a class="nav-link" href="/audit">⌕ <span>审计工作台</span></a>
-        <a class="nav-link" href="/knowledge">▦ <span>知识库</span></a>
-        <a class="nav-link" href="/training">□ <span>评测</span></a>
-        <a class="nav-link active" href="/skills">◇ <span>Skills</span></a>
+        <a class="nav-link" href="/"><span>工作台</span></a>
+        <a class="nav-link" href="/audit"><span>审计项目</span></a>
+        <a class="nav-link" href="/chat"><span>Agent 协作</span></a>
+        <a class="nav-link" href="/knowledge"><span>知识与证据</span></a>
+        <a class="nav-link active" href="/skills"><span>Agent 运行时</span></a>
+        <a class="nav-link" href="/training"><span>评测与发布</span></a>
       </nav>
       <div class="sidebar-note">以审计交付为主线：知识检索、控制测试、底稿、复核和整改闭环。</div>
     </aside>
@@ -118,7 +118,12 @@ async function loadSkills() {
   data.skills.forEach((skill) => grid.appendChild(el("div", { class: "card value-card" }, [
     el("strong", { text: skill.title }),
     el("p", { class: "muted", text: skill.description }),
-    el("div", { class: "muted", text: `${skill.name} · v${skill.version} · ${(skill.permissions || []).join(", ")}` })
+    el("div", { class: "muted", text: `${skill.name} · v${skill.version} · ${(skill.permissions || []).join(", ")}` }),
+    el("div", { class: "trace-summary mt-12" }, [
+      el("span", { text: `超时 ${skill.resilience?.timeout_seconds || 0}s` }),
+      el("span", { text: `缓存 ${skill.resilience?.cache_ttl_seconds || 0}s` }),
+      el("span", { text: `熔断 ${skill.resilience?.failure_threshold || 0} 次` })
+    ])
   ])));
   const tools = await apiFetch("/api/mcp/tools");
   const mcp = qs("#mcpTools"); clearNode(mcp);
@@ -184,6 +189,10 @@ function renderTask(task) {
     el("strong", { text: `产物 · ${artifact.name}` }),
     el("div", { class: "muted", text: artifact.summary })
   ])));
+  (task.reflections || []).forEach((reflection) => node.appendChild(el("div", { class: "item compact" }, [
+    el("strong", { text: `反思 · ${reflection.step_id} · ${reflection.verdict}` }),
+    el("div", { class: "muted", text: `置信度 ${reflection.confidence} · ${reflection.next_action}` })
+  ])));
 }
 
 function metricPill(name, value) {
@@ -241,7 +250,7 @@ async function loadRuns() {
   if (!data.runs.length) return node.appendChild(el("div", { class: "item muted", text: "暂无 Skill 运行日志" }));
   data.runs.forEach((run) => node.appendChild(el("div", { class: "item compact" }, [
     el("strong", { text: `${run.run_id} · ${run.skill} · ${run.status}` }),
-    el("div", { class: "muted", text: `${run.duration_ms || 0}ms · ${run.started_at} -> ${run.finished_at}` })
+    el("div", { class: "muted", text: `${run.duration_ms || 0}ms · ${run.cache_hit ? "缓存命中" : `熔断 ${run.circuit_state || "closed"}`} · ${run.started_at}` })
   ])));
 }
 

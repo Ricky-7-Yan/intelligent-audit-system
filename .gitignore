@@ -30,6 +30,7 @@ data/audit_runs/
 data/skill_runs/
 data/uploads/
 data/agent_runtime/
+data/conversation_memory/
 data/evaluation_runs/
 data/evidence_analyses/
 

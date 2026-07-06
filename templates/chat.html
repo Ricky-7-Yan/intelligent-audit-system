@@ -3,21 +3,21 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>&#23457;&#35745;&#23545;&#35805; - &#26234;&#33021;&#23457;&#35745; Agent &#24179;&#21488;</title>
-  <link rel="stylesheet" href="../static/app.css">
+  <title>Agent 协作 - 审脉 AuditPilot</title>
+  <link rel="stylesheet" href="../static/app.css?v=4.0.2">
 </head>
 <body>
   <div class="app-shell">
 
     <aside class="sidebar">
-      <div class="brand"><div class="brand-icon">&#23457;</div><span>&#26234;&#33021;&#23457;&#35745;</span></div>
+      <div class="brand"><div class="brand-icon">AP</div><div><span>审脉 AuditPilot</span><small>Enterprise Agent</small></div></div>
       <nav class="nav-list">
-        <a class="nav-link" href="/">&#8962; <span>&#24635;&#35272;</span></a>
-        <a class="nav-link active" href="/chat">&#9679; <span>&#23457;&#35745;&#23545;&#35805;</span></a>
-        <a class="nav-link" href="/audit">&#8981; <span>&#23457;&#35745;&#20998;&#26512;</span></a>
-        <a class="nav-link" href="/knowledge">&#9638; <span>&#30693;&#35782;&#24211;</span></a>
-        <a class="nav-link" href="/training">&#9633; <span>&#35780;&#20272;</span></a>
-        <a class="nav-link" href="/skills">&#9671; <span>Skills</span></a>
+        <a class="nav-link" href="/"><span>工作台</span></a>
+        <a class="nav-link" href="/audit"><span>审计项目</span></a>
+        <a class="nav-link active" href="/chat"><span>Agent 协作</span></a>
+        <a class="nav-link" href="/knowledge"><span>知识与证据</span></a>
+        <a class="nav-link" href="/skills"><span>Agent 运行时</span></a>
+        <a class="nav-link" href="/training"><span>评测与发布</span></a>
       </nav>
       <div class="sidebar-note">&#23545;&#35805;&#32467;&#26524;&#21516;&#27493;&#36755;&#20986;&#19978;&#19979;&#25991;&#12289;&#39118;&#38505;&#12289;&#36136;&#37327;&#38376;&#21644;&#35777;&#25454;&#32570;&#21475;&#12290;</div>
     </aside>
@@ -25,8 +25,8 @@
     <main class="main">
       <div class="topbar">
         <div class="page-title">
-          <h1>&#23457;&#35745;&#23545;&#35805;</h1>
-          <p>&#22260;&#32469;&#23457;&#35745;&#23545;&#35937;&#36827;&#34892;&#22810;&#36718;&#20998;&#26512;&#65292;&#31995;&#32479;&#20250;&#21516;&#27493;&#32473;&#20986;&#39118;&#38505;&#12289;&#21512;&#35268;&#21644;&#25972;&#25913;&#20449;&#24687;&#12290;</p>
+          <h1>Agent 协作</h1>
+          <p>融合路由会选择规划、证据、控制、风险或整改 Agent；分层记忆保持多轮审计上下文。</p>
         </div>
         <div class="status-pill"><span class="status-dot"></span><span id="healthText">&#21152;&#36733;&#29366;&#24577;&#20013;</span></div>
       </div>
@@ -42,7 +42,8 @@
           <div class="toolbar stretch mt-16"><input id="messageInput" placeholder="&#20363;&#22914;&#65306;&#35831;&#23545;ERP&#31995;&#32479;&#26435;&#38480;&#31649;&#29702;&#36827;&#34892;&#23433;&#20840;&#23457;&#35745;&#65292;&#21442;&#32771;ISO27001"><button class="btn primary" id="sendBtn">&#21457;&#36865;</button></div>
         </section>
         <aside class="grid">
-          <section class="panel"><h2 class="panel-title">&#20250;&#35805;</h2><div class="list"><div class="item"><span class="muted">&#20250;&#35805; ID</span><div id="sessionId"></div></div><div class="item"><span class="muted">&#28040;&#24687;&#25968;</span><div id="messageCount">0</div></div></div><button class="btn mt-12" id="clearBtn">&#28165;&#31354;&#23545;&#35805;</button></section>
+          <section class="panel"><h2 class="panel-title">会话与记忆</h2><div class="list"><div class="item"><span class="muted">会话 ID</span><div id="sessionId"></div></div><div class="score-grid"><div class="score-pill"><span>消息</span><strong id="messageCount">0</strong></div><div class="score-pill"><span>工作记忆</span><strong id="workingMemory">0</strong></div><div class="score-pill"><span>情景记忆</span><strong id="episodicMemory">0</strong></div><div class="score-pill"><span>画像字段</span><strong id="profileFields">0</strong></div></div></div><button class="btn mt-12" id="clearBtn">新建会话</button></section>
+          <section class="panel"><h2 class="panel-title">融合路由</h2><div id="routingPanel" class="list"><p class="muted">发送消息后显示意图、置信度和协作 Agent。</p></div></section>
           <section class="panel"><h2 class="panel-title">&#23457;&#35745;&#19978;&#19979;&#25991;</h2><div id="auditContext" class="list"><p class="muted">&#26242;&#26080;&#19978;&#19979;&#25991;</p></div></section>
           <section class="panel"><h2 class="panel-title">&#39118;&#38505;&#19982;&#36136;&#37327;&#38376;</h2><div id="riskPanel" class="list"><p class="muted">&#26242;&#26080;&#39118;&#38505;&#35780;&#20272;</p></div></section>
         </aside>
@@ -59,7 +60,8 @@
     function addMessage(content, type) { const box = qs("#chatBox"); box.appendChild(el("div", { class: `message ${type}`, text: content })); box.scrollTop = box.scrollHeight; }
     function renderContext(context) { const node = qs("#auditContext"); clearNode(node); Object.entries(context || {}).forEach(([key, value]) => node.appendChild(el("div", { class: "item" }, [el("strong", { text: key }), el("div", { class: "muted", text: Array.isArray(value) ? value.join("、") : String(value) })]))); if (!node.childElementCount) node.appendChild(el("p", { class: "muted", text: "暂无上下文" })); }
     function renderRisk(result) { const node = qs("#riskPanel"); clearNode(node); const risk = result.risk_assessment; const quality = result.quality_gate; if (!risk) return node.appendChild(el("p", { class: "muted", text: "暂无风险评估" })); node.appendChild(el("div", { class: "item" }, [riskBadge(risk.risk_level), el("div", { class: "mt-12", text: `风险评分：${risk.risk_score}` }), el("div", { class: "muted", text: `控制抵减：${risk.control_reduction || 0}` })])); if (quality) node.appendChild(el("div", { class: "item" }, [el("strong", { text: `质量门：${quality.status}` }), el("div", { class: "muted", text: `置信度：${quality.confidence}；缺失证据：${(quality.missing_evidence || []).join("、") || "无"}` })])); }
-    async function sendMessage() { const input = qs("#messageInput"); const message = input.value.trim(); if (!message) return; addMessage(message, "user"); input.value = ""; addMessage("正在规划任务、检索证据、映射控制并评估风险...", "ai"); try { const data = await apiFetch("/api/chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ message, session_id: sessionId }) }); qs("#chatBox").lastChild.remove(); addMessage(data.response, "ai"); renderContext(data.audit_context); renderRisk(data); messageCount += 2; setText("#messageCount", messageCount); } catch (error) { qs("#chatBox").lastChild.remove(); addMessage(`请求失败：${error.message}`, "ai"); } }
+    function renderRoutingAndMemory(data) { const node = qs("#routingPanel"); clearNode(node); const routing = data.routing || {}; node.appendChild(el("div", { class: "item" }, [el("strong", { text: `${routing.intent || "general_audit"} · ${Math.round((routing.confidence || 0) * 100)}%` }), el("div", { class: "muted", text: `协作 Agent：${(routing.agents || []).join(" → ") || "audit_agent"}` }), el("div", { class: "tag-row mt-12" }, [riskBadge(routing.urgency === "critical" ? "紧急" : routing.multi_agent ? "多 Agent" : "单 Agent")]) ])); const layers = data.memory?.memory_layers || data.persistent_memory?.memory_layers || {}; setText("#workingMemory", layers.working ?? data.memory?.working_messages ?? 0); setText("#episodicMemory", layers.episodic ?? data.memory?.episodes ?? 0); setText("#profileFields", layers.profile_fields ?? Object.keys(data.memory?.profile || {}).length); }
+    async function sendMessage() { const input = qs("#messageInput"); const message = input.value.trim(); if (!message) return; addMessage(message, "user"); input.value = ""; addMessage("正在执行融合路由、读取记忆、检索证据并评估风险...", "ai"); try { const data = await apiFetch("/api/chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ message, session_id: sessionId }) }); qs("#chatBox").lastChild.remove(); addMessage(data.response, "ai"); renderContext(data.audit_context); renderRisk(data); renderRoutingAndMemory(data); messageCount += 2; setText("#messageCount", messageCount); } catch (error) { qs("#chatBox").lastChild.remove(); addMessage(`请求失败：${error.message}`, "ai"); } }
     qs("#sendBtn").addEventListener("click", sendMessage);
     qs("#messageInput").addEventListener("keydown", (event) => { if (event.key === "Enter") sendMessage(); });
     qs("#clearBtn").addEventListener("click", () => location.reload());

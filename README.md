@@ -1,323 +1,105 @@
-# 🤖 智能审计决策系统
+# 审脉 AuditPilot
 
-<div align="center">
+面向真实审计交付的企业级 AI Agent 工作台。系统把审计立项、知识检索、证据分析、控制测试、风险评估、审计发现、整改跟踪、人工复核和最终交付放在一条可追溯链路上，并提供可治理的 Agent Runtime、Skills/MCP 工具、分层记忆、评测回归和发布门禁。
 
-![Python](https://img.shields.io/badge/Python-3.8+-blue.svg)
-![FastAPI](https://img.shields.io/badge/FastAPI-0.104+-green.svg)
-![License](https://img.shields.io/badge/License-MIT-yellow.svg)
+> 当前版本：v4.0。默认具备无外部服务降级能力；配置兼容 OpenAI 协议的模型后，可启用 LLM 增强分析。
 
-**基于大语言模型的智能审计平台 | 集成知识图谱、RAG、强化学习等前沿技术**
+![审脉 AuditPilot 工作台](docs/screenshots/auditpilot-overview-desktop.png)
 
-[功能特性](#-功能特性) • [快速开始](#-快速开始) • [技术架构](#-技术架构) • [文档](Project_Summary.md)
+## 核心能力
 
-</div>
+- 审计交付闭环：范围、控制矩阵、审计程序、抽样计划、证据请求、发现、整改、复核和交付包。
+- Hybrid Agent 路由：Pattern + 本地 n-gram 语义相似度融合，输出意图、置信度、实体与多 Agent 协作决策。
+- 三层会话记忆：持久化工作记忆、压缩后的情景记忆、审计画像；服务重启后仍可读取。
+- Agent Runtime：协议化任务、依赖计划、逐步执行、重试、反思、产物、检查点与观测指标。
+- Skills / MCP：输入 Schema、权限声明、超时、TTL 缓存、熔断、调用日志和指标。
+- Agentic RAG：持久化知识库、切块、混合检索、查询扩展、来源引用、证据化回答和降级检索。
+- 评测与发布：Agent/RAG/Research 评测、轨迹质量、人工复核意识、基线差异、回归检测与发布门禁。
+- 生产工程：FastAPI、Docker、健康检查、CORS、文件持久化、可选 MySQL/Neo4j、云平台配置。
 
----
+## 快速启动
 
-## 📋 项目简介
-
-智能审计决策系统是一个基于大语言模型（LLM）的智能审计平台，集成了知识图谱、RAG检索增强生成、强化学习等前沿技术，为审计工作提供智能化支持。
-
-> 🎯 **核心价值**: 突破传统审计工具局限，支持复杂业务逻辑的深度推理
-
----
-
-## ✨ 功能特性
-
-### 🤖 智能对话Agent
-- ✅ 基于LangChain的多轮对话式审计决策
-- ✅ 上下文感知的连续对话
-- ✅ 专业推理和审计建议
-
-### 🗺️ 知识图谱
-- ✅ 整合COBIT、ISO27001、SOX等审计标准
-- ✅ 实体识别和关系抽取
-- ✅ 动态知识更新
-
-### 🔍 Agentic RAG系统
-- ✅ 智能检索增强生成
-- ✅ 向量数据库支持
-- ✅ 语义搜索和答案生成
-
-### ⚠️ 风险评估
-- ✅ 自动识别和评估审计风险
-- ✅ 风险等级评分
-- ✅ 实时风险监控
-
-### ✅ 合规检查
-- ✅ 对照标准进行合规性检查
-- ✅ 多标准支持（COBIT、ISO27001、SOX）
-- ✅ 整改建议生成
-
-### 🎓 模型训练
-- ✅ 支持SFT、RLHF等训练方法
-- ✅ LoRA高效微调
-- ✅ Benchmark测评系统
-
----
-
-## 🚀 快速开始
-
-### 📦 环境要求
-
-- Python 3.8+ 🐍
-- MySQL 8.0+ 🗄️
-- Neo4j 5.0+ 🕸️
-- 8GB+ RAM 💾
-
-### 🏃 一键启动（推荐）
-
-#### Windows 用户
-```bash
-# 双击运行
-start.bat
-```
-
-#### Linux/Mac 用户
-```bash
-# 赋予执行权限
-chmod +x start.sh
-
-# 运行启动脚本
-./start.sh
-```
-
-### 📝 手动安装
-
-#### 1. 克隆项目
-```bash
-git clone <repository-url>
-cd intelligent-audit-system
-```
-
-#### 2. 创建虚拟环境
-```bash
-python -m venv venv
-source venv/bin/activate  # Linux/Mac
-# 或
-venv\Scripts\activate  # Windows
-```
-
-#### 3. 安装依赖
-```bash
+```powershell
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
+Copy-Item config.env.example config.env
+python start.py
 ```
 
-#### 4. 安装spaCy模型
-```bash
-python -m spacy download en_core_web_sm
+访问：
+
+- 产品工作台：<http://127.0.0.1:8000>
+- OpenAPI：<http://127.0.0.1:8000/docs>
+- 健康检查：<http://127.0.0.1:8000/api/health>
+
+不配置模型密钥时，审计、RAG、控制映射、证据分析、运行时与评测仍可使用确定性降级链路。真实密钥只放在 `config.env`，该文件已被 Git 忽略。
+
+## 产品页面
+
+| 页面 | 用途 |
+| --- | --- |
+| `/` | 审计项目、控制健康、证据队列、Agent 轨迹和交付就绪度 |
+| `/audit` | 从立项到整改关闭的完整审计项目工作台 |
+| `/chat` | 融合意图路由、多 Agent 协作与持久化会话记忆 |
+| `/knowledge` | 知识写入、文件切块、RAG 检索和来源验证 |
+| `/skills` | Agent Runtime、Skills、MCP、工具治理、安全门禁和反思 |
+| `/training` | Agent/RAG/Research 评测、基线回归与发布门禁 |
+
+## 架构
+
+```text
+用户 / 审计项目
+  -> Hybrid Intent Router
+  -> Working + Episodic + Profile Memory
+  -> Planner / Evidence / Control / Risk / Compliance / Remediation Agents
+  -> Agentic RAG + Knowledge Graph + Skills/MCP Tools
+  -> Safety Gate + Reflection + Human Review
+  -> Audit Repository + Evaluation Baseline + Delivery Package
 ```
 
-#### 5. 配置环境变量
-```bash
-cp config.env.example config.env
-# 编辑config.env，填入相应配置
+系统坚持两条边界：
+
+1. 模型负责理解、归纳和解释；风险评分、证据缺口、权限、安全门禁与交付状态保留可审计的确定性逻辑。
+2. Agent 不替代审计师作最终专业判断；证据不足、高风险或低置信度会进入补证和人工复核。
+
+## 测试
+
+```powershell
+.\.venv\Scripts\python.exe -m compileall -q agents services rag web tests
+.\.venv\Scripts\python.exe -m unittest discover -s tests -v
 ```
 
-#### 6. 初始化数据库
-```bash
-# 初始化MySQL
-python database/init_db.py
+当前自动化测试覆盖融合路由、记忆压缩与画像、Skill 输入治理与缓存、运行时反思、评测基线回归。交互验收覆盖桌面/移动端、总览筛选、Agent 对话、运行时任务和控制台错误检查。
 
-# 初始化Neo4j
-python knowledge_graph/neo4j_init.py
+## 文档
+
+- [架构与设计](docs/01-项目架构与设计.md)
+- [完整使用与演示指南](docs/02-完整使用与演示指南.md)
+- [Agent 核心能力详解](docs/03-Agent核心能力详解.md)
+- [API 与数据模型](docs/04-API与数据模型.md)
+- [JD 对齐与简历面试指南](docs/05-JD对齐与简历面试指南.md)
+- [测试、部署与生产化清单](docs/06-测试部署与生产化清单.md)
+- [升级变更记录](docs/07-升级变更记录.md)
+- [部署说明](DEPLOYMENT.md)
+
+## 项目结构
+
+```text
+agents/                 审计 Agent 主链与控制库
+services/               Runtime、Memory、Router、Skills、安全、评测、交付
+rag/                    Agentic RAG 与持久化知识库
+knowledge_graph/        图谱构建与 Neo4j 可选接入
+training/               Agent 评测与离线训练入口
+web/                    FastAPI 应用与 API
+templates/ + static/    产品界面
+tests/                  自动化回归测试
+docs/                   项目归档文档源
+data/                   本地运行数据（大部分已 Git 忽略）
 ```
 
-#### 7. 启动系统
-```bash
-python web/main.py
-```
+## 真实性说明
 
-### 🌐 访问系统
-
-打开浏览器访问: **http://localhost:8000**
-
----
-
-## 🎮 功能模块
-
-### 💬 智能对话
-- 🎯 访问 `/chat` 
-- 💡 与AI审计助手进行专业对话
-- 🔄 多轮对话支持
-
-### 🔍 审计分析
-- 🎯 访问 `/audit`
-- ⚡ 自动风险评估和合规检查
-- 📊 可视化结果展示
-
-### 📚 知识管理
-- 🎯 访问 `/knowledge`
-- 📖 构建和维护审计知识库
-- 🗺️ 知识图谱可视化
-
-### 🎓 模型训练
-- 🎯 访问 `/training`
-- 🏋️ SFT和RLHF训练
-- 📈 性能评估和对比
-
----
-
-## 📡 API接口
-
-### 💬 聊天API
-```http
-POST /api/chat
-Content-Type: application/json
-
-{
-    "message": "请对ERP系统进行安全审计",
-    "session_id": "optional_session_id"
-}
-```
-
-### 🔍 审计API
-```http
-POST /api/audit
-Content-Type: application/json
-
-{
-    "audit_item": "ERP系统",
-    "audit_type": "安全审计",
-    "standard_type": "COBIT",
-    "risk_level": "高"
-}
-```
-
----
-
-## 📁 项目结构
-
-```
-intelligent-audit-system/
-├── agents/                 # 智能Agent模块
-│   └── audit_agent.py
-├── knowledge_graph/        # 知识图谱模块
-│   ├── builder.py
-│   └── neo4j_init.py
-├── rag/                    # RAG系统模块
-│   └── agentic_rag.py
-├── training/               # 训练模块
-│   └── training_pipeline.py
-├── web/                    # Web界面
-│   └── main.py
-├── templates/              # HTML模板
-│   ├── index.html         # 主页
-│   ├── chat.html          # 聊天页面
-│   ├── audit.html         # 审计分析
-│   ├── knowledge.html     # 知识管理
-│   └── training.html      # 模型训练
-├── database/               # 数据库模块
-│   └── init_db.py
-├── config.py               # 配置文件
-├── requirements.txt        # 依赖列表
-└── start.py                # 启动脚本
-```
-
----
-
-## ⚙️ 配置说明
-
-### 🔧 环境变量
-
-编辑 `config.env` 文件：
-
-```env
-# MySQL配置
-MYSQL_HOST=localhost
-MYSQL_PORT=3306
-MYSQL_USER=root
-MYSQL_PASSWORD=123456
-MYSQL_DATABASE=audit_system
-
-# Neo4j配置
-NEO4J_URI=bolt://localhost:7687
-NEO4J_USER=neo4j
-NEO4J_PASSWORD=12345678
-
-# LLM API配置
-QWEN_API_KEY=your_api_key
-QWEN_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
-```
-
----
-
-## 📥 模型下载
-
-如果需要使用RAG功能，需要下载Sentence Transformers模型：
-
-### 🌟 使用镜像站（推荐）
-
-```bash
-# Windows PowerShell
-$env:HF_ENDPOINT="https://hf-mirror.com"
-
-# Linux/Mac
-export HF_ENDPOINT=https://hf-mirror.com
-
-# 启动系统，会自动下载
-python web/main.py
-```
-
-详细说明请查看：[📥 下载模型说明.md](下载模型说明.md)
-
----
-
-## ❓ 常见问题
-
-### ❓ 模型下载失败？
-- ✅ 使用镜像站: 设置 `HF_ENDPOINT=https://hf-mirror.com`
-- ✅ 或手动下载模型到 `./models/` 目录
-
-### ❓ 数据库连接失败？
-- ✅ 确保MySQL和Neo4j服务已启动
-- ✅ 检查配置信息是否正确
-
-### ❓ API调用失败？
-- ✅ 检查API密钥是否正确
-- ✅ 验证网络连接
-
-更多问题请查看：[📚 PyCharm配置指南](PyCharm_Setup_Guide.md)
-
----
-
-## 📊 性能指标
-
-- 🎯 **准确率**: 85%+ 的审计建议准确性
-- ⚡ **响应时间**: <3秒
-- 👥 **并发支持**: 100+ 并发用户
-- 💪 **可用性**: 99.9% 系统可用性
-
----
-
-## 🤝 贡献指南
-
-欢迎贡献代码！请遵循以下步骤：
-
-1. 🍴 Fork 项目
-2. 🌿 创建特性分支 (`git checkout -b feature/AmazingFeature`)
-3. 💾 提交更改 (`git commit -m 'Add some AmazingFeature'`)
-4. 📤 推送到分支 (`git push origin feature/AmazingFeature`)
-5. 🔄 开启 Pull Request
-
----
-
-## 📄 许可证
-
-本项目采用 **MIT License** - 查看 [LICENSE](LICENSE) 文件了解详情
-
----
-
-## 👥 联系我们
-
-如有问题或建议，请提交 [Issue](https://github.com/your-username/intelligent-audit-system/issues)
-
----
-
-<div align="center">
-
-**⭐ 如果这个项目对你有帮助，请给它一个星星！**
-
-Made with ❤️ by Intelligent Audit Team
-
-</div>
+- 项目中展示的运行记录、工具调用、评测、记忆和审计档案均由真实代码生成并持久化，不是静态截图。
+- 未经压测验证的吞吐、准确率或可用性不作为项目事实；简历量化应使用实际评测结果。
+- SFT/RLHF 类重训练被明确放在离线任务中，Web 进程只提供评测和数据准备入口。
