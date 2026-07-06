@@ -40,6 +40,8 @@ class AgentRuntime:
             "steps": [],
             "artifacts": [],
             "tool_calls": [],
+            "reflections": [],
+            "budgets": {"max_tool_calls": 10, "max_retries_per_step": 1},
             "safety_gate": safety,
             "metrics": {
                 "tool_calls": 0,
@@ -100,7 +102,11 @@ class AgentRuntime:
             self._write_task(task)
             return task
 
-        run = self.skill_registry.execute(next_plan["skill"], payload)
+        runs = [self.skill_registry.execute(next_plan["skill"], payload)]
+        retry_budget = int(task.get("budgets", {}).get("max_retries_per_step", 1))
+        if runs[-1]["status"] != "success" and retry_budget > 0:
+            runs.append(self.skill_registry.execute(next_plan["skill"], payload))
+        run = runs[-1]
         step_record.update(
             {
                 "status": run["status"],
@@ -108,22 +114,33 @@ class AgentRuntime:
                 "run_id": run["run_id"],
                 "output": run.get("output"),
                 "duration_ms": run.get("duration_ms", 0),
+                "attempts": len(runs),
             }
         )
         task["steps"].append(step_record)
-        task["tool_calls"].append(
-            {
-                "run_id": run["run_id"],
-                "skill": next_plan["skill"],
-                "status": run["status"],
-                "duration_ms": run.get("duration_ms", 0),
-                "input_size": run.get("input_size", 0),
-                "output_size": run.get("output_size", 0),
-            }
-        )
-        task["artifacts"].extend(self._artifacts_from_run(next_plan, run))
+        for attempt, item in enumerate(runs, start=1):
+            task["tool_calls"].append(
+                {
+                    "run_id": item["run_id"],
+                    "skill": next_plan["skill"],
+                    "status": item["status"],
+                    "duration_ms": item.get("duration_ms", 0),
+                    "input_size": item.get("input_size", 0),
+                    "output_size": item.get("output_size", 0),
+                    "attempt": attempt,
+                    "cache_hit": item.get("cache_hit", False),
+                    "circuit_state": item.get("circuit_state", "closed"),
+                }
+            )
+        reflection = self._reflect(next_plan, run, len(runs))
+        task.setdefault("reflections", []).append(reflection)
+        if run["status"] == "success":
+            task["artifacts"].extend(self._artifacts_from_run(next_plan, run))
         task["metrics"] = self._metrics(task)
-        task["status"] = "completed" if len(task["steps"]) >= len(task.get("plan", [])) else "running"
+        if run["status"] != "success":
+            task["status"] = "needs_review"
+        else:
+            task["status"] = "completed" if len(completed) + 1 >= len(task.get("plan", [])) else "running"
         task["updated_at"] = datetime.now().isoformat()
         self._write_task(task)
         return task
@@ -151,7 +168,7 @@ class AgentRuntime:
         latencies = [float(call.get("duration_ms") or 0) for call in tool_calls]
         success = [call for call in tool_calls if call.get("status") == "success"]
         blocked = [task for task in tasks if task.get("status") == "blocked"]
-        active = [task for task in tasks if task.get("status") in {"planned", "running"}]
+        active = [task for task in tasks if task.get("status") in {"planned", "running", "needs_review"}]
         return {
             "tasks": len(tasks),
             "active_tasks": len(active),
@@ -164,6 +181,9 @@ class AgentRuntime:
                 sum(1 for task in tasks if task.get("safety_gate", {}).get("status") == "review") / max(len(tasks), 1),
                 3,
             ),
+            "reflections": sum(len(task.get("reflections", [])) for task in tasks),
+            "retry_count": sum(max(0, int(step.get("attempts", 1)) - 1) for task in tasks for step in task.get("steps", [])),
+            "memory": {"task_checkpoints": len(tasks), "artifact_count": sum(len(task.get("artifacts", [])) for task in tasks)},
             "latest_tasks": tasks[:8],
             "skill_metrics": self.skill_registry.metrics(),
         }
@@ -177,6 +197,8 @@ class AgentRuntime:
                 "name": "审计范围规划",
                 "stage": "audit",
                 "skill": "audit.scope_planner",
+                "agent_role": "planning_agent",
+                "depends_on": [],
                 "purpose": "Clarify audit scope, standard, and deliverables.",
                 "input_hint": {"audit_item": audit_item, "risk_topics": risk_topics},
             },
@@ -185,6 +207,8 @@ class AgentRuntime:
                 "name": "控制矩阵映射",
                 "stage": "audit",
                 "skill": "audit.control_mapper",
+                "agent_role": "control_agent",
+                "depends_on": ["PLAN-01"],
                 "purpose": "Map risks to executable control tests.",
                 "input_hint": {"audit_item": audit_item, "risk_topics": risk_topics},
             },
@@ -193,6 +217,8 @@ class AgentRuntime:
                 "name": "证据清单生成",
                 "stage": "evidence",
                 "skill": "audit.evidence_checklist",
+                "agent_role": "evidence_agent",
+                "depends_on": ["PLAN-01", "MAP-02"],
                 "purpose": "Generate evidence requests and collection methods.",
                 "input_hint": {"control_domain": "、".join(risk_topics[:3])},
             },
@@ -201,6 +227,8 @@ class AgentRuntime:
                 "name": "整改任务规划",
                 "stage": "audit",
                 "skill": "audit.remediation_planner",
+                "agent_role": "remediation_agent",
+                "depends_on": ["MAP-02", "EVD-03"],
                 "purpose": "Prepare remediation workflow for likely findings.",
                 "input_hint": {"finding": f"{audit_item} 控制证据或执行一致性需复核", "severity": context.get("risk_level", "中")},
             },
@@ -232,6 +260,33 @@ class AgentRuntime:
             return ", ".join(output.keys())[:240]
         return str(output)[:240]
 
+    def _reflect(self, step: Dict[str, Any], run: Dict[str, Any], attempts: int) -> Dict[str, Any]:
+        output = run.get("output") or {}
+        status = run.get("status")
+        if status != "success":
+            verdict = "human_review"
+            confidence = 0.2
+            issues = [str(output.get("error") or "工具执行失败")]
+            next_action = "检查输入、工具依赖与熔断状态后人工决定重试或改写计划。"
+        else:
+            serialized = json.dumps(output, ensure_ascii=False, default=str)
+            sparse = len(serialized) < 40
+            verdict = "review" if sparse else "pass"
+            confidence = 0.62 if sparse else min(0.96, 0.72 + len(serialized) / 6000)
+            issues = ["工具输出过短，需要确认是否覆盖任务目标。"] if sparse else []
+            next_action = "进入下一计划步骤。" if not sparse else "复核产物后再继续执行。"
+        return {
+            "reflection_id": f"REF-{uuid.uuid4().hex[:8].upper()}",
+            "step_id": step.get("step_id"),
+            "agent_role": step.get("agent_role", "audit_agent"),
+            "verdict": verdict,
+            "confidence": round(confidence, 3),
+            "issues": issues,
+            "attempts": attempts,
+            "next_action": next_action,
+            "created_at": datetime.now().isoformat(),
+        }
+
     def _metrics(self, task: Dict[str, Any]) -> Dict[str, Any]:
         calls = task.get("tool_calls", [])
         success = [call for call in calls if call.get("status") == "success"]
@@ -242,6 +297,8 @@ class AgentRuntime:
             "failed_tool_calls": len(calls) - len(success),
             "avg_latency_ms": round(statistics.mean(latencies), 2) if latencies else 0,
             "estimated_cost": 0,
+            "cache_hits": sum(1 for call in calls if call.get("cache_hit")),
+            "retry_count": sum(1 for call in calls if int(call.get("attempt", 1)) > 1),
         }
 
     def _path(self, task_id: str) -> Path:

@@ -6,9 +6,10 @@ import json
 import statistics
 import time
 import uuid
+from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeoutError
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any, Callable, Dict, List
+from typing import Any, Callable, Dict, List, Tuple
 
 from config import PATHS
 
@@ -22,6 +23,9 @@ class Skill:
     permissions: List[str]
     handler: Callable[[Dict[str, Any]], Dict[str, Any]]
     version: str = "1.1.0"
+    timeout_seconds: float = 8.0
+    cache_ttl_seconds: int = 0
+    failure_threshold: int = 3
 
 
 class SkillRegistry:
@@ -29,6 +33,9 @@ class SkillRegistry:
         self.skills: Dict[str, Skill] = {}
         self.log_file = PATHS["data"] / "skill_runs" / "runs.jsonl"
         self.log_file.parent.mkdir(parents=True, exist_ok=True)
+        self._executor = ThreadPoolExecutor(max_workers=6, thread_name_prefix="audit-skill")
+        self._cache: Dict[str, Tuple[float, Dict[str, Any]]] = {}
+        self._circuits: Dict[str, Dict[str, Any]] = {}
         self._register_builtin_skills()
 
     def list_skills(self) -> List[Dict[str, Any]]:
@@ -40,7 +47,14 @@ class SkillRegistry:
                 "name": skill.name,
                 "description": skill.description,
                 "inputSchema": skill.input_schema,
-                "annotations": {"title": skill.title, "permissions": skill.permissions, "version": skill.version},
+                "annotations": {
+                    "title": skill.title,
+                    "permissions": skill.permissions,
+                    "version": skill.version,
+                    "timeoutSeconds": skill.timeout_seconds,
+                    "cacheTtlSeconds": skill.cache_ttl_seconds,
+                    "failureThreshold": skill.failure_threshold,
+                },
             }
             for skill in self.skills.values()
         ]
@@ -53,13 +67,44 @@ class SkillRegistry:
         started = datetime.now().isoformat()
         start_monotonic = time.perf_counter()
         error_type = ""
-        try:
-            result = skill.handler(payload)
+        cache_hit = False
+        validation_errors = self._validate(payload, skill.input_schema)
+        circuit = self._circuits.setdefault(name, {"failures": 0, "state": "closed", "open_until": 0.0})
+        cache_key = self._cache_key(name, payload)
+
+        if validation_errors:
+            result = {"error": "input validation failed", "details": validation_errors}
+            status = "failed"
+            error_type = "InputValidationError"
+        elif circuit["state"] == "open" and time.time() < float(circuit["open_until"]):
+            result = {"error": "tool circuit is open", "retry_after": round(float(circuit["open_until"]) - time.time(), 2)}
+            status = "failed"
+            error_type = "CircuitOpenError"
+        elif self._cached(cache_key):
+            result = self._cache[cache_key][1]
             status = "success"
+            cache_hit = True
+        else:
+            if circuit["state"] == "open":
+                circuit["state"] = "half_open"
+        try:
+            if not validation_errors and not cache_hit and error_type != "CircuitOpenError":
+                future = self._executor.submit(skill.handler, payload)
+                result = future.result(timeout=skill.timeout_seconds)
+                status = "success"
+                circuit.update({"failures": 0, "state": "closed", "open_until": 0.0})
+                if skill.cache_ttl_seconds > 0:
+                    self._cache[cache_key] = (time.time() + skill.cache_ttl_seconds, result)
+        except FutureTimeoutError:
+            result = {"error": f"tool execution exceeded {skill.timeout_seconds}s"}
+            status = "failed"
+            error_type = "ToolTimeoutError"
+            self._record_failure(skill, circuit)
         except Exception as exc:
             result = {"error": str(exc)}
             status = "failed"
             error_type = exc.__class__.__name__
+            self._record_failure(skill, circuit)
         finished = datetime.now().isoformat()
         duration_ms = round((time.perf_counter() - start_monotonic) * 1000, 2)
         input_size = len(json.dumps(payload, ensure_ascii=False, default=str))
@@ -77,8 +122,12 @@ class SkillRegistry:
             "output_size": output_size,
             "error_type": error_type,
             "estimated_cost": 0,
+            "cache_hit": cache_hit,
+            "circuit_state": circuit["state"],
+            "validation_errors": validation_errors,
         }
-        self.log_file.open("a", encoding="utf-8").write(json.dumps(record, ensure_ascii=False) + "\n")
+        with self.log_file.open("a", encoding="utf-8") as stream:
+            stream.write(json.dumps(record, ensure_ascii=False) + "\n")
         return record
 
     def recent_runs(self, limit: int = 20) -> List[Dict[str, Any]]:
@@ -111,6 +160,15 @@ class SkillRegistry:
             "failures_by_skill": failures_by_skill,
             "volume_by_skill": volume_by_skill,
             "estimated_cost": round(sum(float(run.get("estimated_cost") or 0) for run in runs), 4),
+            "cache_hits": sum(1 for run in runs if run.get("cache_hit")),
+            "circuits": {
+                name: {
+                    "state": state.get("state", "closed"),
+                    "failures": state.get("failures", 0),
+                    "retry_after": max(0, round(float(state.get("open_until", 0)) - time.time(), 2)),
+                }
+                for name, state in self._circuits.items()
+            },
         }
 
     def _register(self, skill: Skill) -> None:
@@ -124,7 +182,51 @@ class SkillRegistry:
             "input_schema": skill.input_schema,
             "permissions": skill.permissions,
             "version": skill.version,
+            "resilience": {
+                "timeout_seconds": skill.timeout_seconds,
+                "cache_ttl_seconds": skill.cache_ttl_seconds,
+                "failure_threshold": skill.failure_threshold,
+            },
         }
+
+    def _cache_key(self, name: str, payload: Dict[str, Any]) -> str:
+        return f"{name}:{json.dumps(payload, ensure_ascii=False, sort_keys=True, default=str)}"
+
+    def _cached(self, cache_key: str) -> bool:
+        cached = self._cache.get(cache_key)
+        if not cached:
+            return False
+        if cached[0] <= time.time():
+            self._cache.pop(cache_key, None)
+            return False
+        return True
+
+    def _record_failure(self, skill: Skill, circuit: Dict[str, Any]) -> None:
+        circuit["failures"] = int(circuit.get("failures", 0)) + 1
+        if circuit["failures"] >= skill.failure_threshold:
+            circuit["state"] = "open"
+            circuit["open_until"] = time.time() + 30
+
+    def _validate(self, payload: Dict[str, Any], schema: Dict[str, Any]) -> List[str]:
+        errors = []
+        for field in schema.get("required", []):
+            if field not in payload or payload[field] in (None, ""):
+                errors.append(f"missing required field: {field}")
+        expected_types = {
+            "string": str,
+            "array": list,
+            "object": dict,
+            "number": (int, float),
+            "integer": int,
+            "boolean": bool,
+        }
+        for field, definition in schema.get("properties", {}).items():
+            if field not in payload:
+                continue
+            expected = expected_types.get(definition.get("type"))
+            if expected and not isinstance(payload[field], expected):
+                errors.append(f"{field} must be {definition.get('type')}")
+        return errors
 
     def _register_builtin_skills(self) -> None:
         self._register(
@@ -181,6 +283,8 @@ class SkillRegistry:
                 input_schema={"type": "object", "properties": {"question": {"type": "string"}}, "required": ["question"]},
                 permissions=["read:knowledge"],
                 handler=self._rag_query,
+                timeout_seconds=12.0,
+                cache_ttl_seconds=120,
             )
         )
         self._register(

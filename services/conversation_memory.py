@@ -1,0 +1,201 @@
+"""File-backed working, episodic, and profile memory for audit conversations."""
+
+from __future__ import annotations
+
+import json
+import re
+import threading
+from datetime import datetime
+from pathlib import Path
+from typing import Any, Dict, List, Optional
+
+from config import PATHS
+
+
+class ConversationMemory:
+    """Persist conversation context without requiring Redis or a vector service."""
+
+    def __init__(self, base_dir: Optional[Path] = None, compress_at: int = 18, retain_recent: int = 8) -> None:
+        self.base_dir = base_dir or PATHS["data"] / "conversation_memory"
+        self.base_dir.mkdir(parents=True, exist_ok=True)
+        self.compress_at = compress_at
+        self.retain_recent = retain_recent
+        self._lock = threading.RLock()
+
+    def context_for(self, session_id: str, message: str) -> Dict[str, Any]:
+        session = self.get_session(session_id) or self._empty(session_id)
+        related = self._related(session.get("messages", []), message)
+        prompt_parts = []
+        if session.get("summary"):
+            prompt_parts.append(f"[会话摘要]\n{session['summary']}")
+        if session.get("profile"):
+            prompt_parts.append(f"[审计画像]\n{json.dumps(session['profile'], ensure_ascii=False)}")
+        if related:
+            prompt_parts.append("[相关历史]\n" + "\n".join(f"- {item['content'][:240]}" for item in related))
+        recent = session.get("messages", [])[-6:]
+        if recent:
+            prompt_parts.append(
+                "[最近对话]\n" + "\n".join(f"{item['role']}: {item['content'][:360]}" for item in recent)
+            )
+        return {
+            "session_id": session_id,
+            "summary": session.get("summary", ""),
+            "profile": session.get("profile", {}),
+            "related_messages": related,
+            "recent_messages": recent,
+            "prompt_text": "\n\n".join(prompt_parts),
+            "memory_layers": {
+                "working": len(session.get("messages", [])),
+                "episodic": len(session.get("episodes", [])),
+                "profile_fields": len(session.get("profile", {})),
+            },
+        }
+
+    def record_turn(
+        self,
+        session_id: str,
+        user_message: str,
+        assistant_message: str,
+        metadata: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        with self._lock:
+            session = self.get_session(session_id) or self._empty(session_id)
+            now = datetime.now().isoformat()
+            session["messages"].extend(
+                [
+                    {"role": "user", "content": user_message, "at": now},
+                    {"role": "assistant", "content": assistant_message, "at": now},
+                ]
+            )
+            session["profile"] = self._update_profile(session.get("profile", {}), user_message, metadata or {})
+            session["turns"] = int(session.get("turns", 0)) + 1
+            session["updated_at"] = now
+            if len(session["messages"]) >= self.compress_at:
+                self._compress(session)
+            self._write(session)
+            return self._summary(session)
+
+    def get_session(self, session_id: str) -> Optional[Dict[str, Any]]:
+        path = self._path(session_id)
+        if not path.exists():
+            return None
+        try:
+            return json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            return None
+
+    def list_sessions(self, limit: int = 20) -> List[Dict[str, Any]]:
+        files = sorted(self.base_dir.glob("*.json"), key=lambda item: item.stat().st_mtime, reverse=True)
+        sessions = []
+        for path in files[: max(limit, 1)]:
+            try:
+                sessions.append(self._summary(json.loads(path.read_text(encoding="utf-8"))))
+            except (OSError, json.JSONDecodeError):
+                continue
+        return sessions
+
+    def stats(self) -> Dict[str, Any]:
+        sessions = self.list_sessions(limit=1000)
+        return {
+            "sessions": len(sessions),
+            "turns": sum(int(item.get("turns", 0)) for item in sessions),
+            "working_messages": sum(int(item.get("working_messages", 0)) for item in sessions),
+            "episodes": sum(int(item.get("episodes", 0)) for item in sessions),
+        }
+
+    def _empty(self, session_id: str) -> Dict[str, Any]:
+        now = datetime.now().isoformat()
+        return {
+            "session_id": session_id,
+            "summary": "",
+            "profile": {},
+            "messages": [],
+            "episodes": [],
+            "turns": 0,
+            "created_at": now,
+            "updated_at": now,
+        }
+
+    def _compress(self, session: Dict[str, Any]) -> None:
+        archived = session["messages"][:-self.retain_recent]
+        if not archived:
+            return
+        user_points = [item["content"] for item in archived if item.get("role") == "user"][-5:]
+        assistant_points = [item["content"] for item in archived if item.get("role") == "assistant"][-3:]
+        summary = "；".join([*user_points, *assistant_points])
+        summary = re.sub(r"\s+", " ", summary)[:1400]
+        previous = session.get("summary", "")
+        session["summary"] = (f"{previous}；{summary}" if previous else summary)[-2200:]
+        session.setdefault("episodes", []).append(
+            {
+                "episode_id": f"EP-{len(session.get('episodes', [])) + 1:04d}",
+                "summary": summary,
+                "message_count": len(archived),
+                "created_at": datetime.now().isoformat(),
+            }
+        )
+        session["episodes"] = session["episodes"][-20:]
+        session["messages"] = session["messages"][-self.retain_recent:]
+
+    def _update_profile(self, profile: Dict[str, Any], message: str, metadata: Dict[str, Any]) -> Dict[str, Any]:
+        updated = dict(profile)
+        standards = set(updated.get("standards", []))
+        for standard in ("ISO27001", "SOX", "COBIT", "数据安全法"):
+            if standard.lower() in message.lower():
+                standards.add(standard)
+        topics = set(updated.get("risk_topics", []))
+        for topic in ("权限", "账号", "变更", "日志", "数据", "备份", "接口", "财务", "供应商"):
+            if topic in message:
+                topics.add(topic)
+        systems = set(updated.get("systems", []))
+        systems.update(
+            re.findall(r"[\w\u4e00-\u9fff-]{1,24}(?:ERP|CRM|OA|系统|平台|数据库)", message, flags=re.IGNORECASE)
+        )
+        updated.update(
+            {
+                "standards": sorted(standards),
+                "risk_topics": sorted(topics),
+                "systems": sorted(systems)[:12],
+                "last_intent": metadata.get("intent") or updated.get("last_intent"),
+                "last_agents": metadata.get("agents") or updated.get("last_agents", []),
+                "updated_at": datetime.now().isoformat(),
+            }
+        )
+        return updated
+
+    def _related(self, messages: List[Dict[str, Any]], query: str) -> List[Dict[str, Any]]:
+        query_tokens = self._tokens(query)
+        ranked = []
+        for item in messages[:-2]:
+            tokens = self._tokens(str(item.get("content", "")))
+            if not query_tokens or not tokens:
+                continue
+            score = len(query_tokens & tokens) / max(len(query_tokens | tokens), 1)
+            if score >= 0.08:
+                ranked.append((score, item))
+        ranked.sort(key=lambda pair: pair[0], reverse=True)
+        return [{**item, "score": round(score, 3)} for score, item in ranked[:3]]
+
+    def _tokens(self, text: str) -> set[str]:
+        return set(re.findall(r"[a-z0-9_]+|[\u4e00-\u9fff]{1,4}", text.lower()))
+
+    def _summary(self, session: Dict[str, Any]) -> Dict[str, Any]:
+        return {
+            "session_id": session.get("session_id"),
+            "turns": session.get("turns", 0),
+            "working_messages": len(session.get("messages", [])),
+            "episodes": len(session.get("episodes", [])),
+            "profile": session.get("profile", {}),
+            "summary": session.get("summary", ""),
+            "updated_at": session.get("updated_at"),
+        }
+
+    def _path(self, session_id: str) -> Path:
+        safe_id = re.sub(r"[^a-zA-Z0-9_-]", "_", session_id)[:120] or "session"
+        return self.base_dir / f"{safe_id}.json"
+
+    def _write(self, session: Dict[str, Any]) -> None:
+        target = self._path(str(session["session_id"]))
+        temporary = target.with_suffix(".tmp")
+        temporary.write_text(json.dumps(session, ensure_ascii=False, indent=2), encoding="utf-8")
+        temporary.replace(target)

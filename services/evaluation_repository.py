@@ -19,13 +19,15 @@ class EvaluationRunRepository:
     def create_run(self, run_type: str, payload: Dict[str, Any], results: Dict[str, Any]) -> Dict[str, Any]:
         run_id = f"EV-{datetime.now().strftime('%Y%m%d-%H%M%S')}-{uuid.uuid4().hex[:6].upper()}"
         metrics = self._extract_metrics(run_type, results)
+        comparison = self._compare_with_baseline(run_type, metrics)
         record = {
             "run_id": run_id,
             "run_type": run_type,
             "created_at": datetime.now().isoformat(),
             "payload_summary": self._payload_summary(payload),
             "metrics": metrics,
-            "release_gate": self._release_gate(metrics),
+            "comparison": comparison,
+            "release_gate": self._release_gate(metrics, comparison),
             "results": results,
         }
         self._path(run_id).write_text(json.dumps(record, ensure_ascii=False, indent=2), encoding="utf-8")
@@ -46,6 +48,7 @@ class EvaluationRunRepository:
                     "created_at": record.get("created_at"),
                     "payload_summary": record.get("payload_summary", {}),
                     "metrics": record.get("metrics", {}),
+                    "comparison": record.get("comparison", {}),
                     "release_gate": record.get("release_gate", {}),
                 }
             )
@@ -106,7 +109,34 @@ class EvaluationRunRepository:
             "avg_latency_ms": metrics.get("avg_latency_ms"),
         }
 
-    def _release_gate(self, metrics: Dict[str, Any]) -> Dict[str, Any]:
+    def _compare_with_baseline(self, run_type: str, metrics: Dict[str, Any]) -> Dict[str, Any]:
+        baseline = next((item for item in self.list_runs(limit=100) if item.get("run_type") == run_type), None)
+        if not baseline:
+            return {"baseline_run_id": None, "deltas": {}, "regressions": [], "status": "baseline_created"}
+        previous = baseline.get("metrics", {})
+        deltas: Dict[str, Any] = {}
+        regressions = []
+        for key in ("overall_score", "pass_rate"):
+            current_value = float(metrics.get(key) or 0)
+            previous_value = float(previous.get(key) or 0)
+            delta = round(current_value - previous_value, 4)
+            deltas[key] = delta
+            if previous_value and delta < -0.05:
+                regressions.append(f"{key} 较基线下降 {abs(delta):.1%}")
+        current_latency = metrics.get("avg_latency_ms")
+        previous_latency = previous.get("avg_latency_ms")
+        if isinstance(current_latency, (int, float)) and isinstance(previous_latency, (int, float)):
+            deltas["avg_latency_ms"] = round(float(current_latency) - float(previous_latency), 2)
+            if previous_latency and current_latency > previous_latency * 1.25:
+                regressions.append("平均延迟较基线上升超过 25%")
+        return {
+            "baseline_run_id": baseline.get("run_id"),
+            "deltas": deltas,
+            "regressions": regressions,
+            "status": "regression" if regressions else "stable",
+        }
+
+    def _release_gate(self, metrics: Dict[str, Any], comparison: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         score = float(metrics.get("overall_score") or 0)
         pass_rate = float(metrics.get("pass_rate") or 0)
         regressions = int(metrics.get("regression_count") or 0)
@@ -117,6 +147,8 @@ class EvaluationRunRepository:
             blockers.append("通过率低于 70%。")
         if regressions > 0:
             blockers.append("存在需要处理的回归风险。")
+        if comparison and comparison.get("regressions"):
+            blockers.extend(comparison["regressions"])
         if not blockers:
             status = "pass"
             label = "可发布"
@@ -130,5 +162,7 @@ class EvaluationRunRepository:
             "status": status,
             "label": label,
             "blockers": blockers,
+            "baseline_run_id": (comparison or {}).get("baseline_run_id"),
+            "deltas": (comparison or {}).get("deltas", {}),
             "thresholds": {"overall_score": 0.75, "pass_rate": 0.7, "regression_count": 0},
         }

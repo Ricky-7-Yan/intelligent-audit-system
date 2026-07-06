@@ -277,14 +277,28 @@ class AuditAgent:
             logger.warning("LLM client initialization failed: %s", exc)
             return None
 
-    def process_audit_query(self, user_input: str, session_id: Optional[str] = None) -> Dict[str, Any]:
+    def process_audit_query(
+        self,
+        user_input: str,
+        session_id: Optional[str] = None,
+        external_context: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
         session_id = session_id or f"session_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
         self.session_memory.setdefault(session_id, [])
         self.session_memory[session_id].append(HumanMessage(content=user_input))
         self._trim_session(session_id)
 
         trace: List[Dict[str, Any]] = []
-        audit_context = self._extract_context(user_input)
+        audit_context = self._extract_context(user_input, external_context)
+        if external_context and external_context.get("memory_layers"):
+            layers = external_context["memory_layers"]
+            trace.append(
+                self._trace(
+                    "memory",
+                    "loaded",
+                    f"工作记忆 {layers.get('working', 0)} 条，情景记忆 {layers.get('episodic', 0)} 条",
+                )
+            )
         task_plan = self._create_task_plan(audit_context)
         trace.append(self._trace("planner", "generated", f"生成 {len(task_plan)} 个审计任务"))
 
@@ -342,25 +356,40 @@ class AuditAgent:
         max_messages = AUDIT_CONFIG["max_session_messages"]
         self.session_memory[session_id] = self.session_memory[session_id][-max_messages:]
 
-    def _extract_context(self, text: str) -> Dict[str, Any]:
-        normalized = text.upper()
+    def _extract_context(self, text: str, external_context: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        external_context = external_context or {}
+        profile = external_context.get("profile") or {}
+        memory_text = " ".join(
+            [
+                str(external_context.get("summary") or ""),
+                " ".join(str(item.get("content") or "") for item in external_context.get("related_messages", [])),
+                " ".join(str(item) for item in profile.get("standards", [])),
+                " ".join(str(item) for item in profile.get("risk_topics", [])),
+                " ".join(str(item) for item in profile.get("systems", [])),
+            ]
+        )
+        enriched_text = f"{text} {memory_text}".strip()
+        normalized = enriched_text.upper()
         standards = [key for key in AUDIT_STANDARDS if key.upper() in normalized]
         if "ISO" in normalized and "ISO27001" not in standards:
             standards.append("ISO27001")
 
         audit_types = []
         for keyword in ["安全审计", "合规审计", "风险评估", "内部控制审计", "数据审计", "财务审计"]:
-            if keyword in text:
+            if keyword in enriched_text:
                 audit_types.append(keyword)
 
         item = self._guess_audit_item(text)
-        topics = [key for key in RISK_KEYWORDS if key in text or key in item]
+        if item == "待审计对象" and profile.get("systems"):
+            item = str(profile["systems"][-1])
+        topics = [key for key in RISK_KEYWORDS if key in enriched_text or key in item]
         return {
             "audit_item": item,
             "audit_types": audit_types or ["综合审计分析"],
-            "standards": standards or self._infer_standards(text),
+            "standards": standards or self._infer_standards(enriched_text),
             "key_risk_topics": topics,
-            "business_domain": self._business_domain(text, topics),
+            "business_domain": self._business_domain(enriched_text, topics),
+            "memory_grounded": bool(memory_text),
             "generated_at": datetime.now().isoformat(),
         }
 

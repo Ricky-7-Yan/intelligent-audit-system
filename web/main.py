@@ -24,8 +24,10 @@ from services.agent_runtime import AgentRuntime
 from services.audit_delivery import AuditDeliveryService
 from services.audit_repository import AuditRunRepository
 from services.audit_templates import list_audit_templates
+from services.conversation_memory import ConversationMemory
 from services.evaluation_repository import EvaluationRunRepository
 from services.evidence_analyzer import EvidenceAnalyzer
+from services.intent_router import HybridIntentRouter
 from services.product_insights import ProductInsights
 from services.rag_evaluator import RAGEvaluator
 from services.research_agent import AuditResearchAgent
@@ -47,6 +49,8 @@ product_insights = ProductInsights(audit_repository, skill_registry)
 audit_delivery = AuditDeliveryService(audit_repository)
 evaluation_repository = EvaluationRunRepository()
 evidence_analyzer = EvidenceAnalyzer()
+conversation_memory = ConversationMemory()
+intent_router = HybridIntentRouter()
 
 
 @asynccontextmanager
@@ -66,7 +70,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="审脉 AuditPilot",
     description="面向审计交付场景的 Agentic RAG、风险评估、控制测试和整改闭环系统",
-    version="3.0.0",
+    version="4.0.0",
     lifespan=lifespan,
 )
 
@@ -86,6 +90,10 @@ class ChatRequest(BaseModel):
     message: str = Field(..., min_length=1, max_length=8000)
     session_id: Optional[str] = None
     context: Optional[Dict[str, Any]] = None
+
+
+class RoutePreviewRequest(BaseModel):
+    message: str = Field(..., min_length=1, max_length=8000)
 
 
 class AuditRequest(BaseModel):
@@ -242,8 +250,29 @@ async def skills_page(request: Request):
 @app.post("/api/chat")
 async def chat_api(request: ChatRequest, agent: AuditAgent = Depends(get_audit_agent)):
     session_id = request.session_id or str(uuid.uuid4())
-    result = agent.process_audit_query(request.message, session_id=session_id)
-    return {"success": True, "session_id": session_id, "timestamp": datetime.now().isoformat(), **result}
+    routing = intent_router.classify(request.message)
+    memory_context = conversation_memory.context_for(session_id, request.message)
+    if request.context:
+        memory_context["request_context"] = request.context
+        memory_context["prompt_text"] = (
+            f"{memory_context.get('prompt_text', '')}\n\n[请求上下文]\n"
+            f"{json.dumps(request.context, ensure_ascii=False)}"
+        ).strip()
+    result = agent.process_audit_query(request.message, session_id=session_id, external_context=memory_context)
+    memory = conversation_memory.record_turn(
+        session_id,
+        request.message,
+        result.get("response", ""),
+        {"intent": routing["intent"], "agents": routing["agents"]},
+    )
+    return {
+        "success": True,
+        "session_id": session_id,
+        "routing": routing,
+        "memory": memory,
+        "timestamp": datetime.now().isoformat(),
+        **result,
+    }
 
 
 @app.post("/api/audit")
@@ -429,6 +458,29 @@ async def agent_task_add_step_api(task_id: str, request: AgentTaskStepRequest):
 @app.get("/api/agent/observability")
 async def agent_observability_api():
     return {"success": True, "observability": agent_runtime.observability(), "timestamp": datetime.now().isoformat()}
+
+
+@app.post("/api/agent/route")
+async def agent_route_preview_api(request: RoutePreviewRequest):
+    return {"success": True, "routing": intent_router.classify(request.message), "timestamp": datetime.now().isoformat()}
+
+
+@app.get("/api/memory/sessions")
+async def memory_sessions_api(limit: int = 20):
+    return {
+        "success": True,
+        "sessions": conversation_memory.list_sessions(limit),
+        "stats": conversation_memory.stats(),
+        "timestamp": datetime.now().isoformat(),
+    }
+
+
+@app.get("/api/memory/sessions/{session_id}")
+async def memory_session_detail_api(session_id: str):
+    session = conversation_memory.get_session(session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="会话记忆不存在")
+    return {"success": True, "session": session, "timestamp": datetime.now().isoformat()}
 
 
 @app.get("/api/audit/runs")
@@ -678,7 +730,14 @@ async def evaluation_run_detail_api(run_id: str):
 
 @app.get("/api/session/history/{session_id}")
 async def get_session_history(session_id: str, agent: AuditAgent = Depends(get_audit_agent)):
-    return {"success": True, "session_id": session_id, "history": agent.get_session_history(session_id), "timestamp": datetime.now().isoformat()}
+    persistent = conversation_memory.get_session(session_id)
+    return {
+        "success": True,
+        "session_id": session_id,
+        "history": agent.get_session_history(session_id),
+        "persistent_memory": persistent,
+        "timestamp": datetime.now().isoformat(),
+    }
 
 
 @app.get("/api/health")
@@ -691,12 +750,14 @@ async def health_check():
         "rag_documents": 0,
         "agent_runtime": True,
         "skills": len(skill_registry.skills),
+        "intent_router": True,
+        "memory": conversation_memory.stats(),
     }
     if audit_agent is not None:
         services.update(audit_agent.get_service_status())
     if rag_pipeline is not None:
         services["rag_documents"] = rag_pipeline.get_statistics().get("total_documents", 0)
-    return JSONResponse(content={"status": "healthy", "timestamp": datetime.now().isoformat(), "version": "3.0.0", "services": services})
+    return JSONResponse(content={"status": "healthy", "timestamp": datetime.now().isoformat(), "version": "4.0.0", "services": services})
 
 
 if __name__ == "__main__":
