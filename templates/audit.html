@@ -62,8 +62,8 @@
             <button class="btn primary" id="runAudit">&#36816;&#34892; Agent &#23457;&#35745;</button>
             <button class="btn" id="loadControls">&#26597;&#30475;&#25511;&#21046;&#24211;</button>
             <button class="btn" id="runResearch">Deep Research</button>
-            <a class="btn" id="downloadReport" href="#" target="_blank">&#19979;&#36733;&#25253;&#21578;</a>
-            <a class="btn" id="downloadDelivery" href="#" target="_blank">&#19979;&#36733;&#20132;&#20184;&#21253;</a>
+            <a class="btn" id="downloadReport" href="#" target="_blank" onclick="return ensureDownloadReady(event)">&#19979;&#36733;&#25253;&#21578;</a>
+            <a class="btn" id="downloadDelivery" href="#" target="_blank" onclick="return ensureDownloadReady(event)">&#19979;&#36733;&#20132;&#20184;&#21253;</a>
           </div>
           <div class="section-title"><div><h2>&#39640;&#39057;&#23457;&#35745;&#22330;&#26223;</h2><p>&#27169;&#26495;&#35206;&#30422; ITGC&#12289;ERP &#26435;&#38480;&#12289;&#25968;&#25454;&#23433;&#20840;&#12289;&#21464;&#26356;&#21457;&#24067;&#12289;&#22791;&#20221;&#24674;&#22797;&#21644;&#31532;&#19977;&#26041;&#26381;&#21153;&#12290;</p></div></div>
           <div class="scenario-grid" id="scenarioGrid"></div>
@@ -141,7 +141,7 @@
       </section>
     </main>
   </div>
-  <script src="../static/app.js"></script>
-  <script src="../static/audit.js"></script>
+  <script src="../static/app.js?v=4.1.0"></script>
+  <script src="../static/audit.js?v=4.1.0"></script>
 </body>
 </html>

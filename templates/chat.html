@@ -51,17 +51,103 @@
 
     </main>
   </div>
-  <script src="../static/app.js"></script>
+  <script src="../static/app.js?v=4.1.0"></script>
 
   <script>
     let sessionId = `session_${Date.now()}_${Math.random().toString(36).slice(2)}`;
     let messageCount = 0;
     setText("#sessionId", sessionId);
-    function addMessage(content, type) { const box = qs("#chatBox"); box.appendChild(el("div", { class: `message ${type}`, text: content })); box.scrollTop = box.scrollHeight; }
+    function addMessage(content, type) {
+      const box = qs("#chatBox");
+      const message = el("div", { class: `message ${type}` });
+      if (type === "ai") setMarkdown(message, content);
+      else message.textContent = content;
+      box.appendChild(message);
+      box.scrollTop = box.scrollHeight;
+      return message;
+    }
+    function addThinkingMessage() {
+      const steps = ["识别审计意图", "调度协作 Agent", "检索证据与控制库", "执行风险评估", "整理结构化结论"];
+      const box = qs("#chatBox");
+      const message = el("div", { class: "message ai typing-message" }, [
+        el("div", { class: "typing-title", text: "AuditPilot 正在协同分析" }),
+        el("div", { class: "typing-dots" }, [el("span"), el("span"), el("span")]),
+        el("div", { class: "typing-step", text: steps[0] }),
+      ]);
+      box.appendChild(message);
+      box.scrollTop = box.scrollHeight;
+      let index = 0;
+      const timer = setInterval(() => {
+        if (!document.body.contains(message)) {
+          clearInterval(timer);
+          return;
+        }
+        index = (index + 1) % steps.length;
+        setText(".typing-step", steps[index], message);
+      }, 760);
+      message._stop = () => clearInterval(timer);
+      return message;
+    }
+    function removeThinking(message) {
+      if (!message) return;
+      if (typeof message._stop === "function") message._stop();
+      message.remove();
+    }
     function renderContext(context) { const node = qs("#auditContext"); clearNode(node); Object.entries(context || {}).forEach(([key, value]) => node.appendChild(el("div", { class: "item" }, [el("strong", { text: key }), el("div", { class: "muted", text: Array.isArray(value) ? value.join("、") : String(value) })]))); if (!node.childElementCount) node.appendChild(el("p", { class: "muted", text: "暂无上下文" })); }
     function renderRisk(result) { const node = qs("#riskPanel"); clearNode(node); const risk = result.risk_assessment; const quality = result.quality_gate; if (!risk) return node.appendChild(el("p", { class: "muted", text: "暂无风险评估" })); node.appendChild(el("div", { class: "item" }, [riskBadge(risk.risk_level), el("div", { class: "mt-12", text: `风险评分：${risk.risk_score}` }), el("div", { class: "muted", text: `控制抵减：${risk.control_reduction || 0}` })])); if (quality) node.appendChild(el("div", { class: "item" }, [el("strong", { text: `质量门：${quality.status}` }), el("div", { class: "muted", text: `置信度：${quality.confidence}；缺失证据：${(quality.missing_evidence || []).join("、") || "无"}` })])); }
     function renderRoutingAndMemory(data) { const node = qs("#routingPanel"); clearNode(node); const routing = data.routing || {}; node.appendChild(el("div", { class: "item" }, [el("strong", { text: `${routing.intent || "general_audit"} · ${Math.round((routing.confidence || 0) * 100)}%` }), el("div", { class: "muted", text: `协作 Agent：${(routing.agents || []).join(" → ") || "audit_agent"}` }), el("div", { class: "tag-row mt-12" }, [riskBadge(routing.urgency === "critical" ? "紧急" : routing.multi_agent ? "多 Agent" : "单 Agent")]) ])); const layers = data.memory?.memory_layers || data.persistent_memory?.memory_layers || {}; setText("#workingMemory", layers.working ?? data.memory?.working_messages ?? 0); setText("#episodicMemory", layers.episodic ?? data.memory?.episodes ?? 0); setText("#profileFields", layers.profile_fields ?? Object.keys(data.memory?.profile || {}).length); }
     async function sendMessage() { const input = qs("#messageInput"); const message = input.value.trim(); if (!message) return; addMessage(message, "user"); input.value = ""; addMessage("正在执行融合路由、读取记忆、检索证据并评估风险...", "ai"); try { const data = await apiFetch("/api/chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ message, session_id: sessionId }) }); qs("#chatBox").lastChild.remove(); addMessage(data.response, "ai"); renderContext(data.audit_context); renderRisk(data); renderRoutingAndMemory(data); messageCount += 2; setText("#messageCount", messageCount); } catch (error) { qs("#chatBox").lastChild.remove(); addMessage(`请求失败：${error.message}`, "ai"); } }
+    function renderRoutingAndMemory(data) {
+      const node = qs("#routingPanel");
+      clearNode(node);
+      const routing = data.routing || {};
+      const plan = routing.collaboration_plan || [];
+      const agents = routing.agents || [];
+      node.appendChild(el("div", { class: "item" }, [
+        el("strong", { text: `${routing.intent || "general_audit"} · ${Math.round((routing.confidence || 0) * 100)}%` }),
+        el("div", { class: "agent-chain mt-12" }, agents.map((agent, index) => el("span", { class: "agent-chip", text: `${index + 1}. ${agent}` }))),
+        el("div", { class: "tag-row mt-12" }, [
+          riskBadge(routing.urgency === "critical" ? "紧急" : routing.multi_agent ? "多 Agent" : "单 Agent"),
+          el("span", { class: "badge", text: `${agents.length || 1} 个协作角色` }),
+        ]),
+      ]));
+      if (plan.length) {
+        node.appendChild(el("div", { class: "list dense mt-12" }, plan.map((step) => el("div", { class: "item compact" }, [
+          el("strong", { text: step.agent }),
+          el("div", { class: "muted", text: step.responsibility }),
+        ]))));
+      }
+      const layers = data.memory?.memory_layers || data.persistent_memory?.memory_layers || {};
+      setText("#workingMemory", layers.working ?? data.memory?.working_messages ?? 0);
+      setText("#episodicMemory", layers.episodic ?? data.memory?.episodes ?? 0);
+      setText("#profileFields", layers.profile_fields ?? Object.keys(data.memory?.profile || {}).length);
+    }
+    async function sendMessage() {
+      const input = qs("#messageInput");
+      const message = input.value.trim();
+      if (!message) return;
+      addMessage(message, "user");
+      input.value = "";
+      const thinking = addThinkingMessage();
+      try {
+        const data = await apiFetch("/api/chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ message, session_id: sessionId }),
+        });
+        removeThinking(thinking);
+        addMessage(data.response, "ai");
+        renderContext(data.audit_context);
+        renderRisk(data);
+        renderRoutingAndMemory(data);
+        messageCount += 2;
+        setText("#messageCount", messageCount);
+      } catch (error) {
+        removeThinking(thinking);
+        addMessage(`请求失败：${error.message}`, "ai");
+        showToast(`请求失败：${error.message}`, "error");
+      }
+    }
     qs("#sendBtn").addEventListener("click", sendMessage);
     qs("#messageInput").addEventListener("keydown", (event) => { if (event.key === "Enter") sendMessage(); });
     qs("#clearBtn").addEventListener("click", () => location.reload());

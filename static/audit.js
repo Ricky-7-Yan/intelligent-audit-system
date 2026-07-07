@@ -199,7 +199,7 @@ function renderControlTests(items) {
 }
 
 function renderResult(result) {
-  setText("#auditResult", result.response);
+  setMarkdown("#auditResult", result.response);
   setText("#riskLevelCard", result.risk_assessment.risk_level);
   setText("#riskScoreCard", result.risk_assessment.risk_score);
   setText("#complianceCard", result.compliance_check.compliance_score);
@@ -396,10 +396,36 @@ async function loadRuns() {
 async function loadRunDetail(runId) {
   const data = await apiFetch(`/api/audit/runs/${encodeURIComponent(runId)}`);
   currentRunId = runId;
-  qs("#downloadReport").href = serviceUrl(`/api/audit/runs/${encodeURIComponent(runId)}/report.md`);
-  qs("#downloadDelivery").href = serviceUrl(`/api/audit/runs/${encodeURIComponent(runId)}/delivery.md`);
+  setDownloadLinks(runId);
   renderRunRecord(data.run);
   loadDelivery(runId);
+}
+
+function setDownloadLinks(runId) {
+  const report = qs("#downloadReport");
+  const delivery = qs("#downloadDelivery");
+  if (!runId) {
+    if (report) report.href = "#";
+    if (delivery) delivery.href = "#";
+    return;
+  }
+  if (report) {
+    report.href = serviceUrl(`/api/audit/runs/${encodeURIComponent(runId)}/report.md`);
+    report.setAttribute("download", `${runId}-audit-report.md`);
+  }
+  if (delivery) {
+    delivery.href = serviceUrl(`/api/audit/runs/${encodeURIComponent(runId)}/delivery.md`);
+    delivery.setAttribute("download", `${runId}-delivery-pack.md`);
+  }
+}
+
+function ensureDownloadReady(event) {
+  if (currentRunId) return true;
+  event.preventDefault();
+  const message = "请先运行或选择一个审计项目，系统生成报告后即可下载。";
+  setText("#reviewResult", message);
+  showToast(message, "error");
+  return false;
 }
 
 async function runAudit() {
@@ -469,6 +495,105 @@ async function runResearch() {
   } catch (error) {
     clearNode(node);
     node.appendChild(el("div", { class: "item muted", text: `Deep Research 失败：${error.message}` }));
+  }
+}
+
+async function runAudit() {
+  const button = qs("#runAudit");
+  button.disabled = true;
+  button.textContent = "运行中...";
+  setMarkdown("#auditResult", "### 正在运行企业级审计 Agent\n\n- 规划审计范围与任务\n- 检索控制库、证据线索和标准要求\n- 执行风险评估、质量门和整改计划\n\n请稍候，结果生成后会自动刷新。");
+  showToast("审计任务已启动，正在协同分析。");
+  renderTrace([
+    { stage: "planner", status: "running", detail: "生成审计范围、任务分工和工作底稿路径" },
+    { stage: "evidence_agent", status: "queued", detail: "准备检索证据与控制库" },
+    { stage: "risk_agent", status: "queued", detail: "等待风险评估与质量门" },
+  ]);
+  try {
+    const data = await apiFetch("/api/audit", {
+      method: "POST",
+      headers: { "Content-Type": "application/json; charset=utf-8" },
+      body: JSON.stringify({
+        audit_item: qs("#auditItem").value,
+        audit_type: qs("#auditType").value,
+        standard_type: qs("#standardType").value,
+        risk_level: qs("#riskLevel").value,
+        business_context: qs("#businessContext").value,
+        audit_scope: qs("#auditScope").value,
+        audit_period: qs("#auditPeriod").value,
+        key_questions: qs("#keyQuestions").value,
+        existing_evidence: qs("#existingEvidence").value,
+      }),
+    });
+    currentRunId = data.run_id;
+    setDownloadLinks(currentRunId);
+    renderRunRecord(data.run);
+    loadRuns();
+    loadDelivery(currentRunId);
+    showToast("审计报告与交付包已生成，可以下载。", "success");
+  } catch (error) {
+    setText("#auditResult", `分析失败：${error.message}`);
+    showToast(`分析失败：${error.message}`, "error");
+  } finally {
+    button.disabled = false;
+    button.textContent = "运行 Agent 审计";
+  }
+}
+
+async function runResearch() {
+  const node = qs("#researchPanel");
+  const button = qs("#runResearch");
+  if (button) {
+    button.disabled = true;
+    button.textContent = "Research 中...";
+  }
+  clearNode(node);
+  node.appendChild(el("div", { class: "item compact" }, [
+    el("strong", { text: "Deep Research 正在执行" }),
+    el("div", { class: "skeleton-lines mt-12" }, [
+      el("div", { class: "skeleton-line" }),
+      el("div", { class: "skeleton-line", style: "width:82%" }),
+      el("div", { class: "skeleton-line", style: "width:64%" }),
+    ]),
+  ]));
+  node.scrollIntoView({ behavior: "smooth", block: "start" });
+  showToast("Deep Research 已启动，正在融合来源与证据。");
+  try {
+    const question = `${qs("#auditItem").value} 如何开展 ${qs("#auditType").value}，需要哪些证据、控制测试和复核条件？`;
+    const data = await apiFetch("/api/research/answer", {
+      method: "POST",
+      headers: { "Content-Type": "application/json; charset=utf-8" },
+      body: JSON.stringify({ question, context: { standard_type: qs("#standardType").value } }),
+    });
+    const result = data.result;
+    clearNode(node);
+    const answer = el("div", { class: "markdown-body muted" });
+    setMarkdown(answer, result.answer || "");
+    node.appendChild(el("div", { class: "item" }, [
+      el("strong", { text: "研究结论" }),
+      answer,
+    ]));
+    node.appendChild(el("div", { class: "grid grid-3" }, [
+      el("div", { class: "card metric" }, [el("div", { class: "metric-value small", text: String(result.query_rewrites?.length || 0) }), el("div", { class: "metric-label", text: "查询改写" })]),
+      el("div", { class: "card metric" }, [el("div", { class: "metric-value small", text: String(result.sources?.length || 0) }), el("div", { class: "metric-label", text: "融合来源" })]),
+      el("div", { class: "card metric" }, [el("div", { class: "metric-value small", text: String(result.evaluation?.faithfulness ?? "-") }), el("div", { class: "metric-label", text: "真实性评分" })]),
+    ]));
+    (result.reasoning_trace || []).forEach((step) => {
+      node.appendChild(el("div", { class: "item compact" }, [
+        el("strong", { text: `${step.stage} · ${step.action}` }),
+        el("div", { class: "muted", text: step.output }),
+      ]));
+    });
+    showToast("Deep Research 已完成。", "success");
+  } catch (error) {
+    clearNode(node);
+    node.appendChild(el("div", { class: "item muted", text: `Deep Research 失败：${error.message}` }));
+    showToast(`Deep Research 失败：${error.message}`, "error");
+  } finally {
+    if (button) {
+      button.disabled = false;
+      button.textContent = "Deep Research";
+    }
   }
 }
 
@@ -579,4 +704,23 @@ document.addEventListener("DOMContentLoaded", () => {
   loadTemplates();
   loadRuns();
   loadEvidenceAnalyses();
+});
+
+document.addEventListener("DOMContentLoaded", () => {
+  qs("#downloadReport")?.addEventListener("click", ensureDownloadReady);
+  qs("#downloadDelivery")?.addEventListener("click", ensureDownloadReady);
+  qs("#loadControls")?.addEventListener("click", async () => {
+    setText("#reviewResult", "正在加载控制库...");
+    try {
+      const data = await apiFetch("/api/audit/controls");
+      renderMatrix(data.controls);
+      setText("#reviewResult", `控制库已加载：${(data.controls || []).length} 条控制。`);
+      qs("#controlMatrix")?.scrollIntoView({ behavior: "smooth", block: "start" });
+      showToast("控制库已刷新。", "success");
+    } catch (error) {
+      setText("#reviewResult", `控制库加载失败：${error.message}`);
+      showToast(`控制库加载失败：${error.message}`, "error");
+    }
+  });
+  setDownloadLinks(currentRunId);
 });

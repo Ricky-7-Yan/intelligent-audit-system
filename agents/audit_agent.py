@@ -325,6 +325,10 @@ class AuditAgent:
             recommendations,
             quality_gate,
         )
+        response = self._clean_response(response)
+        trace.append(self._trace("risk_agent", "completed", f"风险等级 {risk_assessment['risk_level']} / 评分 {risk_assessment['risk_score']}"))
+        trace.append(self._trace("compliance_agent", "completed", f"合规评分 {compliance_check['compliance_score']}"))
+        trace.append(self._trace("remediation_agent", "completed", f"生成 {len(recommendations)} 条整改建议"))
         trace.append(self._trace("quality_gate", quality_gate["status"], f"置信度 {quality_gate['confidence']}"))
 
         self.session_memory[session_id].append(AIMessage(content=response))
@@ -765,6 +769,19 @@ class AuditAgent:
         )
         return recommendations[:6]
 
+    def _clean_response(self, response: str) -> str:
+        lines = []
+        for raw in str(response or "").replace("\r\n", "\n").split("\n"):
+            line = raw.rstrip()
+            if line.strip() in {"---", "***", "___"}:
+                continue
+            lines.append(line)
+        cleaned = "\n".join(lines)
+        cleaned = cleaned.replace("#### ", "### ")
+        while "\n\n\n" in cleaned:
+            cleaned = cleaned.replace("\n\n\n", "\n\n")
+        return cleaned.strip()
+
     def _compose_response(
         self,
         user_input: str,
@@ -805,6 +822,7 @@ class AuditAgent:
         system = (
             "你是企业智能审计 Agent。必须基于结构化事实回答，不编造证据。"
             "输出包含结论、风险、合规依据、证据缺口、整改动作和需要人工复核的点。"
+            "请使用干净的 Markdown：不要输出单独的 --- 分隔符，不要堆砌 ### 或 **；如有表格必须使用标准 Markdown 表格。"
         )
         payload = {
             "audit_context": audit_context,

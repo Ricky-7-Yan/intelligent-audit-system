@@ -32,6 +32,151 @@ function el(tag, attrs = {}, children = []) {
   return node;
 }
 
+function escapeHtml(value = "") {
+  return String(value)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
+function renderInlineMarkdown(value = "") {
+  let text = escapeHtml(value);
+  text = text.replace(/`([^`]+)`/g, "<code>$1</code>");
+  text = text.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
+  text = text.replace(/__([^_]+)__/g, "<strong>$1</strong>");
+  text = text.replace(/\*([^*]+)\*/g, "<em>$1</em>");
+  return text;
+}
+
+function isMarkdownTableSeparator(line = "") {
+  return /^\s*\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)+\|?\s*$/.test(line);
+}
+
+function splitMarkdownRow(line = "") {
+  return line
+    .trim()
+    .replace(/^\|/, "")
+    .replace(/\|$/, "")
+    .split("|")
+    .map((cell) => cell.trim());
+}
+
+function markdownToHtml(markdown = "") {
+  const lines = String(markdown || "")
+    .replace(/\r\n/g, "\n")
+    .split("\n");
+  const html = [];
+  let paragraph = [];
+  let list = null;
+
+  function flushParagraph() {
+    if (!paragraph.length) return;
+    html.push(`<p>${renderInlineMarkdown(paragraph.join(" "))}</p>`);
+    paragraph = [];
+  }
+
+  function closeList() {
+    if (!list) return;
+    html.push(`</${list}>`);
+    list = null;
+  }
+
+  for (let index = 0; index < lines.length; index += 1) {
+    const raw = lines[index];
+    const line = raw.trim();
+    const next = lines[index + 1] || "";
+
+    if (!line || /^-{3,}$/.test(line)) {
+      flushParagraph();
+      closeList();
+      continue;
+    }
+
+    if (line.includes("|") && isMarkdownTableSeparator(next)) {
+      flushParagraph();
+      closeList();
+      const headers = splitMarkdownRow(line);
+      index += 1;
+      const bodyRows = [];
+      while (index + 1 < lines.length && lines[index + 1].trim().includes("|")) {
+        index += 1;
+        bodyRows.push(splitMarkdownRow(lines[index]));
+      }
+      html.push(
+        `<div class="markdown-table-wrap"><table class="markdown-table"><thead><tr>${headers
+          .map((cell) => `<th>${renderInlineMarkdown(cell)}</th>`)
+          .join("")}</tr></thead><tbody>${bodyRows
+          .map((row) => `<tr>${headers.map((_, cellIndex) => `<td>${renderInlineMarkdown(row[cellIndex] || "")}</td>`).join("")}</tr>`)
+          .join("")}</tbody></table></div>`
+      );
+      continue;
+    }
+
+    const heading = /^(#{1,4})\s+(.+)$/.exec(line);
+    if (heading) {
+      flushParagraph();
+      closeList();
+      const level = Math.min(heading[1].length + 1, 5);
+      html.push(`<h${level}>${renderInlineMarkdown(heading[2])}</h${level}>`);
+      continue;
+    }
+
+    const unordered = /^[-*]\s+(.+)$/.exec(line);
+    if (unordered) {
+      flushParagraph();
+      if (list !== "ul") {
+        closeList();
+        list = "ul";
+        html.push("<ul>");
+      }
+      html.push(`<li>${renderInlineMarkdown(unordered[1])}</li>`);
+      continue;
+    }
+
+    const ordered = /^\d+[.)]\s+(.+)$/.exec(line);
+    if (ordered) {
+      flushParagraph();
+      if (list !== "ol") {
+        closeList();
+        list = "ol";
+        html.push("<ol>");
+      }
+      html.push(`<li>${renderInlineMarkdown(ordered[1])}</li>`);
+      continue;
+    }
+
+    closeList();
+    paragraph.push(line);
+  }
+  flushParagraph();
+  closeList();
+  return html.join("");
+}
+
+function setMarkdown(target, markdown) {
+  const node = typeof target === "string" ? qs(target) : target;
+  if (!node) return;
+  node.classList.add("markdown-body");
+  node.innerHTML = markdownToHtml(markdown);
+}
+
+function showToast(message, tone = "info") {
+  let host = qs("#toastHost");
+  if (!host) {
+    host = el("div", { id: "toastHost", class: "toast-host" });
+    document.body.appendChild(host);
+  }
+  const item = el("div", { class: `toast ${tone}`, text: message });
+  host.appendChild(item);
+  setTimeout(() => item.classList.add("show"), 20);
+  setTimeout(() => {
+    item.classList.remove("show");
+    setTimeout(() => item.remove(), 220);
+  }, 2800);
+}
+
 function apiUrl(url) {
   if (url.startsWith("http")) return url;
   return `${API_BASE}${url}`;

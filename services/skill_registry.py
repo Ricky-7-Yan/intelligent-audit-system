@@ -126,6 +126,7 @@ class SkillRegistry:
             "circuit_state": circuit["state"],
             "validation_errors": validation_errors,
         }
+
         with self.log_file.open("a", encoding="utf-8") as stream:
             stream.write(json.dumps(record, ensure_ascii=False) + "\n")
         return record
@@ -333,6 +334,148 @@ class SkillRegistry:
                 handler=self._remediation_planner,
             )
         )
+
+        self._register(
+            Skill(
+                name="audit.sample_designer",
+                title="审计抽样方案生成",
+                description="根据总体规模、风险等级、控制频率和证据类型生成可落地抽样方案。",
+                input_schema={
+                    "type": "object",
+                    "properties": {
+                        "population": {"type": "integer"},
+                        "risk_level": {"type": "string"},
+                        "frequency": {"type": "string"},
+                        "evidence_type": {"type": "string"},
+                    },
+                    "required": ["population"],
+                },
+                permissions=["read:evidence", "write:workpaper"],
+                handler=self._sample_designer,
+            )
+        )
+        self._register(
+            Skill(
+                name="audit.exception_triage",
+                title="审计例外分级与处置",
+                description="对控制测试例外进行严重性分级、根因归类、扩大样本和整改动作建议。",
+                input_schema={
+                    "type": "object",
+                    "properties": {
+                        "finding": {"type": "string"},
+                        "exceptions": {"type": "array", "items": {"type": "string"}},
+                        "risk_level": {"type": "string"},
+                    },
+                    "required": ["finding"],
+                },
+                permissions=["write:workpaper", "write:tasks"],
+                handler=self._exception_triage,
+            )
+        )
+        self._register(
+            Skill(
+                name="audit.report_packager",
+                title="审计报告交付打包",
+                description="把审计结论、证据、控制测试、整改任务和复核意见整理为交付包目录。",
+                input_schema={
+                    "type": "object",
+                    "properties": {"audit_item": {"type": "string"}, "run_id": {"type": "string"}},
+                    "required": ["audit_item"],
+                },
+                permissions=["read:workpaper", "write:report"],
+                handler=self._report_packager,
+            )
+        )
+        self._register(
+            Skill(
+                name="audit.deep_research_brief",
+                title="Deep Research 研究计划",
+                description="为复杂审计问题生成查询改写、来源策略、证据问题和人工复核条件。",
+                input_schema={
+                    "type": "object",
+                    "properties": {
+                        "question": {"type": "string"},
+                        "standard": {"type": "string"},
+                        "domain": {"type": "string"},
+                    },
+                    "required": ["question"],
+                },
+                permissions=["read:knowledge", "read:standards"],
+                handler=self._deep_research_brief,
+                cache_ttl_seconds=120,
+            )
+        )
+
+    def _sample_designer(self, payload: Dict[str, Any]) -> Dict[str, Any]:
+        population = max(1, int(payload.get("population") or 1))
+        risk_level = str(payload.get("risk_level") or "medium").lower()
+        frequency = payload.get("frequency") or "daily"
+        evidence_type = payload.get("evidence_type") or "system log"
+        base = 25 if risk_level in {"high", "critical", "高"} else 15 if risk_level in {"medium", "中"} else 8
+        sample_size = min(population, max(base, round(population ** 0.5 * (2.2 if risk_level in {"high", "critical", "高"} else 1.5))))
+        return {
+            "population": population,
+            "risk_level": risk_level,
+            "frequency": frequency,
+            "evidence_type": evidence_type,
+            "sample_size": sample_size,
+            "method": "分层随机抽样 + 关键项全检" if risk_level in {"high", "critical", "高"} else "随机抽样 + 异常定向补样",
+            "strata": ["高权限/高金额/高影响记录", "普通运行记录", "期间首末与变更窗口记录"],
+            "exception_handling": "发现重大例外时扩大样本并触发复核；证据缺失时进入人工补证和整改任务。",
+        }
+
+    def _exception_triage(self, payload: Dict[str, Any]) -> Dict[str, Any]:
+        finding = payload.get("finding", "")
+        exceptions = payload.get("exceptions") or []
+        risk_level = str(payload.get("risk_level") or "medium").lower()
+        severity = "high" if risk_level in {"high", "critical", "高"} or len(exceptions) >= 3 else "medium" if exceptions else "low"
+        return {
+            "finding": finding,
+            "severity": severity,
+            "exception_count": len(exceptions),
+            "root_causes": ["职责分离不足", "审批链路不完整", "日志留存或复核机制薄弱"],
+            "next_actions": [
+                "补充关键证据并标记无法追溯样本",
+                "扩大样本覆盖同类交易或权限变更",
+                "生成整改任务并设置关闭验收标准",
+                "重大例外提交审计经理复核",
+            ],
+        }
+
+    def _report_packager(self, payload: Dict[str, Any]) -> Dict[str, Any]:
+        audit_item = payload.get("audit_item") or "审计项目"
+        run_id = payload.get("run_id") or "draft"
+        return {
+            "audit_item": audit_item,
+            "run_id": run_id,
+            "sections": [
+                "01 项目背景与范围",
+                "02 控制矩阵与标准映射",
+                "03 证据清单与抽样底稿",
+                "04 风险结论与审计发现",
+                "05 整改计划与复核关闭",
+                "06 交付包索引与附录",
+            ],
+            "quality_checks": ["来源可追溯", "表格字段齐全", "风险评分一致", "整改责任明确", "下载文件可复核"],
+            "download_artifacts": [f"{run_id}-audit-report.md", f"{run_id}-delivery-pack.md"],
+        }
+
+    def _deep_research_brief(self, payload: Dict[str, Any]) -> Dict[str, Any]:
+        question = payload.get("question", "")
+        standard = payload.get("standard") or "ISO27001/SOX/COBIT"
+        domain = payload.get("domain") or "enterprise audit"
+        return {
+            "question": question,
+            "standard": standard,
+            "domain": domain,
+            "query_rewrites": [
+                f"{question} {standard} audit evidence",
+                f"{domain} control testing checklist remediation",
+                f"{standard} risk assessment audit workpaper",
+            ],
+            "source_strategy": ["内部知识库优先", "标准条款与控制库交叉验证", "历史审计案例补充", "低置信度结论触发人工复核"],
+            "evidence_questions": ["需要哪些设计证据？", "需要哪些运行证据？", "哪些证据缺失会影响结论？", "哪些发现需要整改闭环？"],
+        }
 
     def _scope_planner(self, payload: Dict[str, Any]) -> Dict[str, Any]:
         item = payload.get("audit_item", "待审计对象")

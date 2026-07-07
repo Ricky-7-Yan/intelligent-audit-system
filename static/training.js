@@ -25,7 +25,14 @@ function percentText(value) {
 function setBusy(message) {
   const node = qs("#evalResults");
   clearNode(node);
-  node.appendChild(el("p", { class: "muted", text: message }));
+  node.appendChild(el("div", { class: "item compact" }, [
+    el("strong", { text: message }),
+    el("div", { class: "skeleton-lines mt-12" }, [
+      el("div", { class: "skeleton-line" }),
+      el("div", { class: "skeleton-line", style: "width:86%" }),
+      el("div", { class: "skeleton-line", style: "width:68%" }),
+    ]),
+  ]));
 }
 
 function setQuality(score) {
@@ -115,6 +122,12 @@ function renderScorePills(evaluation = {}) {
   ));
 }
 
+function markdownBlock(text, className = "muted") {
+  const node = el("div", { class: className });
+  setMarkdown(node, text || "");
+  return node;
+}
+
 function renderEvalResults(results) {
   const node = qs("#evalResults");
   clearNode(node);
@@ -140,7 +153,7 @@ function renderEvalResults(results) {
         el("span", { text: `阶段覆盖 ${percentText(item.trajectory?.stage_coverage ?? 0)}` }),
         el("span", { text: `证据缺口 ${item.trajectory?.missing_evidence_count ?? 0}` }),
       ]),
-      el("div", { class: "prewrap muted", text: item.actual_answer || "" }),
+      markdownBlock(item.actual_answer || ""),
       el("div", { class: "list dense" }, [
         el("div", { class: "item compact" }, [el("strong", { text: "回归风险" }), el("p", { class: "muted", text: risks.join("；") })]),
         el("div", { class: "item compact" }, [el("strong", { text: "优化建议" }), el("p", { class: "muted", text: suggestions.join("；") })]),
@@ -243,7 +256,7 @@ function renderResearch(result) {
   node.appendChild(el("div", { class: "item eval-card" }, [
     el("strong", { text: "答案与自评" }),
     renderScorePills(result.evaluation || {}),
-    el("div", { class: "prewrap muted", text: result.answer || "" }),
+    markdownBlock(result.answer || ""),
   ]));
 }
 

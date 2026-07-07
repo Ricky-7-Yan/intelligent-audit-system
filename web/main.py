@@ -53,6 +53,16 @@ evidence_analyzer = EvidenceAnalyzer()
 conversation_memory = ConversationMemory()
 intent_router = HybridIntentRouter()
 evolution_harness = EvolutionHarness(evaluation_repository, agent_runtime, skill_registry, conversation_memory)
+evaluation_cache: Dict[str, Any] = {}
+research_cache: Dict[str, Any] = {}
+
+
+def cache_key(prefix: str, payload: Any) -> str:
+    return f"{prefix}:{json.dumps(payload, ensure_ascii=False, sort_keys=True, default=str)}"
+
+
+def clone_payload(payload: Any) -> Any:
+    return json.loads(json.dumps(payload, ensure_ascii=False, default=str))
 
 
 @asynccontextmanager
@@ -349,7 +359,14 @@ async def agent_capabilities_api():
 
 @app.post("/api/research/answer")
 async def research_answer_api(request: ResearchRequest, research: AuditResearchAgent = Depends(get_research_agent)):
-    result = research.answer(request.question, request.context)
+    key = cache_key("research", {"question": request.question, "context": request.context})
+    if key in research_cache:
+        result = clone_payload(research_cache[key])
+        result["cache_hit"] = True
+    else:
+        result = research.answer(request.question, request.context)
+        research_cache[key] = clone_payload(result)
+        result["cache_hit"] = False
     run = None
     if request.persist_evaluation:
         run = evaluation_repository.create_run("research", request.model_dump(), result)
@@ -711,14 +728,28 @@ async def knowledge_stats_api(rag=Depends(get_rag_pipeline)):
 @app.post("/api/training/evaluate")
 async def evaluate_model_api(request: EvaluationRequest, benchmark=Depends(get_evaluator)):
     test_cases = request.test_cases or benchmark.create_test_cases()
-    results = benchmark.evaluate_agent(test_cases)
+    key = cache_key("agent_eval", {"model_path": request.model_path, "test_cases": test_cases})
+    if key in evaluation_cache:
+        results = clone_payload(evaluation_cache[key])
+        results["cache_hit"] = True
+    else:
+        results = benchmark.evaluate_agent(test_cases)
+        evaluation_cache[key] = clone_payload(results)
+        results["cache_hit"] = False
     run = evaluation_repository.create_run("agent", request.model_dump(), results)
     return {"success": True, "run": run, "results": results, "timestamp": datetime.now().isoformat()}
 
 
 @app.post("/api/evaluation/rag")
 async def evaluate_rag_api(request: RAGEvaluationRequest, rag=Depends(get_rag_pipeline)):
-    results = RAGEvaluator(rag).evaluate(request.cases)
+    key = cache_key("rag_eval", {"cases": request.cases})
+    if key in evaluation_cache:
+        results = clone_payload(evaluation_cache[key])
+        results["cache_hit"] = True
+    else:
+        results = RAGEvaluator(rag).evaluate(request.cases)
+        evaluation_cache[key] = clone_payload(results)
+        results["cache_hit"] = False
     run = evaluation_repository.create_run("rag", request.model_dump(), results)
     return {"success": True, "run": run, "results": results, "timestamp": datetime.now().isoformat()}
 
