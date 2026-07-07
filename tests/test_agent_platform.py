@@ -7,6 +7,7 @@ from pathlib import Path
 from services.agent_runtime import AgentRuntime
 from services.conversation_memory import ConversationMemory
 from services.evaluation_repository import EvaluationRunRepository
+from services.evolution_harness import EvolutionHarness
 from services.intent_router import HybridIntentRouter
 from services.safety_gate import SafetyGate
 from services.skill_registry import Skill, SkillRegistry
@@ -111,6 +112,29 @@ class EvaluationRepositoryTests(unittest.TestCase):
             self.assertEqual(run["comparison"]["status"], "regression")
             self.assertEqual(run["release_gate"]["status"], "review")
             self.assertTrue(run["release_gate"]["blockers"])
+
+
+class EvolutionHarnessTests(unittest.TestCase):
+    def test_generates_jd_coverage_and_self_evolution_proposals(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            registry = SkillRegistry()
+            registry.log_file = Path(tmp) / "runs.jsonl"
+            runtime = AgentRuntime(registry, SafetyGate())
+            runtime.runtime_dir = Path(tmp) / "runtime"
+            runtime.runtime_dir.mkdir()
+            memory = ConversationMemory(Path(tmp) / "memory")
+            repository = EvaluationRunRepository(Path(tmp) / "evals")
+            repository.create_run(
+                "agent",
+                {},
+                {"overall_metrics": {"overall_score": 0.9, "total_tests": 3, "pass_rate": 1, "regression_count": 0}},
+            )
+
+            report = EvolutionHarness(repository, runtime, registry, memory).report()
+            self.assertGreaterEqual(report["maturity_score"], 70)
+            self.assertEqual(report["jd_coverage"]["covered"], report["jd_coverage"]["total"])
+            self.assertTrue(report["evolution_proposals"])
+            self.assertTrue(report["harness_loops"])
 
 
 if __name__ == "__main__":

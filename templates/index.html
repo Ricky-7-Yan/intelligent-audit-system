@@ -71,6 +71,20 @@
         </article>
       </section>
 
+      <section class="evolution-command panel" aria-label="Self-evolution harness">
+        <div class="evolution-copy">
+          <span class="section-kicker">Self-Evolution Harness</span>
+          <h2>把 Agent 的失败、反思和 JD 要求变成下一轮可验证优化</h2>
+          <p>持续读取运行时轨迹、评测基线、Skill 熔断、跨会话记忆和大厂 Agent JD 能力项，形成“挖弱点 → 提候选 → 回归验证 → 人工复核”的工程闭环。</p>
+        </div>
+        <div class="harness-score-card">
+          <span>成熟度评分</span>
+          <strong id="maturityScore">--</strong>
+          <small id="coverageSummary">等待 Harness 信号</small>
+        </div>
+        <div class="harness-stack" id="harnessProposals"></div>
+      </section>
+
       <section class="overview-grid">
         <article class="panel project-board">
           <div class="panel-head">
@@ -250,6 +264,7 @@ function renderSignals(summary) {
 
 async function loadOverview() {
   const overview = (await apiFetch("/api/product/overview")).overview;
+  const evolution = (await apiFetch("/api/agent/evolution")).evolution;
   const summary = overview.summary || {};
   setText("#runCount", summary.audit_runs || 0);
   setText("#openTasks", summary.open_tasks || 0);
@@ -262,6 +277,24 @@ async function loadOverview() {
   renderControls(overview.control_health || []);
   renderEvidence(overview.evidence_requests || []);
   renderSignals(summary);
+  renderEvolution(evolution);
+}
+
+function renderEvolution(evolution) {
+  const coverage = evolution.jd_coverage || {};
+  setText("#maturityScore", `${evolution.maturity_score || 0}`);
+  setText("#coverageSummary", `${coverage.covered || 0}/${coverage.total || 0} JD 能力项已映射`);
+  const node = qs("#harnessProposals");
+  clearNode(node);
+  (evolution.evolution_proposals || []).slice(0, 3).forEach((item) => {
+    node.appendChild(el("div", { class: "harness-item" }, [
+      el("span", { text: item.proposal_id }),
+      el("div", {}, [
+        el("strong", { text: item.title }),
+        el("small", { text: item.validation })
+      ])
+    ]));
+  });
 }
 
 document.addEventListener("DOMContentLoaded", () => {

@@ -27,6 +27,7 @@ from services.audit_templates import list_audit_templates
 from services.conversation_memory import ConversationMemory
 from services.evaluation_repository import EvaluationRunRepository
 from services.evidence_analyzer import EvidenceAnalyzer
+from services.evolution_harness import EvolutionHarness
 from services.intent_router import HybridIntentRouter
 from services.product_insights import ProductInsights
 from services.rag_evaluator import RAGEvaluator
@@ -51,6 +52,7 @@ evaluation_repository = EvaluationRunRepository()
 evidence_analyzer = EvidenceAnalyzer()
 conversation_memory = ConversationMemory()
 intent_router = HybridIntentRouter()
+evolution_harness = EvolutionHarness(evaluation_repository, agent_runtime, skill_registry, conversation_memory)
 
 
 @asynccontextmanager
@@ -332,6 +334,7 @@ async def agent_capabilities_api():
                 "Agent Runtime",
                 "工具调用",
                 "Agentic RAG",
+                "Self-Evolution Harness",
                 "安全门禁",
                 "质量门",
                 "人工复核闭环",
@@ -458,6 +461,11 @@ async def agent_task_add_step_api(task_id: str, request: AgentTaskStepRequest):
 @app.get("/api/agent/observability")
 async def agent_observability_api():
     return {"success": True, "observability": agent_runtime.observability(), "timestamp": datetime.now().isoformat()}
+
+
+@app.get("/api/agent/evolution")
+async def agent_evolution_api():
+    return {"success": True, "evolution": evolution_harness.report(), "timestamp": datetime.now().isoformat()}
 
 
 @app.post("/api/agent/route")
@@ -749,6 +757,7 @@ async def health_check():
         "rag": rag_pipeline is not None,
         "rag_documents": 0,
         "agent_runtime": True,
+        "evolution_harness": True,
         "skills": len(skill_registry.skills),
         "intent_router": True,
         "memory": conversation_memory.stats(),

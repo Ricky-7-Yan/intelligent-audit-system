@@ -1,6 +1,6 @@
 # 审脉 AuditPilot：大厂 Agent JD 能力覆盖
 
-本文件记录截至 2026-07-06 的项目能力基线。更完整的简历与面试材料见 [docs/05-JD对齐与简历面试指南.md](docs/05-JD对齐与简历面试指南.md)。
+本文件记录截至 2026-07-07 的项目能力基线。更完整的简历与面试材料见 [docs/05-JD对齐与简历面试指南.md](docs/05-JD对齐与简历面试指南.md) 与 [docs/08-大厂Agent JD与能力映射.md](docs/08-大厂Agent JD与能力映射.md)。
 
 ## 核心映射
 
@@ -14,6 +14,7 @@
 | Skills / Tools / MCP | Schema、权限、版本、MCP 描述 | `/api/mcp/tools` |
 | 工具可靠性 | 超时、TTL 缓存、熔断、重试、日志 | `/api/skills/runs` |
 | Eval / Regression | Agent/RAG/Research、基线差异、发布门禁 | `/training` |
+| Self-Evolution / Harness | 运行时反思、评测退化、Skill 指标、记忆状态和 JD 能力项聚合成改进建议 | `/api/agent/evolution` |
 | Safety / HITL | 安全门、证据质量门、人工复核 | `/audit` |
 | 业务落地 | 立项、证据、控制、发现、整改、交付包 | `/audit` |
 | 工程化 | Python、FastAPI、Docker、OpenAPI、持久化 | `/docs`、部署文件 |

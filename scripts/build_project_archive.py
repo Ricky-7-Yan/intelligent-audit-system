@@ -144,13 +144,17 @@ def build_pdf(contents: list[tuple[str, str]], target: Path) -> None:
 
 
 def build(destination: Path) -> None:
+    if destination.exists():
+        shutil.rmtree(destination)
     markdown_dir = destination / "Markdown"
     text_dir = destination / "clean_txt"
     word_dir = destination / "Word"
     pdf_dir = destination / "PDF"
     screenshot_dir = destination / "screenshots"
+    jd_dir = destination / "JD来源资料"
     for directory in (markdown_dir, text_dir, word_dir, pdf_dir, screenshot_dir):
         directory.mkdir(parents=True, exist_ok=True)
+    jd_dir.mkdir(parents=True, exist_ok=True)
 
     contents = []
     for source in DOC_FILES:
@@ -161,6 +165,15 @@ def build(destination: Path) -> None:
 
     readme = PROJECT_ROOT / "README.md"
     shutil.copy2(readme, destination / "README_归档说明.md")
+    source_jd_dir = PROJECT_ROOT / "docs" / "jd_research"
+    if source_jd_dir.exists():
+        for source in source_jd_dir.glob("*.md"):
+            shutil.copy2(source, jd_dir / source.name)
+    source_screenshot_dir = PROJECT_ROOT / "docs" / "screenshots"
+    if source_screenshot_dir.exists():
+        for source in source_screenshot_dir.glob("*.*"):
+            if source.suffix.lower() in {".png", ".jpg", ".jpeg", ".webp"}:
+                shutil.copy2(source, screenshot_dir / source.name)
     combined = "\n\n---\n\n".join(markdown for _, markdown in contents)
     (destination / "项目完整说明.txt").write_text(plain_text(combined), encoding="utf-8")
     build_docx(contents, word_dir / "审脉AuditPilot_项目完整说明.docx")
