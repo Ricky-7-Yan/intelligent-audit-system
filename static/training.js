@@ -138,11 +138,11 @@ function renderEvalResults(results) {
       el("div", { class: "muted", text: `分类得分：${scoreText(score)}` }),
     ]));
   });
-  (results.results || []).forEach((item) => {
+  (results.results || []).forEach((item, index) => {
     const risks = item.regression_risks || [];
     const suggestions = item.optimization_suggestions || [];
-    node.appendChild(el("div", { class: "item eval-card" }, [
-      el("div", { class: "item-head" }, [
+    node.appendChild(el("details", { class: "item eval-card eval-detail", open: index === 0 }, [
+      el("summary", {}, [
         el("strong", { text: `${item.test_id} · ${item.category}` }),
         el("span", { class: "badge", text: `${item.latency_ms || 0}ms` }),
       ]),
@@ -173,9 +173,9 @@ function renderRagResults(results) {
   setText("#toolScore", "-");
   setText("#authorityScore", scoreText(avg((results.results || []).map((item) => item.authority_score))));
   setText("#latencyScore", "-");
-  (results.results || []).forEach((item) => {
-    node.appendChild(el("div", { class: "item eval-card" }, [
-      el("div", { class: "item-head" }, [
+  (results.results || []).forEach((item, index) => {
+    node.appendChild(el("details", { class: "item eval-card eval-detail", open: index === 0 }, [
+      el("summary", {}, [
         el("strong", { text: `${item.case_id} · ${item.category}` }),
         el("span", { class: "badge", text: `${item.retrieved_docs_count || 0} sources` }),
       ]),

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
+from concurrent.futures import ThreadPoolExecutor
 from typing import Any, Dict, List
 
 
@@ -30,34 +31,12 @@ class RAGEvaluator:
 
     def evaluate(self, cases: List[Dict[str, Any]] | None = None) -> Dict[str, Any]:
         eval_cases = [self._case_from_dict(item) for item in cases] if cases else DEFAULT_RAG_CASES
-        results = []
-        scores = []
-        for case in eval_cases:
-            answer = self.rag_pipeline.query(case.question)
-            text = answer.get("answer", "")
-            sources = answer.get("sources", [])
-            term_score = self._term_score(text, case.expected_terms)
-            source_score = min(len(sources) / 3, 1.0)
-            confidence = float(answer.get("confidence", 0.0))
-            authority = self._authority_score(sources)
-            overall = round(term_score * 0.35 + source_score * 0.2 + confidence * 0.2 + authority * 0.25, 3)
-            scores.append(overall)
-            results.append(
-                {
-                    "case_id": case.case_id,
-                    "category": case.category,
-                    "question": case.question,
-                    "expected_terms": case.expected_terms,
-                    "term_score": term_score,
-                    "source_score": round(source_score, 3),
-                    "authority_score": authority,
-                    "retrieval_confidence": confidence,
-                    "overall": overall,
-                    "retrieved_docs_count": answer.get("retrieved_docs_count", 0),
-                    "sources": sources,
-                    "failure_modes": self._failure_modes(term_score, source_score, authority),
-                }
-            )
+        if len(eval_cases) > 1:
+            with ThreadPoolExecutor(max_workers=min(4, len(eval_cases))) as pool:
+                results = list(pool.map(self._evaluate_case, eval_cases))
+        else:
+            results = [self._evaluate_case(case) for case in eval_cases]
+        scores = [item["overall"] for item in results]
         return {
             "overall_score": round(sum(scores) / len(scores), 3) if scores else 0.0,
             "total_cases": len(results),
@@ -65,6 +44,30 @@ class RAGEvaluator:
             "metrics": ["term_score", "source_score", "authority_score", "retrieval_confidence"],
             "closed_loop_suggestions": self._closed_loop_suggestions(results),
             "evaluated_at": datetime.now().isoformat(),
+        }
+
+    def _evaluate_case(self, case: RAGEvalCase) -> Dict[str, Any]:
+        answer = self.rag_pipeline.query(case.question)
+        text = answer.get("answer", "")
+        sources = answer.get("sources", [])
+        term_score = self._term_score(text, case.expected_terms)
+        source_score = min(len(sources) / 3, 1.0)
+        confidence = float(answer.get("confidence", 0.0))
+        authority = self._authority_score(sources)
+        overall = round(term_score * 0.35 + source_score * 0.2 + confidence * 0.2 + authority * 0.25, 3)
+        return {
+            "case_id": case.case_id,
+            "category": case.category,
+            "question": case.question,
+            "expected_terms": case.expected_terms,
+            "term_score": term_score,
+            "source_score": round(source_score, 3),
+            "authority_score": authority,
+            "retrieval_confidence": confidence,
+            "overall": overall,
+            "retrieved_docs_count": answer.get("retrieved_docs_count", 0),
+            "sources": sources,
+            "failure_modes": self._failure_modes(term_score, source_score, authority),
         }
 
     def _case_from_dict(self, item: Dict[str, Any]) -> RAGEvalCase:

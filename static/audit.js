@@ -674,10 +674,6 @@ async function loadTemplates() {
 
 document.addEventListener("DOMContentLoaded", () => {
   qs("#runAudit").addEventListener("click", runAudit);
-  qs("#loadControls").addEventListener("click", async () => {
-    const data = await apiFetch("/api/audit/controls");
-    renderMatrix(data.controls);
-  });
   qs("#runResearch").addEventListener("click", runResearch);
   qs("#refreshRuns").addEventListener("click", loadRuns);
   qs("#analyzeEvidence").addEventListener("click", analyzeEvidenceFile);

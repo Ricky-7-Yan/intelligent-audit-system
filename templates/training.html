@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Agent &#35780;&#20272;&#19982;&#21457;&#24067;&#38376;&#31105; - &#23457;&#33033; AuditPilot</title>
-  <link rel="stylesheet" href="../static/app.css?v=4.0.2">
+  <link rel="stylesheet" href="../static/app.css?v=4.2.0">
 </head>
 <body>
   <div class="app-shell">
@@ -30,7 +30,9 @@
         <div class="status-pill"><span class="status-dot"></span><span id="healthText">&#21152;&#36733;&#29366;&#24577;&#20013;</span></div>
       </div>
 
-      <section class="hero-console">
+      <div class="page-quickbar" data-section-nav></div>
+
+      <section class="hero-console" id="training-hero" data-section-label="overview">
         <div class="panel console-hero">
           <div>
             <div class="hero-eyebrow">Audit Agent Evaluation</div>
@@ -57,7 +59,7 @@
         </aside>
       </section>
 
-      <section class="grid layout-2 mt-16">
+      <section class="grid layout-2 mt-16" id="training-design" data-section-label="cases" data-collapsible="true">
         <div class="panel">
           <div class="panel-head">
             <div>
@@ -93,7 +95,7 @@
         </aside>
       </section>
 
-      <section class="kpi-row mt-16">
+      <section class="kpi-row mt-16" id="training-kpis" data-section-label="metrics">
         <div class="card metric"><div class="metric-value" id="faithfulnessScore">-</div><div class="metric-label">&#30495;&#23454;&#24615;</div></div>
         <div class="card metric"><div class="metric-value" id="toolScore">-</div><div class="metric-label">Tool / Trace</div></div>
         <div class="card metric"><div class="metric-value" id="authorityScore">-</div><div class="metric-label">&#26435;&#23041;&#24615;</div></div>
@@ -101,7 +103,7 @@
         <div class="card metric"><div class="metric-value">2.7.0</div><div class="metric-label">&#35780;&#27979;&#29256;&#26412;</div></div>
       </section>
 
-      <section class="grid layout-2 mt-16">
+      <section class="grid layout-2 mt-16" id="training-results" data-section-label="results">
         <div class="panel">
           <h2 class="panel-title">&#35780;&#27979;&#32467;&#26524;</h2>
           <div id="evalResults" class="list"><p class="muted">&#23578;&#26410;&#36816;&#34892;&#35780;&#27979;&#12290;</p></div>
@@ -112,13 +114,13 @@
         </aside>
       </section>
 
-      <section class="panel mt-16">
+      <section class="panel mt-16" id="training-history" data-section-label="history" data-collapsible="true">
         <h2 class="panel-title">&#35780;&#27979;&#21382;&#21490;&#19982;&#21457;&#24067;&#38376;&#31105;</h2>
         <div id="evaluationRuns" class="list dense"><p class="muted">&#26242;&#26080;&#35780;&#27979;&#35760;&#24405;&#12290;</p></div>
       </section>
     </main>
   </div>
-  <script src="../static/app.js?v=4.1.0"></script>
-  <script src="../static/training.js?v=4.1.0"></script>
+  <script src="../static/app.js?v=4.2.0"></script>
+  <script src="../static/training.js?v=4.2.0"></script>
 </body>
 </html>

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+import threading
 import uuid
 from contextlib import asynccontextmanager
 from datetime import datetime
@@ -65,10 +66,31 @@ def clone_payload(payload: Any) -> Any:
     return json.loads(json.dumps(payload, ensure_ascii=False, default=str))
 
 
+def prewarm_evaluation_runtime() -> None:
+    try:
+        benchmark = get_evaluator()
+        benchmark.evaluate_agent(
+            [
+                {
+                    "id": "PREWARM-AGENT",
+                    "category": "runtime_prewarm",
+                    "question": "ERP 权限审计需要哪些证据、控制测试和整改动作？",
+                    "expected_answer": "证据 控制 整改 复核",
+                    "expected_terms": ["证据", "控制", "整改", "复核"],
+                }
+            ]
+        )
+        init_rag_lazy()
+        logger.info("Evaluation runtime prewarmed")
+    except Exception as exc:
+        logger.info("Evaluation prewarm skipped: %s", exc)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     for path in PATHS.values():
         path.mkdir(parents=True, exist_ok=True)
+    threading.Thread(target=prewarm_evaluation_runtime, daemon=True).start()
     logger.info("Intelligent Audit System started")
     yield
     global audit_agent, kg_builder

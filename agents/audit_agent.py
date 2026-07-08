@@ -246,11 +246,11 @@ class OptionalAuditTools:
 
 
 class AuditAgent:
-    def __init__(self, rag_pipeline: Any = None) -> None:
+    def __init__(self, rag_pipeline: Any = None, enable_llm: Optional[bool] = None) -> None:
         self.tools = OptionalAuditTools()
         self.rag_pipeline = rag_pipeline
         self.session_memory: Dict[str, List[BaseMessage]] = {}
-        self.llm = self._init_llm()
+        self.llm = self._init_llm() if enable_llm is not False else None
         logger.info(
             "AuditAgent initialized. LLM=%s MySQL=%s Neo4j=%s",
             bool(self.llm),

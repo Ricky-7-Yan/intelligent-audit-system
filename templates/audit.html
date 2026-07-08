@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>&#23457;&#35745;&#39033;&#30446;&#24037;&#20316;&#21488; - &#23457;&#33033; AuditPilot</title>
-  <link rel="stylesheet" href="../static/app.css?v=4.0.2">
+  <link rel="stylesheet" href="../static/app.css?v=4.2.0">
 </head>
 <body>
   <div class="app-shell">
@@ -29,7 +29,9 @@
         <div class="status-pill"><span class="status-dot"></span><span id="healthText">&#21152;&#36733;&#29366;&#24577;&#20013;</span></div>
       </div>
 
-      <section class="command-panel">
+      <div class="page-quickbar" data-section-nav></div>
+
+      <section class="command-panel" id="audit-command" data-section-label="指挥">
         <div class="panel">
           <div class="panel-head">
             <div>
@@ -74,7 +76,7 @@
         </aside>
       </section>
 
-      <section class="kpi-row mt-16">
+      <section class="kpi-row mt-16" id="audit-kpis" data-section-label="指标">
         <div class="card metric"><div class="metric-value" id="riskLevelCard">-</div><div class="metric-label">&#21097;&#20313;&#39118;&#38505;</div></div>
         <div class="card metric"><div class="metric-value" id="riskScoreCard">-</div><div class="metric-label">&#39118;&#38505;&#35780;&#20998;</div></div>
         <div class="card metric"><div class="metric-value" id="complianceCard">-</div><div class="metric-label">&#21512;&#35268;&#35780;&#20998;</div></div>
@@ -82,22 +84,22 @@
         <div class="card metric"><div class="metric-value" id="stageCard">-</div><div class="metric-label">&#39033;&#30446;&#38454;&#27573;</div></div>
       </section>
 
-      <section class="grid layout-2 mt-16">
+      <section class="grid layout-2 mt-16" id="audit-result-section" data-section-label="结论">
         <div class="panel"><h2 class="panel-title">&#23457;&#35745;&#32467;&#35770;</h2><div id="auditResult" class="prewrap muted">&#31561;&#24453;&#20998;&#26512;&#32467;&#26524;</div></div>
         <div class="panel"><h2 class="panel-title">&#36136;&#37327;&#38376;</h2><div id="qualityPanel" class="muted">&#31561;&#24453;&#32467;&#26524;</div></div>
       </section>
 
-      <section class="panel mt-16">
+      <section class="panel mt-16" id="audit-research-section" data-section-label="Research" data-collapsible="true">
         <h2 class="panel-title">Deep Research &#25512;&#29702;</h2>
         <div id="researchPanel" class="list dense"><p class="muted">&#28857;&#20987; Deep Research &#21518;&#23637;&#31034;&#26597;&#35810;&#25913;&#20889;&#12289;&#26469;&#28304;&#34701;&#21512;&#12289;&#25512;&#29702;&#36712;&#36857;&#21644;&#31572;&#26696;&#35780;&#27979;&#12290;</p></div>
       </section>
 
-      <section class="panel mt-16">
+      <section class="panel mt-16" id="audit-delivery-section" data-section-label="交付" data-collapsible="true">
         <h2 class="panel-title">&#23457;&#35745;&#20132;&#20184;&#21253;&#39044;&#35272;</h2>
         <div id="deliveryPreview" class="delivery-grid"><p class="muted">&#36873;&#25321;&#25110;&#36816;&#34892;&#23457;&#35745;&#26723;&#26696;&#21518;&#23637;&#31034;&#24213;&#31295;&#12289;&#35777;&#25454;&#12289;&#35775;&#35848;&#12289;&#29616;&#22330;&#26085;&#31243;&#21644;&#22797;&#26680;&#36712;&#36857;&#12290;</p></div>
       </section>
 
-      <section class="grid layout-2 mt-16">
+      <section class="grid layout-2 mt-16" id="audit-evidence-section" data-section-label="证据">
         <div class="panel">
           <div class="panel-head">
             <div>
@@ -129,19 +131,19 @@
         <div class="panel"><h2 class="panel-title">&#25511;&#21046;&#27979;&#35797;&#24037;&#20316;&#21488;</h2><div id="controlTests" class="list dense"><p class="muted">&#31561;&#24453;&#39033;&#30446;&#26723;&#26696;</p></div></div>
       </section>
 
-      <section class="panel mt-16"><h2 class="panel-title">&#25511;&#21046;&#30697;&#38453;</h2><div id="controlMatrix" class="matrix muted">&#31561;&#24453;&#32467;&#26524;</div></section>
-      <section class="grid grid-2 mt-16"><div class="panel"><h2 class="panel-title">&#23457;&#35745;&#31243;&#24207;</h2><div id="auditProgram" class="list dense"><p class="muted">&#31561;&#24453;&#32467;&#26524;</p></div></div><div class="panel"><h2 class="panel-title">&#25277;&#26679;&#35745;&#21010;</h2><div id="samplingPlan" class="list dense"><p class="muted">&#31561;&#24453;&#32467;&#26524;</p></div></div></section>
-      <section class="panel mt-16"><h2 class="panel-title">&#23457;&#35745;&#21457;&#29616;&#33609;&#31295;</h2><div id="findings" class="grid grid-2"><p class="muted">&#31561;&#24453;&#32467;&#26524;</p></div></section>
-      <section class="panel mt-16"><h2 class="panel-title">&#25972;&#25913;&#34892;&#21160;&#35745;&#21010;</h2><div id="recommendations" class="grid grid-3"><p class="muted">&#31561;&#24453;&#32467;&#26524;</p></div></section>
-      <section class="panel mt-16"><h2 class="panel-title">&#25972;&#25913;&#20219;&#21153;&#36319;&#36394;</h2><div id="remediationTasks" class="list dense"><p class="muted">&#31561;&#24453;&#32467;&#26524;</p></div></section>
+      <section class="panel mt-16" id="audit-control-section" data-section-label="control" data-collapsible="true"><h2 class="panel-title">&#25511;&#21046;&#30697;&#38453;</h2><div id="controlMatrix" class="matrix muted">&#31561;&#24453;&#32467;&#26524;</div></section>
+      <section class="grid grid-2 mt-16" id="audit-program-section" data-section-label="program" data-collapsible="true"><div class="panel"><h2 class="panel-title">&#23457;&#35745;&#31243;&#24207;</h2><div id="auditProgram" class="list dense"><p class="muted">&#31561;&#24453;&#32467;&#26524;</p></div></div><div class="panel"><h2 class="panel-title">&#25277;&#26679;&#35745;&#21010;</h2><div id="samplingPlan" class="list dense"><p class="muted">&#31561;&#24453;&#32467;&#26524;</p></div></div></section>
+      <section class="panel mt-16" id="audit-findings-section" data-section-label="findings" data-collapsible="true"><h2 class="panel-title">&#23457;&#35745;&#21457;&#29616;&#33609;&#31295;</h2><div id="findings" class="grid grid-2"><p class="muted">&#31561;&#24453;&#32467;&#26524;</p></div></section>
+      <section class="panel mt-16" id="audit-remediation-section" data-section-label="remediation" data-collapsible="true"><h2 class="panel-title">&#25972;&#25913;&#34892;&#21160;&#35745;&#21010;</h2><div id="recommendations" class="grid grid-3"><p class="muted">&#31561;&#24453;&#32467;&#26524;</p></div></section>
+      <section class="panel mt-16" id="audit-tasks-section" data-section-label="tasks" data-collapsible="true"><h2 class="panel-title">&#25972;&#25913;&#20219;&#21153;&#36319;&#36394;</h2><div id="remediationTasks" class="list dense"><p class="muted">&#31561;&#24453;&#32467;&#26524;</p></div></section>
 
-      <section class="grid layout-2 mt-16">
+      <section class="grid layout-2 mt-16" id="audit-review-section" data-section-label="review" data-collapsible="true">
         <div class="panel"><h2 class="panel-title">&#23457;&#35745;&#26723;&#26696;</h2><div class="toolbar"><button class="btn" id="refreshRuns">&#21047;&#26032;&#21382;&#21490;</button></div><div id="runHistory" class="list dense mt-16"><p class="muted">&#26242;&#26080;&#21382;&#21490;</p></div></div>
         <div class="panel"><h2 class="panel-title">&#20154;&#24037;&#22797;&#26680;</h2><div class="grid grid-2"><div class="field"><label>&#22797;&#26680;&#20154;</label><input id="reviewer" value="&#23457;&#35745;&#32463;&#29702;"></div><div class="field"><label>&#32467;&#35770;</label><select id="reviewDecision"><option value="approve">&#36890;&#36807;</option><option value="need_evidence">&#34917;&#20805;&#35777;&#25454;</option><option value="reject">&#36864;&#22238;&#25972;&#25913;</option></select></div></div><div class="field mt-12"><label>&#22797;&#26680;&#24847;&#35265;</label><textarea id="reviewComment" rows="4" placeholder="&#35760;&#24405;&#20154;&#24037;&#21028;&#26029;&#12289;&#35777;&#25454;&#32570;&#21475;&#25110;&#25972;&#25913;&#35201;&#27714;"></textarea></div><button class="btn primary mt-16" id="submitReview">&#25552;&#20132;&#22797;&#26680;</button><div id="reviewResult" class="muted mt-12"></div></div>
       </section>
     </main>
   </div>
-  <script src="../static/app.js?v=4.1.0"></script>
-  <script src="../static/audit.js?v=4.1.0"></script>
+  <script src="../static/app.js?v=4.2.0"></script>
+  <script src="../static/audit.js?v=4.2.0"></script>
 </body>
 </html>

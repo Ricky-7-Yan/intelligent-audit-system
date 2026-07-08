@@ -201,6 +201,80 @@ function serviceUrl(path) {
   return `${API_BASE}${path}`;
 }
 
+function initSectionNavigator() {
+  const main = qs("main.main");
+  if (!main || qs("[data-generated-section-nav]")) return;
+  const sections = qsa("section[data-section-label]", main);
+  if (!sections.length) return;
+  let nav = qs("[data-section-nav]", main);
+  if (!nav) {
+    nav = el("div", { class: "page-quickbar", "data-section-nav": "", "data-generated-section-nav": "true" });
+    const topbar = qs(".topbar", main);
+    if (topbar && topbar.nextSibling) main.insertBefore(nav, topbar.nextSibling);
+    else main.prepend(nav);
+  }
+  clearNode(nav);
+  const label = el("span", { class: "quickbar-label", text: "页面导航" });
+  nav.appendChild(label);
+  function sectionDisplayLabel(section) {
+    if (qs("#evidenceAnalysisResult", section)) return "证据";
+    if (qs("#auditResult", section)) return "结论";
+    const labels = {
+      "audit-command": "指挥",
+      "audit-kpis": "指标",
+      "audit-research-section": "Research",
+      "audit-delivery-section": "交付",
+      "audit-evidence-section": "证据",
+      "audit-plan-section": "计划",
+      "audit-workbench-section": "工作台",
+      "audit-control-section": "控制",
+      "audit-program-section": "程序",
+      "audit-findings-section": "发现",
+      "audit-remediation-section": "整改",
+      "audit-tasks-section": "跟踪",
+      "audit-review-section": "复核",
+      "training-hero": "总览",
+      "training-design": "用例",
+      "training-kpis": "指标",
+      "training-results": "结果",
+      "training-history": "历史",
+    };
+    const raw = section.dataset.sectionLabel || "";
+    if (labels[section.id]) return labels[section.id];
+    if (!raw || raw.includes("�") || raw.includes("□")) return section.querySelector(".panel-title, h2")?.textContent?.trim() || "分区";
+    return raw;
+  }
+  sections.forEach((section, index) => {
+    if (!section.id) section.id = `section-${index + 1}`;
+    section.dataset.sectionLabel = sectionDisplayLabel(section);
+    const button = el("button", { class: "quickbar-link", type: "button", text: section.dataset.sectionLabel });
+    button.addEventListener("click", () => section.scrollIntoView({ behavior: "smooth", block: "start" }));
+    nav.appendChild(button);
+    if (section.dataset.collapsible === "true" && !qs(".section-collapse-btn", section)) {
+      const collapse = el("button", { class: "section-collapse-btn", type: "button", text: "收起" });
+      collapse.addEventListener("click", () => {
+        section.classList.toggle("section-collapsed");
+        collapse.textContent = section.classList.contains("section-collapsed") ? "展开" : "收起";
+      });
+      section.appendChild(collapse);
+    }
+  });
+  const density = el("button", { class: "quickbar-link density-toggle", type: "button", text: "紧凑视图" });
+  density.addEventListener("click", () => {
+    document.body.classList.toggle("density-compact");
+    density.textContent = document.body.classList.contains("density-compact") ? "舒展视图" : "紧凑视图";
+  });
+  nav.appendChild(density);
+  const observer = new IntersectionObserver((entries) => {
+    const visible = entries.filter((entry) => entry.isIntersecting).sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
+    if (!visible) return;
+    qsa(".quickbar-link", nav).forEach((button) => {
+      button.classList.toggle("active", button.textContent === visible.target.dataset.sectionLabel);
+    });
+  }, { rootMargin: "-20% 0px -70% 0px", threshold: [0.05, 0.2, 0.6] });
+  sections.forEach((section) => observer.observe(section));
+}
+
 async function loadHealth() {
   if (window.location.protocol === "file:") {
     setText("#healthText", "请通过 http://127.0.0.1:8000 访问");
@@ -215,6 +289,7 @@ async function loadHealth() {
 }
 
 document.addEventListener("DOMContentLoaded", loadHealth);
+document.addEventListener("DOMContentLoaded", initSectionNavigator);
 
 document.addEventListener("DOMContentLoaded", () => {
   if (window.location.protocol !== "file:") return;
