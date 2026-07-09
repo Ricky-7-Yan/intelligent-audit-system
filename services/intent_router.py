@@ -127,24 +127,40 @@ class HybridIntentRouter:
         }
 
     def _complete_collaboration(self, agents: List[str], message: str, primary_intent: str) -> List[str]:
-        default_chain = ["planning_agent", "evidence_agent", "control_agent", "risk_agent", "compliance_agent", "remediation_agent"]
+        default_chain = [
+            "planning_agent",
+            "memory_agent",
+            "research_agent",
+            "evidence_agent",
+            "control_agent",
+            "risk_agent",
+            "compliance_agent",
+            "remediation_agent",
+            "verifier_agent",
+        ]
         if any(term in message.lower() for term in ("research", "deep", "研究", "查询", "资料", "jd")):
-            default_chain.insert(2, "research_agent")
+            default_chain.insert(3, "research_agent")
         if any(term in message.lower() for term in ("工具", "tool", "下载", "报告", "导出", "运行")):
             default_chain.append("tool_agent")
-        target_size = 5 if primary_intent != "general_audit" else 4
+        if any(term in message.lower() for term in ("评测", "benchmark", "harness", "自进化", "回归", "badcase")):
+            default_chain.extend(["evaluator_agent", "evolution_agent"])
+        target_size = 8 if primary_intent != "general_audit" else 6
         merged = list(dict.fromkeys([*agents, *default_chain]))
-        return merged[: max(target_size, min(len(merged), 6))]
+        return merged[: max(target_size, min(len(merged), 10))]
 
     def _collaboration_plan(self, agents: List[str]) -> List[Dict[str, str]]:
         responsibilities = {
             "planning_agent": "拆解审计目标、范围、任务顺序和交付物。",
+            "memory_agent": "读取工作记忆、历史项目与偏好画像，避免多轮上下文丢失。",
             "evidence_agent": "识别证据缺口、样本需求、日志与底稿路径。",
             "research_agent": "执行 Deep Research、查询改写和来源融合。",
             "control_agent": "映射控制库、设计控制测试与抽样方案。",
             "risk_agent": "评估风险等级、影响、概率和剩余风险。",
             "compliance_agent": "对齐 ISO/SOX/COBIT 等标准条款与合规要求。",
             "remediation_agent": "生成整改责任、关闭标准、复核门槛和跟踪计划。",
+            "verifier_agent": "复核回答结构、证据充分性、可执行性和发布风险。",
+            "evaluator_agent": "把本次任务沉淀为评测用例、badcase 和回归指标。",
+            "evolution_agent": "根据评测与运行轨迹提出自进化优化动作。",
             "tool_agent": "选择可执行工具、导出报告并维护运行轨迹。",
             "audit_agent": "统筹完整审计结论与结构化输出。",
         }

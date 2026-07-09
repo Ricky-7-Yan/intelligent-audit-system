@@ -67,6 +67,7 @@ def clone_payload(payload: Any) -> Any:
 
 
 def prewarm_evaluation_runtime() -> None:
+    global audit_agent
     try:
         benchmark = get_evaluator()
         benchmark.evaluate_agent(
@@ -80,7 +81,14 @@ def prewarm_evaluation_runtime() -> None:
                 }
             ]
         )
-        init_rag_lazy()
+        rag = init_rag_lazy()
+        if audit_agent is None:
+            audit_agent = AuditAgent(rag_pipeline=rag, enable_llm=False)
+        audit_agent.process_audit_query(
+            "ERP 权限审计需要哪些证据、控制测试和整改动作？",
+            session_id="runtime_prewarm",
+            prefer_llm=False,
+        )
         logger.info("Evaluation runtime prewarmed")
     except Exception as exc:
         logger.info("Evaluation prewarm skipped: %s", exc)
@@ -124,6 +132,7 @@ class ChatRequest(BaseModel):
     message: str = Field(..., min_length=1, max_length=8000)
     session_id: Optional[str] = None
     context: Optional[Dict[str, Any]] = None
+    llm_enhance: bool = False
 
 
 class RoutePreviewRequest(BaseModel):
@@ -223,7 +232,7 @@ def init_rag_lazy():
 def get_audit_agent() -> AuditAgent:
     global audit_agent
     if audit_agent is None:
-        audit_agent = AuditAgent(rag_pipeline=init_rag_lazy())
+        audit_agent = AuditAgent(rag_pipeline=init_rag_lazy(), enable_llm=False)
     return audit_agent
 
 
@@ -292,7 +301,12 @@ async def chat_api(request: ChatRequest, agent: AuditAgent = Depends(get_audit_a
             f"{memory_context.get('prompt_text', '')}\n\n[请求上下文]\n"
             f"{json.dumps(request.context, ensure_ascii=False)}"
         ).strip()
-    result = agent.process_audit_query(request.message, session_id=session_id, external_context=memory_context)
+    result = agent.process_audit_query(
+        request.message,
+        session_id=session_id,
+        external_context=memory_context,
+        prefer_llm=request.llm_enhance,
+    )
     memory = conversation_memory.record_turn(
         session_id,
         request.message,

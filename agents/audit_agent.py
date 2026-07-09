@@ -282,6 +282,7 @@ class AuditAgent:
         user_input: str,
         session_id: Optional[str] = None,
         external_context: Optional[Dict[str, Any]] = None,
+        prefer_llm: Optional[bool] = None,
     ) -> Dict[str, Any]:
         session_id = session_id or f"session_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
         self.session_memory.setdefault(session_id, [])
@@ -324,6 +325,7 @@ class AuditAgent:
             compliance_check,
             recommendations,
             quality_gate,
+            prefer_llm=prefer_llm,
         )
         response = self._clean_response(response)
         trace.append(self._trace("risk_agent", "completed", f"风险等级 {risk_assessment['risk_level']} / 评分 {risk_assessment['risk_score']}"))
@@ -791,11 +793,15 @@ class AuditAgent:
         compliance_check: Dict[str, Any],
         recommendations: List[Dict[str, Any]],
         quality_gate: Dict[str, Any],
+        prefer_llm: Optional[bool] = None,
     ) -> str:
-        if self.llm:
+        if prefer_llm and self.llm is None:
+            self.llm = self._init_llm()
+        if self.llm and prefer_llm is not False:
             llm_response = self._compose_with_llm(user_input, audit_context, retrieved, risk_assessment, compliance_check, recommendations, quality_gate)
             if llm_response:
                 return llm_response
+        return self._compose_deterministic_response(audit_context, risk_assessment, compliance_check, recommendations, quality_gate)
         standards = "、".join(compliance_check["standards"])
         top_risks = "；".join(risk["risk"] for risk in risk_assessment["identified_risks"])
         first_action = recommendations[0]["description"] if recommendations else "补齐审计证据。"
@@ -807,6 +813,45 @@ class AuditAgent:
             f"控制成熟度均值 {compliance_check['control_maturity_avg']}。\n\n"
             f"质量门：状态 {quality_gate['status']}，置信度 {quality_gate['confidence']}。{quality_gate['review_note']}\n\n"
             f"优先动作：{first_action}"
+        )
+
+    def _compose_deterministic_response(
+        self,
+        audit_context: Dict[str, Any],
+        risk_assessment: Dict[str, Any],
+        compliance_check: Dict[str, Any],
+        recommendations: List[Dict[str, Any]],
+        quality_gate: Dict[str, Any],
+    ) -> str:
+        standards = "、".join(compliance_check.get("standards", [])) or "企业内控标准"
+        top_risks = risk_assessment.get("identified_risks", [])[:4]
+        recs = recommendations[:4]
+        risk_rows = "\n".join(
+            f"| {item.get('risk', '关键风险')} | {item.get('impact', '-')} | {item.get('likelihood', '-')} | {item.get('control_gap', '-')} |"
+            for item in top_risks
+        ) or "| 待补充风险 | - | - | 待补齐证据后复核 |"
+        action_rows = "\n".join(
+            f"| {item.get('type', '整改动作')} | {item.get('priority', '-')} | {item.get('owner_role', '-')} | {item.get('due_days', '-')} 天 | {item.get('success_metric', '-')} |"
+            for item in recs
+        ) or "| 补齐审计证据 | 高 | 审计负责人 | 7 天 | 关键证据完整且可追溯 |"
+        return (
+            "## 审计结论\n\n"
+            f"审计对象：{audit_context['audit_item']}。\n\n"
+            f"当前剩余风险等级为 **{risk_assessment['risk_level']}**，风险评分 **{risk_assessment['risk_score']}**，"
+            f"控制抵减约 **{risk_assessment['control_reduction']}**。建议按 **{standards}** 组织取证、控制测试和整改复核。\n\n"
+            "## 高风险控制缺陷\n\n"
+            "| 风险领域 | 影响 | 可能性 | 控制缺口 |\n"
+            "| --- | --- | --- | --- |\n"
+            f"{risk_rows}\n\n"
+            "## 整改动作计划\n\n"
+            "| 动作类型 | 优先级 | 责任角色 | 期限 | 关闭标准 |\n"
+            "| --- | --- | --- | --- | --- |\n"
+            f"{action_rows}\n\n"
+            "## 质量门\n\n"
+            f"- 状态：{quality_gate['status']}\n"
+            f"- 置信度：{quality_gate['confidence']}\n"
+            f"- 复核提示：{quality_gate['review_note']}\n"
+            f"- 合规评分：{compliance_check['compliance_score']}；控制成熟度均值：{compliance_check['control_maturity_avg']}"
         )
 
     def _compose_with_llm(

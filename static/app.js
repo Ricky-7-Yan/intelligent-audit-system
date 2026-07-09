@@ -193,7 +193,11 @@ async function apiFetch(url, options = {}) {
 
 function riskBadge(level) {
   const normalized = String(level || "").toLowerCase();
-  const cls = level === "高" || normalized === "high" ? "high" : level === "中" || normalized === "medium" ? "medium" : "low";
+  const cls = ["高", "紧急", "需复核", "blocked", "critical", "high"].includes(level) || ["critical", "high", "blocked"].includes(normalized)
+    ? "high"
+    : ["中", "多 Agent", "warning", "medium", "needs_review"].includes(level) || ["medium", "warning", "needs_review"].includes(normalized)
+      ? "medium"
+      : "low";
   return el("span", { class: `badge ${cls}`, text: level || "低" });
 }
 
