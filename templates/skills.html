@@ -3,13 +3,16 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Agent 能力中心 - 审脉 AuditPilot</title>
-  <link rel="stylesheet" href="../static/app.css?v=4.0.2">
+  <title>Agent 运行时中心 - 审脉 AuditPilot</title>
+  <link rel="stylesheet" href="../static/app.css?v=4.5.0">
 </head>
 <body>
   <div class="app-shell">
     <aside class="sidebar">
-      <div class="brand"><div class="brand-icon">AP</div><div><span>审脉 AuditPilot</span><small>Enterprise Agent</small></div></div>
+      <div class="brand">
+        <div class="brand-icon">AP</div>
+        <div><span>审脉 AuditPilot</span><small>Enterprise Agent</small></div>
+      </div>
       <nav class="nav-list">
         <a class="nav-link" href="/"><span>工作台</span></a>
         <a class="nav-link" href="/audit"><span>审计项目</span></a>
@@ -18,49 +21,93 @@
         <a class="nav-link active" href="/skills"><span>Agent 运行时</span></a>
         <a class="nav-link" href="/training"><span>评测与发布</span></a>
       </nav>
-      <div class="sidebar-note">以审计交付为主线：知识检索、控制测试、底稿、复核和整改闭环。</div>
+      <div class="sidebar-note">把审计交付拆成可观测任务、可治理工具、可回归评测和可复盘自进化闭环。</div>
     </aside>
 
     <main class="main">
       <div class="topbar">
         <div class="page-title">
-          <h1>Agent 能力中心</h1>
-          <p>把 Agent 能力从函数调用升级为可编排、可观测、可审计、可治理的企业级运行时。</p>
+          <h1>Agent 运行时中心</h1>
+          <p>统一管理 Agent Runtime、Skill Registry、MCP Tool Use、Harness、自进化提案与运行轨迹，让项目从“能回答”升级为“能执行、能治理、能持续改进”。</p>
         </div>
         <div class="status-pill"><span class="status-dot"></span><span id="healthText">加载状态中</span></div>
       </div>
 
-      <section class="hero-console">
-        <div class="panel console-hero">
+      <section class="hero-console" data-section-label="总览" data-collapsible="true">
+        <div class="panel console-hero runtime-hero">
           <div>
-            <div class="hero-eyebrow">Runtime / Skill / MCP</div>
-            <h2 class="hero-title">面向审计交付的 Agent Runtime 与工具治理层</h2>
-            <p class="hero-copy">每个任务会形成协议化任务包，记录计划、工具调用、产物、安全门禁和指标；每个 Skill 包含输入 Schema、权限声明、版本和调用日志，便于审计团队复盘和交付。</p>
+            <div class="hero-eyebrow">Runtime / Harness / Tool Use</div>
+            <h2 class="hero-title">面向真实审计交付的 Agent 控制台</h2>
+            <p class="hero-copy">每个任务都会形成协议化任务包，记录规划、工具调用、产物、安全门禁和反思；Harness 会读取评测、运行时、记忆和市场趋势，生成下一轮可验证优化。</p>
           </div>
           <div class="kpi-row">
-            <div class="card metric"><div class="metric-value" id="taskCount">0</div><div class="metric-label">任务数</div></div>
+            <div class="card metric"><div class="metric-value" id="taskCount">0</div><div class="metric-label">运行任务</div></div>
             <div class="card metric"><div class="metric-value" id="toolCalls">0</div><div class="metric-label">工具调用</div></div>
-            <div class="card metric"><div class="metric-value" id="toolSuccess">0</div><div class="metric-label">成功率</div></div>
-            <div class="card metric"><div class="metric-value" id="avgLatency">0</div><div class="metric-label">平均耗时</div></div>
+            <div class="card metric"><div class="metric-value" id="toolSuccess">0%</div><div class="metric-label">工具成功率</div></div>
+            <div class="card metric"><div class="metric-value" id="avgLatency">0ms</div><div class="metric-label">平均耗时</div></div>
             <div class="card metric"><div class="metric-value" id="blockedTasks">0</div><div class="metric-label">阻断任务</div></div>
           </div>
         </div>
-        <aside class="panel">
-          <h2 class="panel-title">运行原则</h2>
+        <aside class="panel runtime-pulse">
+          <h2 class="panel-title">工程原则</h2>
           <div class="signal-list">
-            <div class="signal"><span class="signal-dot"></span><div><strong>协议化</strong><div class="muted">任务、计划、步骤、产物统一封装</div></div><span class="status-chip">A2A</span></div>
-            <div class="signal"><span class="signal-dot"></span><div><strong>可观测</strong><div class="muted">成功率、延迟、失败类型和安全状态</div></div><span class="status-chip">Trace</span></div>
-            <div class="signal"><span class="signal-dot"></span><div><strong>可治理</strong><div class="muted">工具权限、输入结构和安全门禁</div></div><span class="status-chip">Policy</span></div>
+            <div class="signal"><span class="signal-dot"></span><div><strong>协议化</strong><div class="muted">任务、步骤、产物和反思统一封装</div></div><span class="status-chip">A2A</span></div>
+            <div class="signal"><span class="signal-dot"></span><div><strong>可观测</strong><div class="muted">成功率、延迟、失败归因、缓存和熔断</div></div><span class="status-chip">Trace</span></div>
+            <div class="signal"><span class="signal-dot"></span><div><strong>可进化</strong><div class="muted">失败样例沉淀为 benchmark backlog</div></div><span class="status-chip">Harness</span></div>
           </div>
         </aside>
       </section>
 
-      <section class="grid layout-2 mt-16">
+      <section class="panel harness-console mt-16" data-section-label="Harness" data-collapsible="true">
+        <div class="panel-head">
+          <div>
+            <span class="section-kicker">Self-Evolution Control Plane</span>
+            <h2 class="panel-title">自进化 Harness 与市场趋势雷达</h2>
+            <p class="muted">对齐字节、腾讯、阿里 Agent JD 中的 Harness、Tool Use、评测、记忆、自进化和多 Agent 协作要求；提案可一键物化为 AgentRuntime 任务。</p>
+          </div>
+          <button class="btn" id="refreshEvolution">刷新 Harness</button>
+        </div>
+
+        <div class="harness-metrics">
+          <div class="harness-meter">
+            <span>成熟度</span>
+            <strong id="harnessMaturity">0</strong>
+            <small>综合 JD 覆盖、市场趋势、运行时信号与回归风险</small>
+          </div>
+          <div class="card metric"><div class="metric-value" id="marketAlignment">0/0</div><div class="metric-label">市场趋势覆盖</div></div>
+          <div class="card metric"><div class="metric-value" id="backlogCount">0</div><div class="metric-label">Benchmark Backlog</div></div>
+          <div class="card metric"><div class="metric-value" id="proposalCount">0</div><div class="metric-label">自进化提案</div></div>
+        </div>
+
+        <div class="grid harness-grid mt-16">
+          <div>
+            <div class="mini-head"><h3>市场关注方向</h3><span class="badge">AgentOps / MCP / Memory / Harness</span></div>
+            <div id="marketRadar" class="radar-grid"></div>
+          </div>
+          <div>
+            <div class="mini-head"><h3>Benchmark Backlog</h3><span class="badge">可进入评测</span></div>
+            <div id="benchmarkBacklog" class="backlog-list"></div>
+          </div>
+        </div>
+
+        <div class="grid harness-grid mt-16">
+          <div>
+            <div class="mini-head"><h3>自进化提案</h3><span class="badge">一键转任务</span></div>
+            <div id="evolutionProposals" class="proposal-stack"></div>
+          </div>
+          <div>
+            <div class="mini-head"><h3>控制平面</h3><span class="badge">Observe → Ship</span></div>
+            <div id="controlPlane" class="control-plane"></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="grid layout-2 mt-16" data-section-label="任务" data-collapsible="true">
         <div class="panel">
           <div class="panel-head">
             <div>
               <h2 class="panel-title">Agent Runtime</h2>
-              <p class="muted">创建一个审计 Agent 任务，系统会自动规划审计范围、控制映射、取证清单和整改步骤，并写入可追踪运行记录。</p>
+              <p class="muted">创建审计 Agent 任务后，系统会自动规划范围、控制映射、取证、研究、抽样、例外分级和整改步骤，并持久化运行轨迹。</p>
             </div>
             <button class="btn" id="refreshTasks">刷新任务</button>
           </div>
@@ -81,11 +128,11 @@
         </div>
         <aside class="panel">
           <h2 class="panel-title">任务队列</h2>
-          <div id="taskList" class="list dense"><p class="muted">暂无运行时任务。</p></div>
+          <div id="taskList" class="list dense scroll-panel"><p class="muted">暂无运行时任务。</p></div>
         </aside>
       </section>
 
-      <section class="grid layout-2 mt-16">
+      <section class="grid layout-2 mt-16" data-section-label="工具" data-collapsible="true">
         <div class="panel">
           <h2 class="panel-title">Skill Registry</h2>
           <section class="grid grid-3" id="skillGrid"></section>
@@ -98,175 +145,23 @@
         </aside>
       </section>
 
-      <div class="section-title"><div><h2>MCP Tools</h2><p>面向工具协议的描述层，包含 inputSchema 与权限注解。</p></div></div>
-      <section class="matrix" id="mcpTools"></section>
+      <section class="panel mt-16" data-section-label="MCP" data-collapsible="true">
+        <div class="section-title">
+          <div><h2>MCP Tools</h2><p>面向工具协议的描述层，包含 inputSchema、权限注解、超时、缓存和熔断信息。</p></div>
+        </div>
+        <div class="matrix" id="mcpTools"></div>
+      </section>
 
-      <div class="section-title">
-        <div><h2>执行结果与日志</h2><p>客户产品里的自动化动作都应可追踪、可解释、可复盘。</p></div>
-        <button class="btn" id="refreshRuns">刷新日志</button>
-      </div>
-      <section class="list dense" id="skillRuns"></section>
+      <section class="panel mt-16" data-section-label="日志" data-collapsible="true">
+        <div class="section-title">
+          <div><h2>执行结果与日志</h2><p>所有自动化动作都应可追踪、可解释、可复盘。</p></div>
+          <button class="btn" id="refreshRuns">刷新日志</button>
+        </div>
+        <div class="list dense scroll-panel" id="skillRuns"></div>
+      </section>
     </main>
   </div>
-  <script src="../static/app.js"></script>
-  <script>
-let selectedTaskId = null;
-
-async function loadSkills() {
-  const data = await apiFetch("/api/skills");
-  const grid = qs("#skillGrid"); clearNode(grid);
-  data.skills.forEach((skill) => grid.appendChild(el("div", { class: "card value-card" }, [
-    el("strong", { text: skill.title }),
-    el("p", { class: "muted", text: skill.description }),
-    el("div", { class: "muted", text: `${skill.name} · v${skill.version} · ${(skill.permissions || []).join(", ")}` }),
-    el("div", { class: "trace-summary mt-12" }, [
-      el("span", { text: `超时 ${skill.resilience?.timeout_seconds || 0}s` }),
-      el("span", { text: `缓存 ${skill.resilience?.cache_ttl_seconds || 0}s` }),
-      el("span", { text: `熔断 ${skill.resilience?.failure_threshold || 0} 次` })
-    ])
-  ])));
-  const tools = await apiFetch("/api/mcp/tools");
-  const mcp = qs("#mcpTools"); clearNode(mcp);
-  const table = el("table");
-  table.appendChild(el("thead", {}, [el("tr", {}, ["工具", "说明", "权限"].map((text) => el("th", { text })))]));
-  const body = el("tbody");
-  tools.tools.forEach((tool) => body.appendChild(el("tr", {}, [
-    el("td", { text: tool.name }),
-    el("td", { text: tool.description }),
-    el("td", { text: (tool.annotations?.permissions || []).join(", ") })
-  ])));
-  table.appendChild(body); mcp.appendChild(table);
-}
-
-async function loadObservability() {
-  const data = await apiFetch("/api/agent/observability");
-  const obs = data.observability || {};
-  setText("#taskCount", obs.tasks || 0);
-  setText("#toolCalls", obs.tool_calls || 0);
-  setText("#toolSuccess", `${Math.round((obs.tool_success_rate || 0) * 100)}%`);
-  setText("#avgLatency", `${obs.avg_latency_ms || 0}ms`);
-  setText("#blockedTasks", obs.blocked_tasks || 0);
-}
-
-async function loadTasks() {
-  const data = await apiFetch("/api/agent/tasks?limit=20");
-  const node = qs("#taskList"); clearNode(node);
-  if (!data.tasks.length) {
-    node.appendChild(el("div", { class: "item muted", text: "暂无运行时任务" }));
-    return;
-  }
-  data.tasks.forEach((task) => node.appendChild(el("div", { class: "item clickable", onclick: () => renderTask(task) }, [
-    el("strong", { text: `${task.task_id} · ${task.status}` }),
-    el("div", { class: "muted", text: task.objective }),
-    el("div", { class: "trace-summary" }, [
-      el("span", { text: `步骤 ${task.steps?.length || 0}/${task.plan?.length || 0}` }),
-      el("span", { text: `安全 ${task.safety_gate?.status || "-"}` })
-    ])
-  ])));
-}
-
-function renderTask(task) {
-  selectedTaskId = task.task_id;
-  const node = qs("#taskDetail"); clearNode(node);
-  node.appendChild(el("div", { class: "item" }, [
-    el("strong", { text: `${task.task_id} · ${task.status}` }),
-    el("div", { class: "muted", text: task.objective }),
-    el("div", { class: "score-grid" }, [
-      metricPill("工具调用", task.metrics?.tool_calls || 0),
-      metricPill("成功", task.metrics?.successful_tool_calls || 0),
-      metricPill("失败", task.metrics?.failed_tool_calls || 0),
-      metricPill("平均耗时", `${task.metrics?.avg_latency_ms || 0}ms`)
-    ])
-  ]));
-  (task.plan || []).forEach((step) => {
-    const done = (task.steps || []).find((item) => item.step_id === step.step_id);
-    node.appendChild(el("div", { class: "item compact" }, [
-      el("strong", { text: `${step.step_id} · ${step.name}` }),
-      el("div", { class: "muted", text: `${step.skill} · ${done?.status || "待执行"} · ${step.purpose || ""}` })
-    ]));
-  });
-  (task.artifacts || []).forEach((artifact) => node.appendChild(el("div", { class: "item compact" }, [
-    el("strong", { text: `产物 · ${artifact.name}` }),
-    el("div", { class: "muted", text: artifact.summary })
-  ])));
-  (task.reflections || []).forEach((reflection) => node.appendChild(el("div", { class: "item compact" }, [
-    el("strong", { text: `反思 · ${reflection.step_id} · ${reflection.verdict}` }),
-    el("div", { class: "muted", text: `置信度 ${reflection.confidence} · ${reflection.next_action}` })
-  ])));
-}
-
-function metricPill(name, value) {
-  return el("div", { class: "score-pill" }, [el("span", { text: name }), el("strong", { text: String(value) })]);
-}
-
-async function createTask() {
-  const topics = qs("#taskTopics").value.split(",").map((item) => item.trim()).filter(Boolean);
-  const payload = {
-    objective: qs("#taskObjective").value,
-    context: {
-      audit_item: qs("#taskAuditItem").value,
-      standard: qs("#taskStandard").value,
-      risk_level: qs("#taskRisk").value,
-      risk_topics: topics
-    }
-  };
-  const data = await apiFetch("/api/agent/tasks", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload)
-  });
-  renderTask(data.task);
-  await loadTasks();
-  await loadObservability();
-  await loadRuns();
-}
-
-async function runNextStep() {
-  if (!selectedTaskId) return;
-  const data = await apiFetch(`/api/agent/tasks/${selectedTaskId}/run-next`, { method: "POST" });
-  renderTask(data.task);
-  await loadTasks();
-  await loadObservability();
-  await loadRuns();
-}
-
-async function runSafetyCheck() {
-  const data = await apiFetch("/api/safety/check", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ stage: "audit", payload: { text: qs("#safetyPayload").value } })
-  });
-  const node = qs("#safetyResult"); clearNode(node);
-  const gate = data.gate || {};
-  node.appendChild(el("div", { class: "item" }, [
-    el("strong", { text: `状态：${gate.status} · 分数：${gate.score}` }),
-    el("div", { class: "muted", text: (gate.findings || []).map((item) => item.message).join("；") || "未发现阻断项" })
-  ]));
-}
-
-async function loadRuns() {
-  const node = qs("#skillRuns"); clearNode(node);
-  const data = await apiFetch("/api/skills/runs?limit=12");
-  if (!data.runs.length) return node.appendChild(el("div", { class: "item muted", text: "暂无 Skill 运行日志" }));
-  data.runs.forEach((run) => node.appendChild(el("div", { class: "item compact" }, [
-    el("strong", { text: `${run.run_id} · ${run.skill} · ${run.status}` }),
-    el("div", { class: "muted", text: `${run.duration_ms || 0}ms · ${run.cache_hit ? "缓存命中" : `熔断 ${run.circuit_state || "closed"}`} · ${run.started_at}` })
-  ])));
-}
-
-document.addEventListener("DOMContentLoaded", async () => {
-  await loadSkills();
-  await loadTasks();
-  await loadObservability();
-  await loadRuns();
-});
-document.addEventListener("DOMContentLoaded", () => {
-  qs("#createTask").addEventListener("click", createTask);
-  qs("#runNextStep").addEventListener("click", runNextStep);
-  qs("#runSafetyCheck").addEventListener("click", runSafetyCheck);
-  qs("#refreshTasks").addEventListener("click", loadTasks);
-  qs("#refreshRuns").addEventListener("click", loadRuns);
-});
-  </script>
+  <script src="../static/app.js?v=4.5.0"></script>
+  <script src="../static/skills.js?v=4.5.0"></script>
 </body>
 </html>
