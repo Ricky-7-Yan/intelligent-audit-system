@@ -521,6 +521,26 @@ async def agent_evolution_api():
     return {"success": True, "evolution": evolution_harness.report(), "timestamp": datetime.now().isoformat()}
 
 
+@app.get("/api/agent/evolution/market")
+async def agent_evolution_market_api():
+    report = evolution_harness.report()
+    return {
+        "success": True,
+        "market_radar": report.get("market_radar", {}),
+        "trajectory_protocol": report.get("trajectory_protocol", {}),
+        "timestamp": datetime.now().isoformat(),
+    }
+
+
+@app.post("/api/agent/evolution/proposals/{proposal_id}/task")
+async def agent_evolution_proposal_task_api(proposal_id: str):
+    try:
+        task = evolution_harness.create_task_from_proposal(proposal_id)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail="Evolution proposal not found") from exc
+    return {"success": True, "task": task, "timestamp": datetime.now().isoformat()}
+
+
 @app.post("/api/agent/route")
 async def agent_route_preview_api(request: RoutePreviewRequest):
     return {"success": True, "routing": intent_router.classify(request.message), "timestamp": datetime.now().isoformat()}
