@@ -76,6 +76,8 @@ class SkillRegistryTests(unittest.TestCase):
             self.assertEqual(first["status"], "success")
             self.assertTrue(second["cache_hit"])
             self.assertEqual(calls["count"], 1)
+            self.assertTrue(registry.delete_run(second["run_id"]))
+            self.assertFalse(any(run["run_id"] == second["run_id"] for run in registry.recent_runs(20)))
 
             runtime = AgentRuntime(registry, SafetyGate())
             runtime.runtime_dir = Path(tmp) / "runtime"
@@ -83,6 +85,8 @@ class SkillRegistryTests(unittest.TestCase):
             task = runtime.create_task("生成 ERP 权限审计计划", {"audit_item": "ERP 权限"})
             self.assertTrue(task["reflections"])
             self.assertIn(task["reflections"][0]["verdict"], {"pass", "review"})
+            self.assertTrue(runtime.delete_task(task["task_id"]))
+            self.assertIsNone(runtime.get_task(task["task_id"]))
 
 
 class EvaluationRepositoryTests(unittest.TestCase):

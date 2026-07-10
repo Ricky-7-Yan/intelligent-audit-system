@@ -628,6 +628,22 @@ a { color: inherit; text-decoration: none; }
 .btn:hover { border-color: var(--primary); color: var(--primary); transform: translateY(-1px); box-shadow: 0 10px 24px rgba(13, 117, 111, .10); }
 .btn.primary { background: var(--primary); border-color: var(--primary); color: #fff; }
 .btn.primary:hover { background: var(--primary-dark); color: #fff; }
+.btn.danger {
+  color: var(--danger);
+  border-color: rgba(190, 64, 64, .22);
+}
+.btn.danger:hover {
+  color: #fff;
+  background: var(--danger);
+  border-color: var(--danger);
+  box-shadow: 0 12px 26px rgba(190, 64, 64, .14);
+}
+.btn.ghost {
+  min-height: 30px;
+  padding: 5px 9px;
+  background: rgba(255,255,255,.72);
+  font-size: 12px;
+}
 .btn:disabled { cursor: not-allowed; opacity: .64; transform: none; box-shadow: none; }
 .btn.icon { width: 38px; justify-content: center; padding: 8px; }
 
@@ -1894,6 +1910,44 @@ section.section-collapsed::after {
 .control-mode .badge {
   background: rgba(255,255,255,.12);
   color: #d8f4ef;
+}
+
+.governance-detail {
+  border: 1px solid rgba(201,212,222,.86);
+  border-radius: 16px;
+  background: rgba(255,255,255,.68);
+  padding: 12px;
+}
+
+.governance-detail > summary {
+  cursor: pointer;
+  list-style: none;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 14px;
+  font-weight: 800;
+}
+
+.governance-detail > summary::-webkit-details-marker { display: none; }
+
+.governance-detail > summary small {
+  color: var(--muted);
+  font-weight: 500;
+}
+
+.governance-detail > summary::after {
+  content: "展开";
+  flex: 0 0 auto;
+  border-radius: 999px;
+  padding: 3px 9px;
+  background: #e4f7f4;
+  color: var(--primary);
+  font-size: 12px;
+}
+
+.governance-detail[open] > summary::after {
+  content: "收起";
 }
 
 .lane-card {

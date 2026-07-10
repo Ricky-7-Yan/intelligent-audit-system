@@ -60,29 +60,14 @@ async function loadObservability() {
 async function loadEvolution() {
   const data = await apiFetch("/api/agent/evolution");
   const evolution = data.evolution || {};
-  const market = evolution.market_radar || {};
   const backlog = evolution.benchmark_backlog || [];
   const proposals = evolution.evolution_proposals || [];
   const control = evolution.evolution_control_plane || {};
 
   setText("#harnessMaturity", evolution.maturity_score || 0);
-  setText("#marketAlignment", `${market.implemented || 0}/${market.total || 0}`);
+  setText("#governanceLanes", control.lanes?.length || 0);
   setText("#backlogCount", backlog.length);
   setText("#proposalCount", proposals.length);
-
-  const radarNode = qs("#marketRadar");
-  clearNode(radarNode);
-  (market.items || []).forEach((item) => {
-    radarNode.appendChild(el("div", { class: `radar-card ${item.current_level || "partial"}` }, [
-      el("div", { class: "item-head" }, [
-        el("strong", { text: item.name }),
-        el("span", { class: "status-chip", text: item.current_level === "implemented" ? "已覆盖" : "待增强" })
-      ]),
-      el("p", { class: "muted", text: item.why_it_matters }),
-      el("div", { class: "trace-summary" }, (item.signals || []).slice(0, 4).map((signal) => el("span", { text: signal }))),
-      el("small", { class: "muted", text: `下一步：${item.next_gap}` })
-    ]));
-  });
 
   const backlogNode = qs("#benchmarkBacklog");
   clearNode(backlogNode);
@@ -164,7 +149,19 @@ async function loadTasks() {
     return;
   }
   data.tasks.forEach((task) => node.appendChild(el("div", { class: "item clickable hover-lift", onclick: () => renderTask(task) }, [
-    el("strong", { text: `${task.task_id} · ${task.status}` }),
+    el("div", { class: "item-head" }, [
+      el("strong", { text: `${task.task_id} · ${task.status}` }),
+      el("button", {
+        class: "btn danger ghost",
+        type: "button",
+        "data-task-delete": task.task_id,
+        text: "删除",
+        onclick: (event) => {
+          event.stopPropagation();
+          deleteTask(task.task_id);
+        }
+      })
+    ]),
     el("div", { class: "muted", text: task.objective }),
     el("div", { class: "trace-summary" }, [
       el("span", { text: `步骤 ${task.steps?.length || 0}/${task.plan?.length || 0}` }),
@@ -181,7 +178,10 @@ function renderTask(task) {
   node.appendChild(el("div", { class: "item selected-task" }, [
     el("div", { class: "item-head" }, [
       el("strong", { text: `${task.task_id} · ${task.status}` }),
-      el("span", { class: "status-chip", text: task.protocol || "audit-agent-task-v1" })
+      el("div", { class: "toolbar" }, [
+        el("span", { class: "status-chip", text: task.protocol || "audit-agent-task-v1" }),
+        el("button", { class: "btn danger ghost", type: "button", "data-task-delete-detail": task.task_id, text: "删除记录", onclick: () => deleteTask(task.task_id) })
+      ])
     ]),
     el("div", { class: "muted", text: task.objective }),
     el("div", { class: "score-grid" }, [
@@ -212,6 +212,19 @@ function renderTask(task) {
     el("strong", { text: `反思 · ${reflection.agent_role || reflection.step_id} · ${reflection.verdict}` }),
     el("div", { class: "muted", text: `置信度 ${reflection.confidence} · ${reflection.next_action}` })
   ])));
+}
+
+async function deleteTask(taskId) {
+  if (!window.confirm(`确认删除任务记录 ${taskId}？此操作会移除本地运行时记录。`)) return;
+  await apiFetch(`/api/agent/tasks/${taskId}`, { method: "DELETE" });
+  if (selectedTaskId === taskId) {
+    selectedTaskId = null;
+    const detail = qs("#taskDetail");
+    clearNode(detail);
+    detail.appendChild(el("p", { class: "muted", text: "记录已删除，请从右侧选择其他任务。" }));
+  }
+  await Promise.all([loadTasks(), loadObservability(), loadEvolution()]);
+  showToast(`已删除任务记录 ${taskId}`, "success");
 }
 
 async function createTask() {
@@ -272,9 +285,19 @@ async function loadRuns() {
     return;
   }
   data.runs.forEach((run) => node.appendChild(el("div", { class: "item compact" }, [
-    el("strong", { text: `${run.run_id} · ${run.skill} · ${run.status}` }),
+    el("div", { class: "item-head" }, [
+      el("strong", { text: `${run.run_id} · ${run.skill} · ${run.status}` }),
+      el("button", { class: "btn danger ghost", type: "button", "data-run-delete": run.run_id, text: "删除", onclick: () => deleteSkillRun(run.run_id) })
+    ]),
     el("div", { class: "muted", text: `${run.duration_ms || 0}ms · ${run.cache_hit ? "缓存命中" : `熔断 ${run.circuit_state || "closed"}`} · ${run.started_at}` })
   ])));
+}
+
+async function deleteSkillRun(runId) {
+  if (!window.confirm(`确认删除运行日志 ${runId}？`)) return;
+  await apiFetch(`/api/skills/runs/${runId}`, { method: "DELETE" });
+  await Promise.all([loadRuns(), loadObservability(), loadEvolution()]);
+  showToast(`已删除运行日志 ${runId}`, "success");
 }
 
 async function bootSkillsPage() {

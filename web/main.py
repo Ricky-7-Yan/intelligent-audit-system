@@ -464,6 +464,13 @@ async def skill_runs_api(limit: int = 20):
     return {"success": True, "runs": skill_registry.recent_runs(limit), "timestamp": datetime.now().isoformat()}
 
 
+@app.delete("/api/skills/runs/{run_id}")
+async def skill_run_delete_api(run_id: str):
+    if not skill_registry.delete_run(run_id):
+        raise HTTPException(status_code=404, detail="Skill 运行日志不存在")
+    return {"success": True, "deleted": run_id, "timestamp": datetime.now().isoformat()}
+
+
 @app.get("/api/skills/metrics")
 async def skill_metrics_api(limit: int = 500):
     return {"success": True, "metrics": skill_registry.metrics(limit), "timestamp": datetime.now().isoformat()}
@@ -491,6 +498,13 @@ async def agent_task_detail_api(task_id: str):
     if not task:
         raise HTTPException(status_code=404, detail="Agent 任务不存在")
     return {"success": True, "task": task, "timestamp": datetime.now().isoformat()}
+
+
+@app.delete("/api/agent/tasks/{task_id}")
+async def agent_task_delete_api(task_id: str):
+    if not agent_runtime.delete_task(task_id):
+        raise HTTPException(status_code=404, detail="Agent 任务不存在")
+    return {"success": True, "deleted": task_id, "timestamp": datetime.now().isoformat()}
 
 
 @app.post("/api/agent/tasks/{task_id}/run-next")

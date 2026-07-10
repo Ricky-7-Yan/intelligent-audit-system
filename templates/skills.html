@@ -28,7 +28,7 @@
       <div class="topbar">
         <div class="page-title">
           <h1>Agent 运行时中心</h1>
-          <p>统一管理 Agent Runtime、Skill Registry、MCP Tool Use、Harness、自进化提案与运行轨迹，让项目从“能回答”升级为“能执行、能治理、能持续改进”。</p>
+          <p>统一管理 Agent Runtime、Skill Registry、MCP Tool Use、优化队列与运行轨迹，让项目从“能回答”升级为“能执行、能治理、能持续改进”。</p>
         </div>
         <div class="status-pill"><span class="status-dot"></span><span id="healthText">加载状态中</span></div>
       </div>
@@ -36,9 +36,9 @@
       <section class="hero-console" data-section-label="总览" data-collapsible="true">
         <div class="panel console-hero runtime-hero">
           <div>
-            <div class="hero-eyebrow">Runtime / Harness / Tool Use</div>
+            <div class="hero-eyebrow">Runtime / Governance / Tool Use</div>
             <h2 class="hero-title">面向真实审计交付的 Agent 控制台</h2>
-            <p class="hero-copy">每个任务都会形成协议化任务包，记录规划、工具调用、产物、安全门禁和反思；Harness 会读取评测、运行时、记忆和市场趋势，生成下一轮可验证优化。</p>
+            <p class="hero-copy">每个任务都会形成协议化任务包，记录规划、工具调用、产物、安全门禁和反思；系统会读取评测、运行时、记忆与失败信号，生成下一轮可验证优化。</p>
           </div>
           <div class="kpi-row">
             <div class="card metric"><div class="metric-value" id="taskCount">0</div><div class="metric-label">运行任务</div></div>
@@ -58,31 +58,31 @@
         </aside>
       </section>
 
-      <section class="panel harness-console mt-16" data-section-label="Harness" data-collapsible="true">
+      <section class="panel harness-console mt-16" data-section-label="治理" data-collapsible="true">
         <div class="panel-head">
           <div>
-            <span class="section-kicker">Self-Evolution Control Plane</span>
-            <h2 class="panel-title">自进化 Harness 与市场趋势雷达</h2>
-            <p class="muted">对齐字节、腾讯、阿里 Agent JD 中的 Harness、Tool Use、评测、记忆、自进化和多 Agent 协作要求；提案可一键物化为 AgentRuntime 任务。</p>
+            <span class="section-kicker">Runtime Governance</span>
+            <h2 class="panel-title">运行治理与自进化队列</h2>
+            <p class="muted">把运行失败、评测退化、工具调用和人工复核信号沉淀成可执行优化队列；提案可一键转为 AgentRuntime 任务，进入审计交付闭环。</p>
           </div>
-          <button class="btn" id="refreshEvolution">刷新 Harness</button>
+          <button class="btn" id="refreshEvolution">刷新治理状态</button>
         </div>
 
         <div class="harness-metrics">
           <div class="harness-meter">
-            <span>成熟度</span>
+            <span>运行成熟度</span>
             <strong id="harnessMaturity">0</strong>
-            <small>综合 JD 覆盖、市场趋势、运行时信号与回归风险</small>
+            <small>综合运行时信号、评测回归、记忆状态与风险治理</small>
           </div>
-          <div class="card metric"><div class="metric-value" id="marketAlignment">0/0</div><div class="metric-label">市场趋势覆盖</div></div>
+          <div class="card metric"><div class="metric-value" id="governanceLanes">0</div><div class="metric-label">治理通道</div></div>
           <div class="card metric"><div class="metric-value" id="backlogCount">0</div><div class="metric-label">Benchmark Backlog</div></div>
-          <div class="card metric"><div class="metric-value" id="proposalCount">0</div><div class="metric-label">自进化提案</div></div>
+          <div class="card metric"><div class="metric-value" id="proposalCount">0</div><div class="metric-label">优化提案</div></div>
         </div>
 
         <div class="grid harness-grid mt-16">
           <div>
-            <div class="mini-head"><h3>市场关注方向</h3><span class="badge">AgentOps / MCP / Memory / Harness</span></div>
-            <div id="marketRadar" class="radar-grid"></div>
+            <div class="mini-head"><h3>优化提案</h3><span class="badge">一键转任务</span></div>
+            <div id="evolutionProposals" class="proposal-stack"></div>
           </div>
           <div>
             <div class="mini-head"><h3>Benchmark Backlog</h3><span class="badge">可进入评测</span></div>
@@ -90,16 +90,13 @@
           </div>
         </div>
 
-        <div class="grid harness-grid mt-16">
-          <div>
-            <div class="mini-head"><h3>自进化提案</h3><span class="badge">一键转任务</span></div>
-            <div id="evolutionProposals" class="proposal-stack"></div>
-          </div>
-          <div>
+        <details class="governance-detail mt-16">
+          <summary><span>查看运行控制平面</span><small>默认折叠，避免主界面过载</small></summary>
+          <div class="mt-16">
             <div class="mini-head"><h3>控制平面</h3><span class="badge">Observe → Ship</span></div>
             <div id="controlPlane" class="control-plane"></div>
           </div>
-        </div>
+        </details>
       </section>
 
       <section class="grid layout-2 mt-16" data-section-label="任务" data-collapsible="true">

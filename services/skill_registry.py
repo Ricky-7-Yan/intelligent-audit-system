@@ -137,6 +137,28 @@ class SkillRegistry:
         lines = self.log_file.read_text(encoding="utf-8").splitlines()[-limit:]
         return [json.loads(line) for line in lines if line.strip()][::-1]
 
+    def delete_run(self, run_id: str) -> bool:
+        if not self.log_file.exists():
+            return False
+        lines = self.log_file.read_text(encoding="utf-8").splitlines()
+        retained: List[str] = []
+        removed = False
+        for line in lines:
+            if not line.strip():
+                continue
+            try:
+                record = json.loads(line)
+            except json.JSONDecodeError:
+                retained.append(line)
+                continue
+            if record.get("run_id") == run_id:
+                removed = True
+                continue
+            retained.append(json.dumps(record, ensure_ascii=False))
+        if removed:
+            self.log_file.write_text("\n".join(retained) + ("\n" if retained else ""), encoding="utf-8")
+        return removed
+
     def metrics(self, limit: int = 500) -> Dict[str, Any]:
         runs = self.recent_runs(limit)
         latencies = [float(run.get("duration_ms") or 0) for run in runs]

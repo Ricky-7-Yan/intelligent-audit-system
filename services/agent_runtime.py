@@ -68,6 +68,13 @@ class AgentRuntime:
             return None
         return self._read(path)
 
+    def delete_task(self, task_id: str) -> bool:
+        path = self._path(task_id)
+        if not path.exists():
+            return False
+        path.unlink()
+        return True
+
     def run_next_step(self, task_id: str) -> Dict[str, Any]:
         task = self.get_task(task_id)
         if not task:
