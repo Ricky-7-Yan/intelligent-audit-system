@@ -210,20 +210,46 @@ function renderEvaluationRuns(runs) {
   runs.forEach((run) => {
     const metrics = run.metrics || {};
     const gate = run.release_gate || {};
-    node.appendChild(el("div", { class: "item eval-card" }, [
-      el("div", { class: "item-head" }, [
-        el("strong", { text: `${run.run_id} · ${run.run_type}` }),
-        renderRunGate(run),
+    const deleteButton = el("button", { class: "btn danger ghost", type: "button", text: "删除" });
+    deleteButton.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      deleteEvaluationRun(run.run_id);
+    });
+    node.appendChild(el("details", { class: "item eval-card eval-detail record-detail" }, [
+      el("summary", {}, [
+        el("div", { class: "record-title" }, [
+          el("strong", { text: `${run.run_id} · ${run.run_type}` }),
+          el("small", { text: run.created_at || "" }),
+        ]),
+        el("div", { class: "record-actions" }, [
+          renderRunGate(run),
+          deleteButton,
+        ]),
       ]),
-      el("div", { class: "trace-summary" }, [
-        el("span", { text: `得分 ${scoreText(metrics.overall_score)}` }),
-        el("span", { text: `通过率 ${percentText(metrics.pass_rate)}` }),
-        el("span", { text: `回归 ${metrics.regression_count ?? 0}` }),
-        el("span", { text: run.created_at || "" }),
+      el("div", { class: "detail-body" }, [
+        el("div", { class: "trace-summary" }, [
+          el("span", { text: `得分 ${scoreText(metrics.overall_score)}` }),
+          el("span", { text: `通过率 ${percentText(metrics.pass_rate)}` }),
+          el("span", { text: `回归 ${metrics.regression_count ?? 0}` }),
+          el("span", { text: `基线 ${run.comparison?.baseline_run_id || "新基线"}` }),
+        ]),
+        el("p", { class: "muted", text: (gate.blockers || []).join("；") || "满足当前发布门禁。" }),
       ]),
-      el("p", { class: "muted", text: (gate.blockers || []).join("；") || "满足当前发布门禁。" }),
     ]));
   });
+}
+
+async function deleteEvaluationRun(runId) {
+  if (!runId) return;
+  if (!window.confirm(`确认删除评测记录 ${runId}？`)) return;
+  try {
+    await apiFetch(`/api/evaluation/runs/${encodeURIComponent(runId)}`, { method: "DELETE" });
+    await loadEvaluationRuns();
+    showToast(`已删除评测记录 ${runId}`, "success");
+  } catch (error) {
+    showToast(`删除评测记录失败：${error.message}`, "error");
+  }
 }
 
 function avg(values) {

@@ -281,14 +281,53 @@ function renderEvidenceAnalysisHistory(items) {
     return;
   }
   items.forEach((item) => {
-    const card = el("div", { class: "item compact clickable" }, [
-      el("strong", { text: `${item.analysis_id} · ${item.file_name}` }),
-      el("div", { class: "muted", text: `风险 ${item.risk_count || 0} · 控制 ${item.control_count || 0} · ${item.quality_gate?.label || item.quality_gate?.status || "review"}` }),
-      el("div", { class: "muted", text: item.created_at || "" }),
-    ]);
-    card.addEventListener("click", () => loadEvidenceAnalysis(item.analysis_id));
-    node.appendChild(card);
+    const openButton = el("button", { class: "btn ghost", type: "button", text: "打开" });
+    openButton.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      loadEvidenceAnalysis(item.analysis_id);
+    });
+    const deleteButton = el("button", { class: "btn danger ghost", type: "button", text: "删除" });
+    deleteButton.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      deleteEvidenceAnalysis(item.analysis_id);
+    });
+    node.appendChild(el("details", { class: "item compact eval-detail record-detail" }, [
+      el("summary", {}, [
+        el("div", { class: "record-title" }, [
+          el("strong", { text: `${item.analysis_id} · ${item.file_name}` }),
+          el("small", { text: item.created_at || "" }),
+        ]),
+        el("div", { class: "record-actions" }, [openButton, deleteButton]),
+      ]),
+      el("div", { class: "detail-body" }, [
+        el("div", { class: "trace-summary" }, [
+          el("span", { text: `风险 ${item.risk_count || 0}` }),
+          el("span", { text: `控制 ${item.control_count || 0}` }),
+          el("span", { text: item.quality_gate?.label || item.quality_gate?.status || "review" }),
+        ]),
+      ]),
+    ]));
   });
+}
+
+async function deleteEvidenceAnalysis(analysisId) {
+  if (!analysisId) return;
+  if (!window.confirm(`确认删除证据分析记录 ${analysisId}？`)) return;
+  try {
+    await apiFetch(`/api/evidence/analyses/${encodeURIComponent(analysisId)}`, { method: "DELETE" });
+    if (currentEvidenceAnalysisId === analysisId) {
+      currentEvidenceAnalysisId = null;
+      const node = qs("#evidenceAnalysisResult");
+      clearNode(node);
+      node.appendChild(el("p", { class: "muted", text: "当前证据分析记录已删除。" }));
+    }
+    await loadEvidenceAnalyses();
+    showToast(`已删除证据分析记录 ${analysisId}`, "success");
+  } catch (error) {
+    showToast(`删除证据分析失败：${error.message}`, "error");
+  }
 }
 
 async function loadEvidenceAnalyses() {
@@ -380,16 +419,58 @@ async function loadRuns() {
       return;
     }
     data.runs.forEach((run) => {
-      const item = el("div", { class: "item compact clickable" }, [
-        el("strong", { text: `${run.run_id} · ${run.audit_item || ""}` }),
-        el("div", { class: "muted", text: `${run.lifecycle_stage || "-"} · ${run.status} · 风险 ${run.risk_level || "-"} · 合规 ${run.compliance_score ?? "-"} · 质量 ${run.quality_confidence ?? "-"}` }),
-        el("div", { class: "mt-12", text: run.created_at || "" }),
-      ]);
-      item.addEventListener("click", () => loadRunDetail(run.run_id));
-      node.appendChild(item);
+      const openButton = el("button", { class: "btn ghost", type: "button", text: "打开" });
+      openButton.addEventListener("click", (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        loadRunDetail(run.run_id);
+      });
+      const deleteButton = el("button", { class: "btn danger ghost", type: "button", text: "删除" });
+      deleteButton.addEventListener("click", (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        deleteAuditRun(run.run_id);
+      });
+      node.appendChild(el("details", { class: "item compact eval-detail record-detail" }, [
+        el("summary", {}, [
+          el("div", { class: "record-title" }, [
+            el("strong", { text: `${run.run_id} · ${run.audit_item || ""}` }),
+            el("small", { text: run.created_at || "" }),
+          ]),
+          el("div", { class: "record-actions" }, [openButton, deleteButton]),
+        ]),
+        el("div", { class: "detail-body" }, [
+          el("div", { class: "trace-summary" }, [
+            el("span", { text: run.lifecycle_stage || "-" }),
+            el("span", { text: run.status || "-" }),
+            el("span", { text: `风险 ${run.risk_level || "-"}` }),
+            el("span", { text: `合规 ${run.compliance_score ?? "-"}` }),
+            el("span", { text: `质量 ${run.quality_confidence ?? "-"}` }),
+          ]),
+        ]),
+      ]));
     });
   } catch (error) {
     node.appendChild(el("p", { class: "muted", text: `加载失败：${error.message}` }));
+  }
+}
+
+async function deleteAuditRun(runId) {
+  if (!runId) return;
+  if (!window.confirm(`确认删除审计记录 ${runId}？`)) return;
+  try {
+    await apiFetch(`/api/audit/runs/${encodeURIComponent(runId)}`, { method: "DELETE" });
+    if (currentRunId === runId) {
+      currentRunId = null;
+      setDownloadLinks(null);
+      setText("#stageCard", "-");
+      setMarkdown("#auditResult", "当前审计记录已删除。请重新运行或选择其他历史项目。");
+      ["#taskPlan", "#evidencePack", "#qualityPanel", "#controlMatrix", "#auditProgram", "#samplingPlan", "#findings", "#recommendations", "#remediationTasks", "#evidenceRequests", "#controlTests", "#deliveryPreview"].forEach((selector) => clearNode(qs(selector)));
+    }
+    await loadRuns();
+    showToast(`已删除审计记录 ${runId}`, "success");
+  } catch (error) {
+    showToast(`删除审计记录失败：${error.message}`, "error");
   }
 }
 

@@ -591,6 +591,13 @@ async def audit_run_detail_api(run_id: str):
     return {"success": True, "run": record, "timestamp": datetime.now().isoformat()}
 
 
+@app.delete("/api/audit/runs/{run_id}")
+async def audit_run_delete_api(run_id: str):
+    if not audit_repository.delete_run(run_id):
+        raise HTTPException(status_code=404, detail="审计运行记录不存在")
+    return {"success": True, "deleted": run_id, "timestamp": datetime.now().isoformat()}
+
+
 @app.post("/api/audit/runs/{run_id}/review")
 async def audit_run_review_api(run_id: str, request: ReviewRequest):
     record = audit_repository.add_review(run_id, request.reviewer, request.decision, request.comment)
@@ -772,6 +779,13 @@ async def evidence_analysis_detail_api(analysis_id: str):
     return {"success": True, "analysis": record, "timestamp": datetime.now().isoformat()}
 
 
+@app.delete("/api/evidence/analyses/{analysis_id}")
+async def evidence_analysis_delete_api(analysis_id: str):
+    if not evidence_analyzer.delete_analysis(analysis_id):
+        raise HTTPException(status_code=404, detail="证据分析记录不存在")
+    return {"success": True, "deleted": analysis_id, "timestamp": datetime.now().isoformat()}
+
+
 @app.get("/api/knowledge/query")
 async def query_knowledge_api(question: str, context: Optional[str] = None, rag=Depends(get_rag_pipeline)):
     context_dict = None
@@ -835,6 +849,13 @@ async def evaluation_run_detail_api(run_id: str):
     if not record:
         raise HTTPException(status_code=404, detail="评测记录不存在")
     return {"success": True, "run": record, "timestamp": datetime.now().isoformat()}
+
+
+@app.delete("/api/evaluation/runs/{run_id}")
+async def evaluation_run_delete_api(run_id: str):
+    if not evaluation_repository.delete_run(run_id):
+        raise HTTPException(status_code=404, detail="评测记录不存在")
+    return {"success": True, "deleted": run_id, "timestamp": datetime.now().isoformat()}
 
 
 @app.get("/api/session/history/{session_id}")

@@ -95,6 +95,13 @@ class AuditRunRepository:
             return None
         return self._normalize_record(json.loads(path.read_text(encoding="utf-8")))
 
+    def delete_run(self, run_id: str) -> bool:
+        path = self._path(run_id)
+        if not path.exists():
+            return False
+        path.unlink()
+        return True
+
     def add_review(self, run_id: str, reviewer: str, decision: str, comment: str) -> Optional[Dict[str, Any]]:
         record = self.get_run(run_id)
         if not record:

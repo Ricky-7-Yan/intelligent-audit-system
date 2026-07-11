@@ -63,6 +63,13 @@ class EvaluationRunRepository:
         except json.JSONDecodeError:
             return None
 
+    def delete_run(self, run_id: str) -> bool:
+        path = self._path(run_id)
+        if not path.exists():
+            return False
+        path.unlink()
+        return True
+
     def _path(self, run_id: str) -> Path:
         safe_id = "".join(ch for ch in run_id if ch.isalnum() or ch in {"-", "_"})
         return self.base_dir / f"{safe_id}.json"

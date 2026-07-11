@@ -1713,6 +1713,20 @@ section.section-collapsed::after {
   display: block;
 }
 
+.record-detail {
+  background:
+    linear-gradient(180deg, rgba(255,255,255,.98), rgba(248,251,252,.94));
+  border-color: rgba(201, 212, 222, .9);
+  box-shadow: var(--shadow-soft);
+  transition: border-color .18s ease, box-shadow .18s ease, transform .18s ease;
+}
+
+.record-detail:hover {
+  border-color: rgba(13, 117, 111, .22);
+  box-shadow: 0 14px 32px rgba(20, 35, 55, .07);
+  transform: translateY(-1px);
+}
+
 .eval-detail > summary {
   cursor: pointer;
   list-style: none;
@@ -1723,6 +1737,32 @@ section.section-collapsed::after {
 }
 
 .eval-detail > summary::-webkit-details-marker { display: none; }
+
+.record-title {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.record-title strong {
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.record-title small {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.record-actions {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 7px;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+}
 
 .eval-detail > summary::after {
   content: "展开";

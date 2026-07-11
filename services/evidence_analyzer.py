@@ -85,6 +85,13 @@ class EvidenceAnalyzer:
         except json.JSONDecodeError:
             return None
 
+    def delete_analysis(self, analysis_id: str) -> bool:
+        path = self._path(analysis_id)
+        if not path.exists():
+            return False
+        path.unlink()
+        return True
+
     def _decode(self, content: bytes) -> str:
         for encoding in ["utf-8-sig", "utf-8", "gb18030", "gbk", "latin-1"]:
             try:

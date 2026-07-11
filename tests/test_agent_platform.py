@@ -5,8 +5,10 @@ import unittest
 from pathlib import Path
 
 from services.agent_runtime import AgentRuntime
+from services.audit_repository import AuditRunRepository
 from services.conversation_memory import ConversationMemory
 from services.evaluation_repository import EvaluationRunRepository
+from services.evidence_analyzer import EvidenceAnalyzer
 from services.evolution_harness import EvolutionHarness
 from services.intent_router import HybridIntentRouter
 from services.safety_gate import SafetyGate
@@ -116,6 +118,39 @@ class EvaluationRepositoryTests(unittest.TestCase):
             self.assertEqual(run["comparison"]["status"], "regression")
             self.assertEqual(run["release_gate"]["status"], "review")
             self.assertTrue(run["release_gate"]["blockers"])
+            self.assertTrue(repository.delete_run(run["run_id"]))
+            self.assertIsNone(repository.get_run(run["run_id"]))
+
+
+class AuditEvidenceRepositoryTests(unittest.TestCase):
+    def test_deletes_audit_runs_and_evidence_analyses(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            audit_repository = AuditRunRepository(Path(tmp) / "audit")
+            audit_run = audit_repository.create_run(
+                {"audit_item": "ERP", "audit_type": "权限审计", "standard_type": "ISO27001"},
+                {
+                    "response": "审计结论",
+                    "quality_gate": {"confidence": 0.82},
+                    "risk_assessment": {"risk_level": "高", "risk_score": 0.8},
+                    "compliance_check": {"compliance_score": 0.76},
+                    "recommendations": [],
+                    "control_matrix": [],
+                    "audit_program": [],
+                },
+            )
+            self.assertIsNotNone(audit_repository.get_run(audit_run["run_id"]))
+            self.assertTrue(audit_repository.delete_run(audit_run["run_id"]))
+            self.assertIsNone(audit_repository.get_run(audit_run["run_id"]))
+
+            analyzer = EvidenceAnalyzer(Path(tmp) / "evidence")
+            analysis = analyzer.analyze_file(
+                "access.csv",
+                b"user,role,status\nadmin,administrator,active\n",
+                {"audit_item": "ERP", "audit_type": "权限审计"},
+            )
+            self.assertIsNotNone(analyzer.get_analysis(analysis["analysis_id"]))
+            self.assertTrue(analyzer.delete_analysis(analysis["analysis_id"]))
+            self.assertIsNone(analyzer.get_analysis(analysis["analysis_id"]))
 
 
 class EvolutionHarnessTests(unittest.TestCase):

@@ -117,7 +117,7 @@
         </div>
         <aside class="panel">
           <h2 class="panel-title">&#35777;&#25454;&#20998;&#26512;&#21382;&#21490;</h2>
-          <div id="evidenceAnalysisHistory" class="list dense"><p class="muted">&#26242;&#26080;&#35777;&#25454;&#20998;&#26512;&#35760;&#24405;&#12290;</p></div>
+          <div id="evidenceAnalysisHistory" class="list dense scroll-panel"><p class="muted">&#26242;&#26080;&#35777;&#25454;&#20998;&#26512;&#35760;&#24405;&#12290;</p></div>
         </aside>
       </section>
 
@@ -127,18 +127,18 @@
       </section>
 
       <section class="grid grid-2 mt-16">
-        <div class="panel"><h2 class="panel-title">&#35777;&#25454;&#35831;&#27714;&#20013;&#24515;</h2><div id="evidenceRequests" class="list dense"><p class="muted">&#31561;&#24453;&#39033;&#30446;&#26723;&#26696;</p></div></div>
-        <div class="panel"><h2 class="panel-title">&#25511;&#21046;&#27979;&#35797;&#24037;&#20316;&#21488;</h2><div id="controlTests" class="list dense"><p class="muted">&#31561;&#24453;&#39033;&#30446;&#26723;&#26696;</p></div></div>
+        <div class="panel"><h2 class="panel-title">&#35777;&#25454;&#35831;&#27714;&#20013;&#24515;</h2><div id="evidenceRequests" class="list dense scroll-panel"><p class="muted">&#31561;&#24453;&#39033;&#30446;&#26723;&#26696;</p></div></div>
+        <div class="panel"><h2 class="panel-title">&#25511;&#21046;&#27979;&#35797;&#24037;&#20316;&#21488;</h2><div id="controlTests" class="list dense scroll-panel"><p class="muted">&#31561;&#24453;&#39033;&#30446;&#26723;&#26696;</p></div></div>
       </section>
 
       <section class="panel mt-16" id="audit-control-section" data-section-label="control" data-collapsible="true"><h2 class="panel-title">&#25511;&#21046;&#30697;&#38453;</h2><div id="controlMatrix" class="matrix muted">&#31561;&#24453;&#32467;&#26524;</div></section>
       <section class="grid grid-2 mt-16" id="audit-program-section" data-section-label="program" data-collapsible="true"><div class="panel"><h2 class="panel-title">&#23457;&#35745;&#31243;&#24207;</h2><div id="auditProgram" class="list dense"><p class="muted">&#31561;&#24453;&#32467;&#26524;</p></div></div><div class="panel"><h2 class="panel-title">&#25277;&#26679;&#35745;&#21010;</h2><div id="samplingPlan" class="list dense"><p class="muted">&#31561;&#24453;&#32467;&#26524;</p></div></div></section>
       <section class="panel mt-16" id="audit-findings-section" data-section-label="findings" data-collapsible="true"><h2 class="panel-title">&#23457;&#35745;&#21457;&#29616;&#33609;&#31295;</h2><div id="findings" class="grid grid-2"><p class="muted">&#31561;&#24453;&#32467;&#26524;</p></div></section>
       <section class="panel mt-16" id="audit-remediation-section" data-section-label="remediation" data-collapsible="true"><h2 class="panel-title">&#25972;&#25913;&#34892;&#21160;&#35745;&#21010;</h2><div id="recommendations" class="grid grid-3"><p class="muted">&#31561;&#24453;&#32467;&#26524;</p></div></section>
-      <section class="panel mt-16" id="audit-tasks-section" data-section-label="tasks" data-collapsible="true"><h2 class="panel-title">&#25972;&#25913;&#20219;&#21153;&#36319;&#36394;</h2><div id="remediationTasks" class="list dense"><p class="muted">&#31561;&#24453;&#32467;&#26524;</p></div></section>
+      <section class="panel mt-16" id="audit-tasks-section" data-section-label="tasks" data-collapsible="true"><h2 class="panel-title">&#25972;&#25913;&#20219;&#21153;&#36319;&#36394;</h2><div id="remediationTasks" class="list dense scroll-panel"><p class="muted">&#31561;&#24453;&#32467;&#26524;</p></div></section>
 
       <section class="grid layout-2 mt-16" id="audit-review-section" data-section-label="review" data-collapsible="true">
-        <div class="panel"><h2 class="panel-title">&#23457;&#35745;&#26723;&#26696;</h2><div class="toolbar"><button class="btn" id="refreshRuns">&#21047;&#26032;&#21382;&#21490;</button></div><div id="runHistory" class="list dense mt-16"><p class="muted">&#26242;&#26080;&#21382;&#21490;</p></div></div>
+        <div class="panel"><h2 class="panel-title">&#23457;&#35745;&#26723;&#26696;</h2><div class="toolbar"><button class="btn" id="refreshRuns">&#21047;&#26032;&#21382;&#21490;</button></div><div id="runHistory" class="list dense mt-16 scroll-panel"><p class="muted">&#26242;&#26080;&#21382;&#21490;</p></div></div>
         <div class="panel"><h2 class="panel-title">&#20154;&#24037;&#22797;&#26680;</h2><div class="grid grid-2"><div class="field"><label>&#22797;&#26680;&#20154;</label><input id="reviewer" value="&#23457;&#35745;&#32463;&#29702;"></div><div class="field"><label>&#32467;&#35770;</label><select id="reviewDecision"><option value="approve">&#36890;&#36807;</option><option value="need_evidence">&#34917;&#20805;&#35777;&#25454;</option><option value="reject">&#36864;&#22238;&#25972;&#25913;</option></select></div></div><div class="field mt-12"><label>&#22797;&#26680;&#24847;&#35265;</label><textarea id="reviewComment" rows="4" placeholder="&#35760;&#24405;&#20154;&#24037;&#21028;&#26029;&#12289;&#35777;&#25454;&#32570;&#21475;&#25110;&#25972;&#25913;&#35201;&#27714;"></textarea></div><button class="btn primary mt-16" id="submitReview">&#25552;&#20132;&#22797;&#26680;</button><div id="reviewResult" class="muted mt-12"></div></div>
       </section>
     </main>
