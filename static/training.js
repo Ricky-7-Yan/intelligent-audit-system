@@ -358,6 +358,26 @@ async function loadEvaluationRuns() {
   }
 }
 
+async function openEvaluationDeepLink() {
+  const runId = new URLSearchParams(window.location.search).get("run_id");
+  if (!runId) return;
+  try {
+    const data = await apiFetch(`/api/evaluation/runs/${encodeURIComponent(runId)}`);
+    const run = data.run || {};
+    if (run.run_type === "rag") renderRagResults(run.results || {});
+    else if (run.run_type === "research") renderResearch(run.results || {});
+    else renderEvalResults(run.results || {});
+    qs("#evalResults")?.prepend(el("div", { class: "item compact selected-task" }, [
+      el("strong", { text: `已打开评测记录 ${runId}` }),
+      el("p", { class: "muted", text: `发布门禁：${run.release_gate?.label || run.release_gate?.status || "待复核"}` }),
+    ]));
+    qs("#training-results")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    showToast(`已打开评测记录 ${runId}`, "success");
+  } catch (error) {
+    showToast(`评测记录打开失败：${error.message}`, "error");
+  }
+}
+
 function setMode(mode) {
   activeMode = mode;
   qsa("#modeTabs .seg").forEach((button) => button.classList.toggle("active", button.dataset.mode === mode));
@@ -367,7 +387,7 @@ function bindTrainingPage() {
   renderMetricToggles();
   renderCustomCases();
   loadEvaluationPlan();
-  loadEvaluationRuns();
+  loadEvaluationRuns().then(openEvaluationDeepLink);
 
   qsa("#modeTabs .seg").forEach((button) => button.addEventListener("click", () => setMode(button.dataset.mode)));
 

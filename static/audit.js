@@ -753,6 +753,30 @@ async function loadTemplates() {
   }
 }
 
+async function openAuditDeepLink() {
+  const params = new URLSearchParams(window.location.search);
+  const runId = params.get("run_id");
+  const analysisId = params.get("analysis_id");
+  if (runId) {
+    try {
+      await loadRunDetail(runId);
+      qs("#audit-review-section")?.scrollIntoView({ behavior: "smooth", block: "start" });
+      showToast(`已打开审计记录 ${runId}`, "success");
+    } catch (error) {
+      showToast(`审计记录打开失败：${error.message}`, "error");
+    }
+  }
+  if (analysisId) {
+    try {
+      await loadEvidenceAnalysis(analysisId);
+      qs("#audit-evidence-section")?.scrollIntoView({ behavior: "smooth", block: "start" });
+      showToast(`已打开证据分析 ${analysisId}`, "success");
+    } catch (error) {
+      showToast(`证据分析打开失败：${error.message}`, "error");
+    }
+  }
+}
+
 document.addEventListener("DOMContentLoaded", () => {
   qs("#runAudit").addEventListener("click", runAudit);
   qs("#runResearch").addEventListener("click", runResearch);
@@ -779,8 +803,7 @@ document.addEventListener("DOMContentLoaded", () => {
     btn.classList.add("active");
   }));
   loadTemplates();
-  loadRuns();
-  loadEvidenceAnalyses();
+  Promise.all([loadRuns(), loadEvidenceAnalyses()]).then(openAuditDeepLink);
 });
 
 document.addEventListener("DOMContentLoaded", () => {

@@ -66,6 +66,114 @@ def clone_payload(payload: Any) -> Any:
     return json.loads(json.dumps(payload, ensure_ascii=False, default=str))
 
 
+def _search_text(*values: Any) -> str:
+    return " ".join(str(value or "") for value in values).lower()
+
+
+def _search_item(item_type: str, title: str, subtitle: str, href: str, keywords: str = "", created_at: str = "", badge: str = "") -> Dict[str, Any]:
+    return {
+        "type": item_type,
+        "title": title,
+        "subtitle": subtitle,
+        "href": href,
+        "keywords": keywords,
+        "created_at": created_at,
+        "badge": badge,
+    }
+
+
+def _search_timestamp(value: str) -> float:
+    if not value:
+        return 0
+    try:
+        return datetime.fromisoformat(value).timestamp()
+    except ValueError:
+        return 0
+
+
+def collect_search_results(query: str = "", limit: int = 12) -> List[Dict[str, Any]]:
+    normalized = str(query or "").strip().lower()
+    max_items = max(1, min(int(limit or 12), 50))
+    static_items = [
+        _search_item("command", "新建审计项目", "进入审计项目工作台，生成范围、取证、控制测试和整改闭环", "/audit", "audit project create 审计 立项"),
+        _search_item("command", "Agent 协作", "多角色 Agent 路由、证据、控制、风险和整改协作", "/chat", "chat multi agent route 协作"),
+        _search_item("command", "知识与证据", "管理 RAG 知识、证据文件分析和知识图谱", "/knowledge", "rag evidence knowledge graph 证据 知识"),
+        _search_item("command", "Agent 运行时", "查看任务、工具、MCP、Harness、自进化和运行日志", "/skills", "runtime tool use mcp harness 自进化"),
+        _search_item("command", "评测与发布门禁", "运行 Agent/RAG/Deep Research 评测并查看发布门禁", "/training", "evaluation release gate rag 评测"),
+    ]
+
+    dynamic_items: List[Dict[str, Any]] = []
+    for run in audit_repository.list_runs(limit=80):
+        dynamic_items.append(
+            _search_item(
+                "audit",
+                str(run.get("audit_item") or "审计项目"),
+                f"{run.get('run_id')} · {run.get('lifecycle_stage') or '-'} · 风险 {run.get('risk_level') or '-'} · 合规 {run.get('compliance_score') or '-'}",
+                f"/audit?run_id={run.get('run_id')}",
+                _search_text(run.get("run_id"), run.get("audit_item"), run.get("audit_type"), run.get("status"), run.get("risk_level")),
+                str(run.get("created_at") or ""),
+                str(run.get("status") or ""),
+            )
+        )
+    for run in evaluation_repository.list_runs(limit=80):
+        metrics = run.get("metrics", {})
+        gate = run.get("release_gate", {})
+        dynamic_items.append(
+            _search_item(
+                "evaluation",
+                f"{run.get('run_type')} 评测记录",
+                f"{run.get('run_id')} · 得分 {metrics.get('overall_score', '-')} · 门禁 {gate.get('label') or gate.get('status') or '-'}",
+                f"/training?run_id={run.get('run_id')}",
+                _search_text(run.get("run_id"), run.get("run_type"), gate.get("label"), gate.get("status")),
+                str(run.get("created_at") or ""),
+                str(gate.get("label") or gate.get("status") or ""),
+            )
+        )
+    for analysis in evidence_analyzer.list_analyses(limit=80):
+        gate = analysis.get("quality_gate", {})
+        dynamic_items.append(
+            _search_item(
+                "evidence",
+                str(analysis.get("file_name") or "证据分析"),
+                f"{analysis.get('analysis_id')} · 风险 {analysis.get('risk_count', 0)} · 控制 {analysis.get('control_count', 0)} · {gate.get('label') or gate.get('status') or '-'}",
+                f"/audit?analysis_id={analysis.get('analysis_id')}",
+                _search_text(analysis.get("analysis_id"), analysis.get("file_name"), gate.get("label"), gate.get("status")),
+                str(analysis.get("created_at") or ""),
+                str(gate.get("label") or gate.get("status") or ""),
+            )
+        )
+    for task in agent_runtime.list_tasks(limit=80):
+        dynamic_items.append(
+            _search_item(
+                "task",
+                str(task.get("objective") or task.get("task_id")),
+                f"{task.get('task_id')} · {task.get('status')} · 步骤 {len(task.get('steps', []))}/{len(task.get('plan', []))}",
+                f"/skills?task_id={task.get('task_id')}",
+                _search_text(task.get("task_id"), task.get("objective"), task.get("status"), task.get("context")),
+                str(task.get("created_at") or ""),
+                str(task.get("status") or ""),
+            )
+        )
+    for run in skill_registry.recent_runs(limit=80):
+        dynamic_items.append(
+            _search_item(
+                "tool",
+                str(run.get("skill") or "Skill 运行"),
+                f"{run.get('run_id')} · {run.get('status')} · {run.get('duration_ms', 0)}ms",
+                "/skills",
+                _search_text(run.get("run_id"), run.get("skill"), run.get("status"), run.get("error_type")),
+                str(run.get("started_at") or ""),
+                str(run.get("status") or ""),
+            )
+        )
+
+    candidates = static_items + dynamic_items
+    if normalized:
+        candidates = [item for item in candidates if normalized in _search_text(item.get("title"), item.get("subtitle"), item.get("keywords"), item.get("badge"))]
+    candidates.sort(key=lambda item: (0 if item["type"] == "command" else 1, -_search_timestamp(item.get("created_at", ""))))
+    return candidates[:max_items]
+
+
 def prewarm_evaluation_runtime() -> None:
     global audit_agent
     try:
@@ -576,6 +684,11 @@ async def memory_session_detail_api(session_id: str):
     if not session:
         raise HTTPException(status_code=404, detail="会话记忆不存在")
     return {"success": True, "session": session, "timestamp": datetime.now().isoformat()}
+
+
+@app.get("/api/search")
+async def global_search_api(q: str = "", limit: int = 12):
+    return {"success": True, "query": q, "results": collect_search_results(q, limit), "timestamp": datetime.now().isoformat()}
 
 
 @app.get("/api/audit/runs")

@@ -13,6 +13,7 @@ from services.evolution_harness import EvolutionHarness
 from services.intent_router import HybridIntentRouter
 from services.safety_gate import SafetyGate
 from services.skill_registry import Skill, SkillRegistry
+from web.main import collect_search_results
 
 
 class IntentRouterTests(unittest.TestCase):
@@ -174,6 +175,14 @@ class EvolutionHarnessTests(unittest.TestCase):
             self.assertEqual(report["jd_coverage"]["covered"], report["jd_coverage"]["total"])
             self.assertTrue(report["evolution_proposals"])
             self.assertTrue(report["harness_loops"])
+
+
+class GlobalSearchTests(unittest.TestCase):
+    def test_returns_static_commands_for_navigation(self) -> None:
+        results = collect_search_results("评测", limit=5)
+        self.assertTrue(results)
+        self.assertTrue(any(item["href"] == "/training" for item in results))
+        self.assertTrue(all({"type", "title", "subtitle", "href"}.issubset(item) for item in results))
 
 
 if __name__ == "__main__":

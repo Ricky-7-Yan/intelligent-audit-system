@@ -304,6 +304,19 @@ async function bootSkillsPage() {
   await Promise.all([loadSkills(), loadTasks(), loadObservability(), loadRuns(), loadEvolution()]);
 }
 
+async function openRuntimeDeepLink() {
+  const taskId = new URLSearchParams(window.location.search).get("task_id");
+  if (!taskId) return;
+  try {
+    const data = await apiFetch(`/api/agent/tasks/${encodeURIComponent(taskId)}`);
+    renderTask(data.task);
+    qs("#taskDetail")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    showToast(`已打开运行时任务 ${taskId}`, "success");
+  } catch (error) {
+    showToast(`运行时任务打开失败：${error.message}`, "error");
+  }
+}
+
 document.addEventListener("DOMContentLoaded", () => {
   qs("#createTask")?.addEventListener("click", createTask);
   qs("#runNextStep")?.addEventListener("click", runNextStep);
@@ -311,5 +324,7 @@ document.addEventListener("DOMContentLoaded", () => {
   qs("#refreshTasks")?.addEventListener("click", () => Promise.all([loadTasks(), loadObservability()]));
   qs("#refreshRuns")?.addEventListener("click", loadRuns);
   qs("#refreshEvolution")?.addEventListener("click", loadEvolution);
-  bootSkillsPage().catch((error) => showToast(`运行时页面加载失败：${error.message}`, "error"));
+  bootSkillsPage()
+    .then(openRuntimeDeepLink)
+    .catch((error) => showToast(`运行时页面加载失败：${error.message}`, "error"));
 });

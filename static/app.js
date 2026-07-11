@@ -177,6 +177,144 @@ function showToast(message, tone = "info") {
   }, 2800);
 }
 
+function typeLabel(type) {
+  return {
+    command: "入口",
+    audit: "审计",
+    evaluation: "评测",
+    evidence: "证据",
+    task: "任务",
+    tool: "工具",
+  }[type] || "结果";
+}
+
+function initCommandCenter() {
+  if (qs("#commandCenter")) return;
+  let activeIndex = 0;
+  let latestResults = [];
+  let searchTimer = null;
+
+  const button = el("button", { id: "commandLauncher", class: "command-launcher", type: "button" }, [
+    el("span", { text: "⌘K" }),
+    el("strong", { text: "全局搜索" }),
+  ]);
+  const overlay = el("div", { id: "commandCenter", class: "command-overlay hidden", role: "dialog", "aria-modal": "true" }, [
+    el("div", { class: "command-panel-wrap" }, [
+      el("div", { class: "command-input-row" }, [
+        el("span", { class: "command-icon", text: "⌕" }),
+        el("input", { id: "commandInput", type: "search", placeholder: "搜索审计项目、评测记录、证据、运行任务或页面入口…" }),
+        el("button", { class: "btn ghost", type: "button", id: "commandClose", text: "Esc" }),
+      ]),
+      el("div", { class: "command-hint", text: "支持 Ctrl/⌘ + K 唤起；回车打开选中结果。" }),
+      el("div", { id: "commandResults", class: "command-results" }),
+    ]),
+  ]);
+  document.body.appendChild(button);
+  document.body.appendChild(overlay);
+
+  const input = qs("#commandInput");
+  const resultsNode = qs("#commandResults");
+
+  function renderResults(results = [], query = "") {
+    latestResults = results;
+    activeIndex = Math.min(activeIndex, Math.max(results.length - 1, 0));
+    clearNode(resultsNode);
+    if (!results.length) {
+      resultsNode.appendChild(el("div", { class: "command-empty" }, [
+        el("strong", { text: query ? "没有匹配结果" : "输入关键词开始检索" }),
+        el("span", { text: query ? "可以换一个审计对象、运行编号、证据文件或功能关键词试试。" : "例如：ERP、权限、评测、Harness、证据、RAG。" }),
+      ]));
+      return;
+    }
+    results.forEach((item, index) => {
+      const row = el("button", { class: `command-result ${index === activeIndex ? "active" : ""}`, type: "button" }, [
+        el("span", { class: `command-type ${item.type || "result"}`, text: typeLabel(item.type) }),
+        el("span", { class: "command-copy" }, [
+          el("strong", { text: item.title || "未命名结果" }),
+          el("small", { text: item.subtitle || item.href || "" }),
+        ]),
+        el("span", { class: "command-badge", text: item.badge || "打开" }),
+      ]);
+      row.addEventListener("mousemove", () => {
+        activeIndex = index;
+        renderResults(latestResults, input.value);
+      });
+      row.addEventListener("click", () => openResult(item));
+      resultsNode.appendChild(row);
+    });
+  }
+
+  async function runSearch(query = "") {
+    try {
+      const data = await apiFetch(`/api/search?q=${encodeURIComponent(query)}&limit=12`);
+      renderResults(data.results || [], query);
+    } catch (error) {
+      clearNode(resultsNode);
+      resultsNode.appendChild(el("div", { class: "command-empty" }, [
+        el("strong", { text: "搜索暂不可用" }),
+        el("span", { text: error.message }),
+      ]));
+    }
+  }
+
+  function openCenter() {
+    overlay.classList.remove("hidden");
+    document.body.classList.add("command-open");
+    input.focus();
+    input.select();
+    runSearch(input.value.trim());
+  }
+
+  function closeCenter() {
+    overlay.classList.add("hidden");
+    document.body.classList.remove("command-open");
+  }
+
+  function openResult(item) {
+    if (!item?.href) return;
+    closeCenter();
+    window.location.href = item.href.startsWith("/") ? serviceUrl(item.href) : item.href;
+  }
+
+  button.addEventListener("click", openCenter);
+  qs("#commandClose").addEventListener("click", closeCenter);
+  overlay.addEventListener("click", (event) => {
+    if (event.target === overlay) closeCenter();
+  });
+  input.addEventListener("input", () => {
+    clearTimeout(searchTimer);
+    const query = input.value.trim();
+    searchTimer = setTimeout(() => runSearch(query), 120);
+  });
+  document.addEventListener("keydown", (event) => {
+    const target = event.target;
+    const isTyping = target && ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName);
+    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") {
+      event.preventDefault();
+      openCenter();
+      return;
+    }
+    if (overlay.classList.contains("hidden")) return;
+    if (event.key === "Escape") {
+      event.preventDefault();
+      closeCenter();
+    } else if (event.key === "ArrowDown") {
+      event.preventDefault();
+      activeIndex = Math.min(activeIndex + 1, latestResults.length - 1);
+      renderResults(latestResults, input.value);
+    } else if (event.key === "ArrowUp") {
+      event.preventDefault();
+      activeIndex = Math.max(activeIndex - 1, 0);
+      renderResults(latestResults, input.value);
+    } else if (event.key === "Enter" && latestResults[activeIndex]) {
+      event.preventDefault();
+      openResult(latestResults[activeIndex]);
+    } else if (!isTyping) {
+      input.focus();
+    }
+  });
+}
+
 function apiUrl(url) {
   if (url.startsWith("http")) return url;
   return `${API_BASE}${url}`;
@@ -294,6 +432,7 @@ async function loadHealth() {
 
 document.addEventListener("DOMContentLoaded", loadHealth);
 document.addEventListener("DOMContentLoaded", initSectionNavigator);
+document.addEventListener("DOMContentLoaded", initCommandCenter);
 
 document.addEventListener("DOMContentLoaded", () => {
   if (window.location.protocol !== "file:") return;
