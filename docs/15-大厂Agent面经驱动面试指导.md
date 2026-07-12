@@ -441,8 +441,10 @@ Agent 项目经常“新增能力导致旧能力退化”。基线对比能发�
 
 - `docs/interview_experience/2026-07-大厂Agent相关岗位面经50份索引.md`
 - `docs/interview_experience/2026-07-大厂Agent面经逐条精读与题库.md`
+- `docs/interview_experience/2026-07-大厂Agent面经公司专题与100问.md`
 - 求职归档：`面经资料/01-大厂Agent相关岗位面经50份索引.md`
 - 求职归档：`面经资料/02-大厂Agent面经逐条精读与题库.md`
+- 求职归档：`面经资料/03-大厂Agent面经公司专题与100问.md`
 
 ## 11. 本轮细化后的重点背诵清单
 
