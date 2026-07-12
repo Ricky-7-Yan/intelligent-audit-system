@@ -5,6 +5,7 @@ import unittest
 from pathlib import Path
 
 from services.agent_runtime import AgentRuntime
+from services.agent_quality import AgentQualityDiagnostics
 from services.audit_repository import AuditRunRepository
 from services.conversation_memory import ConversationMemory
 from services.evaluation_repository import EvaluationRunRepository
@@ -78,6 +79,10 @@ class SkillRegistryTests(unittest.TestCase):
             second = registry.execute("test.cached", {"value": "ok"})
             self.assertEqual(first["status"], "success")
             self.assertTrue(second["cache_hit"])
+            metrics = registry.metrics()
+            self.assertGreaterEqual(metrics["skills"], 1)
+            self.assertIn("open_circuits", metrics)
+            self.assertIn("circuits", metrics)
             self.assertEqual(calls["count"], 1)
             self.assertTrue(registry.delete_run(second["run_id"]))
             self.assertFalse(any(run["run_id"] == second["run_id"] for run in registry.recent_runs(20)))
@@ -175,6 +180,61 @@ class EvolutionHarnessTests(unittest.TestCase):
             self.assertEqual(report["jd_coverage"]["covered"], report["jd_coverage"]["total"])
             self.assertTrue(report["evolution_proposals"])
             self.assertTrue(report["harness_loops"])
+
+
+class AgentQualityDiagnosticsTests(unittest.TestCase):
+    def test_builds_interview_driven_quality_report_from_runtime_state(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            registry = SkillRegistry()
+            registry.log_file = Path(tmp) / "runs.jsonl"
+            runtime = AgentRuntime(registry, SafetyGate())
+            runtime.runtime_dir = Path(tmp) / "runtime"
+            runtime.runtime_dir.mkdir()
+            memory = ConversationMemory(Path(tmp) / "memory", compress_at=3, retain_recent=1)
+            repository = EvaluationRunRepository(Path(tmp) / "evals")
+
+            memory.record_turn(
+                "interview-session",
+                "Explain ERP permission audit with ISO27001 evidence.",
+                "Use RAG evidence, tool traces, and quality gate.",
+                {"intent": "control_testing", "agents": ["control_agent"]},
+            )
+            task = runtime.create_task(
+                "Build an ERP audit plan with tool use and reflection",
+                {"audit_item": "ERP permission"},
+            )
+            self.assertTrue(task["steps"])
+            repository.create_run(
+                "rag",
+                {"cases": [{"question": "ERP access review"}]},
+                {
+                    "overall_score": 0.82,
+                    "total_cases": 1,
+                    "results": [{"overall": 0.82, "failure_modes": []}],
+                },
+            )
+            registry.execute("audit.control_mapper", {"audit_item": "ERP", "standard": "ISO27001"})
+
+            report = AgentQualityDiagnostics(repository, runtime, registry, memory).report(
+                {"total_documents": 4, "total_chunks": 12}
+            )
+
+            self.assertIn("overall_score", report)
+            self.assertGreaterEqual(report["overall_score"], 50)
+            self.assertEqual(
+                {item["dimension_id"] for item in report["dimensions"]},
+                {
+                    "agent_runtime",
+                    "rag_grounding",
+                    "tool_mcp",
+                    "evaluation_harness",
+                    "memory_context",
+                    "production_engineering",
+                },
+            )
+            self.assertTrue(report["interview_pitch"])
+            self.assertIn("top_tools", report["tool_use_diagnostics"])
+            self.assertTrue(report["production_readiness"])
 
 
 class GlobalSearchTests(unittest.TestCase):

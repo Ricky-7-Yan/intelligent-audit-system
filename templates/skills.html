@@ -99,6 +99,37 @@
         </details>
       </section>
 
+      <section class="panel mt-16 quality-diagnostics" data-section-label="质量诊断" data-collapsible="true">
+        <div class="panel-head">
+          <div>
+            <span class="section-kicker">Interview-driven AgentOps</span>
+            <h2 class="panel-title">Agent 质量诊断与面试证据</h2>
+            <p class="muted">把面经中高频追问的 Agent 架构、RAG、Tool/MCP、评测、Memory 和生产化问题落到真实运行数据，便于现场解释“为什么这样设计”。</p>
+          </div>
+          <button class="btn" id="refreshQuality">刷新质量诊断</button>
+        </div>
+        <div class="harness-metrics">
+          <div class="harness-meter">
+            <span>面试证据成熟度</span>
+            <strong id="qualityScore">0</strong>
+            <small id="qualityLabel">等待诊断</small>
+          </div>
+          <div class="card metric"><div class="metric-value" id="qualityDimensions">0</div><div class="metric-label">能力维度</div></div>
+          <div class="card metric"><div class="metric-value" id="qualityBadcases">0</div><div class="metric-label">Badcase 信号</div></div>
+          <div class="card metric"><div class="metric-value" id="qualityProdChecks">0</div><div class="metric-label">生产化检查</div></div>
+        </div>
+        <div id="qualityPitch" class="quality-pitch mt-16"></div>
+        <div id="qualityDimensionsList" class="quality-grid mt-16"></div>
+        <details class="governance-detail mt-16">
+          <summary><span>查看 Badcase / Tool / RAG 诊断细节</span><small>用于回答错召、漏召、工具失败和发布门禁追问</small></summary>
+          <div class="grid layout-3 mt-16">
+            <div><div class="mini-head"><h3>Badcase</h3></div><div id="qualityBadcaseList" class="list dense"></div></div>
+            <div><div class="mini-head"><h3>Tool Use</h3></div><div id="qualityToolList" class="list dense"></div></div>
+            <div><div class="mini-head"><h3>Production</h3></div><div id="qualityProdList" class="list dense"></div></div>
+          </div>
+        </details>
+      </section>
+
       <section class="grid layout-2 mt-16" data-section-label="任务" data-collapsible="true">
         <div class="panel">
           <div class="panel-head">

@@ -152,9 +152,11 @@ def build(destination: Path) -> None:
     pdf_dir = destination / "PDF"
     screenshot_dir = destination / "screenshots"
     jd_dir = destination / "JD来源资料"
+    interview_dir = destination / "面经资料"
     for directory in (markdown_dir, text_dir, word_dir, pdf_dir, screenshot_dir):
         directory.mkdir(parents=True, exist_ok=True)
     jd_dir.mkdir(parents=True, exist_ok=True)
+    interview_dir.mkdir(parents=True, exist_ok=True)
 
     contents = []
     for source in DOC_FILES:
@@ -169,6 +171,10 @@ def build(destination: Path) -> None:
     if source_jd_dir.exists():
         for source in source_jd_dir.glob("*.md"):
             shutil.copy2(source, jd_dir / source.name)
+    source_interview_dir = PROJECT_ROOT / "docs" / "interview_experience"
+    if source_interview_dir.exists():
+        for source in source_interview_dir.glob("*.md"):
+            shutil.copy2(source, interview_dir / source.name)
     source_screenshot_dir = PROJECT_ROOT / "docs" / "screenshots"
     if source_screenshot_dir.exists():
         for source in source_screenshot_dir.glob("*.*"):

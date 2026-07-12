@@ -14,6 +14,25 @@ function compactList(items = [], limit = 3) {
   return items.slice(0, limit).join(" / ");
 }
 
+function statusBadge(status) {
+  const labelMap = {
+    strong: "强证据",
+    ready: "可演示",
+    needs_evidence: "需补证",
+    gap: "缺口",
+    pass: "通过",
+    review: "复核",
+    blocked: "阻断"
+  };
+  const cls = ["strong", "ready", "pass"].includes(status) ? "low" : status === "gap" || status === "blocked" ? "high" : "medium";
+  return el("span", { class: `badge ${cls}`, text: labelMap[status] || status || "-" });
+}
+
+function renderBullets(items = [], emptyText = "暂无") {
+  if (!items.length) return el("p", { class: "muted", text: emptyText });
+  return el("ul", { class: "compact-bullets" }, items.map((item) => el("li", { text: String(item) })));
+}
+
 async function loadSkills() {
   const data = await apiFetch("/api/skills");
   const grid = qs("#skillGrid");
@@ -120,6 +139,88 @@ async function loadEvolution() {
         el("strong", { text: lane.lane }),
         el("small", { class: "muted", text: `${lane.owner} · ${lane.input}` })
       ])
+    ]));
+  });
+}
+
+async function loadQualityDiagnostics() {
+  const data = await apiFetch("/api/agent/quality-diagnostics");
+  const diagnostics = data.diagnostics || {};
+  const dimensions = diagnostics.dimensions || [];
+  const badcases = diagnostics.badcase_diagnostics || [];
+  const prodChecks = diagnostics.production_readiness || [];
+
+  setText("#qualityScore", diagnostics.overall_score || 0);
+  setText("#qualityLabel", diagnostics.readiness_label || "等待诊断");
+  setText("#qualityDimensions", dimensions.length);
+  setText("#qualityBadcases", badcases.length);
+  setText("#qualityProdChecks", `${prodChecks.filter((item) => item.status === "pass").length}/${prodChecks.length}`);
+
+  const pitchNode = qs("#qualityPitch");
+  clearNode(pitchNode);
+  (diagnostics.interview_pitch || []).forEach((line) => {
+    pitchNode.appendChild(el("div", { class: "pitch-line" }, [
+      el("span", { class: "signal-dot" }),
+      el("span", { class: "pitch-text", text: line })
+    ]));
+  });
+
+  const dimensionNode = qs("#qualityDimensionsList");
+  clearNode(dimensionNode);
+  dimensions.forEach((item) => {
+    dimensionNode.appendChild(el("details", { class: "quality-card" }, [
+      el("summary", {}, [
+        el("div", {}, [
+          el("strong", { text: item.name }),
+          el("small", { class: "muted", text: item.interview_signal })
+        ]),
+        el("div", { class: "quality-scoreline" }, [
+          el("strong", { text: String(item.score) }),
+          statusBadge(item.status)
+        ])
+      ]),
+      el("div", { class: "quality-body" }, [
+        el("p", { class: "muted", text: item.design_answer }),
+        el("div", { class: "grid grid-3" }, [
+          el("div", {}, [el("h4", { text: "真实证据" }), renderBullets(item.evidence)]),
+          el("div", {}, [el("h4", { text: "当前缺口" }), renderBullets(item.gaps, "暂无明显缺口")]),
+          el("div", {}, [el("h4", { text: "下一步" }), renderBullets(item.next_actions)])
+        ])
+      ])
+    ]));
+  });
+
+  const badcaseNode = qs("#qualityBadcaseList");
+  clearNode(badcaseNode);
+  if (!badcases.length) badcaseNode.appendChild(el("div", { class: "item muted", text: "暂无门禁或工具失败 badcase。" }));
+  badcases.forEach((item) => {
+    badcaseNode.appendChild(el("div", { class: "item compact" }, [
+      el("div", { class: "item-head" }, [el("strong", { text: item.title }), statusBadge(item.severity)]),
+      renderBullets(item.signals || []),
+      el("small", { class: "muted", text: item.interview_answer || "" })
+    ]));
+  });
+
+  const toolNode = qs("#qualityToolList");
+  clearNode(toolNode);
+  const toolDiagnostics = diagnostics.tool_use_diagnostics || {};
+  (toolDiagnostics.top_tools || []).forEach((item) => {
+    toolNode.appendChild(el("div", { class: "item compact" }, [
+      el("strong", { text: `${item.skill} · ${Math.round((item.success_rate || 0) * 100)}%` }),
+      el("small", { class: "muted", text: `运行 ${item.runs} · 失败 ${item.failures}` })
+    ]));
+  });
+  toolNode.appendChild(el("div", { class: "item compact" }, [
+    el("strong", { text: "工具选择契约" }),
+    renderBullets(toolDiagnostics.selection_contract || [])
+  ]));
+
+  const prodNode = qs("#qualityProdList");
+  clearNode(prodNode);
+  prodChecks.forEach((item) => {
+    prodNode.appendChild(el("div", { class: "item compact" }, [
+      el("div", { class: "item-head" }, [el("strong", { text: item.check }), statusBadge(item.status)]),
+      el("small", { class: "muted", text: item.gap || "已具备可演示证据" })
     ]));
   });
 }
@@ -301,7 +402,7 @@ async function deleteSkillRun(runId) {
 }
 
 async function bootSkillsPage() {
-  await Promise.all([loadSkills(), loadTasks(), loadObservability(), loadRuns(), loadEvolution()]);
+  await Promise.all([loadSkills(), loadTasks(), loadObservability(), loadRuns(), loadEvolution(), loadQualityDiagnostics()]);
 }
 
 async function openRuntimeDeepLink() {
@@ -324,6 +425,7 @@ document.addEventListener("DOMContentLoaded", () => {
   qs("#refreshTasks")?.addEventListener("click", () => Promise.all([loadTasks(), loadObservability()]));
   qs("#refreshRuns")?.addEventListener("click", loadRuns);
   qs("#refreshEvolution")?.addEventListener("click", loadEvolution);
+  qs("#refreshQuality")?.addEventListener("click", loadQualityDiagnostics);
   bootSkillsPage()
     .then(openRuntimeDeepLink)
     .catch((error) => showToast(`运行时页面加载失败：${error.message}`, "error"));

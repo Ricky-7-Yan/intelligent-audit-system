@@ -175,7 +175,17 @@ class SkillRegistry:
             p95 = statistics.quantiles(latencies, n=20)[-1]
         elif latencies:
             p95 = max(latencies)
+        circuits = {
+            name: {
+                "state": state.get("state", "closed"),
+                "failures": state.get("failures", 0),
+                "retry_after": max(0, round(float(state.get("open_until", 0)) - time.time(), 2)),
+            }
+            for name, state in self._circuits.items()
+        }
+        open_circuits = sum(1 for state in circuits.values() if state.get("state") == "open")
         return {
+            "skills": len(self.skills),
             "total_runs": len(runs),
             "success_rate": round(len(successes) / max(len(runs), 1), 3),
             "avg_latency_ms": round(statistics.mean(latencies), 2) if latencies else 0,
@@ -184,14 +194,8 @@ class SkillRegistry:
             "volume_by_skill": volume_by_skill,
             "estimated_cost": round(sum(float(run.get("estimated_cost") or 0) for run in runs), 4),
             "cache_hits": sum(1 for run in runs if run.get("cache_hit")),
-            "circuits": {
-                name: {
-                    "state": state.get("state", "closed"),
-                    "failures": state.get("failures", 0),
-                    "retry_after": max(0, round(float(state.get("open_until", 0)) - time.time(), 2)),
-                }
-                for name, state in self._circuits.items()
-            },
+            "open_circuits": open_circuits,
+            "circuits": circuits,
         }
 
     def _register(self, skill: Skill) -> None:

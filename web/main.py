@@ -29,6 +29,7 @@ from services.conversation_memory import ConversationMemory
 from services.evaluation_repository import EvaluationRunRepository
 from services.evidence_analyzer import EvidenceAnalyzer
 from services.evolution_harness import EvolutionHarness
+from services.agent_quality import AgentQualityDiagnostics
 from services.intent_router import HybridIntentRouter
 from services.product_insights import ProductInsights
 from services.rag_evaluator import RAGEvaluator
@@ -54,6 +55,7 @@ evidence_analyzer = EvidenceAnalyzer()
 conversation_memory = ConversationMemory()
 intent_router = HybridIntentRouter()
 evolution_harness = EvolutionHarness(evaluation_repository, agent_runtime, skill_registry, conversation_memory)
+agent_quality = AgentQualityDiagnostics(evaluation_repository, agent_runtime, skill_registry, conversation_memory)
 evaluation_cache: Dict[str, Any] = {}
 research_cache: Dict[str, Any] = {}
 
@@ -641,6 +643,12 @@ async def agent_observability_api():
 @app.get("/api/agent/evolution")
 async def agent_evolution_api():
     return {"success": True, "evolution": evolution_harness.report(), "timestamp": datetime.now().isoformat()}
+
+
+@app.get("/api/agent/quality-diagnostics")
+async def agent_quality_diagnostics_api():
+    rag_stats = rag_pipeline.get_statistics() if rag_pipeline is not None else {"total_documents": 0, "total_chunks": 0}
+    return {"success": True, "diagnostics": agent_quality.report(rag_stats), "timestamp": datetime.now().isoformat()}
 
 
 @app.get("/api/agent/evolution/market")
