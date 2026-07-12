@@ -440,5 +440,51 @@ Agent 项目经常“新增能力导致旧能力退化”。基线对比能发�
 完整 52 条来源索引见：
 
 - `docs/interview_experience/2026-07-大厂Agent相关岗位面经50份索引.md`
+- `docs/interview_experience/2026-07-大厂Agent面经逐条精读与题库.md`
 - 求职归档：`面经资料/01-大厂Agent相关岗位面经50份索引.md`
+- 求职归档：`面经资料/02-大厂Agent面经逐条精读与题库.md`
 
+## 11. 本轮细化后的重点背诵清单
+
+### 11.1 Agent 开发岗必背
+
+- Agent 和 Workflow 的区别。
+- ReAct、Plan-and-Execute、Reflection 的区别。
+- LangGraph 和自研 Runtime 的取舍。
+- Multi-Agent 如何避免角色堆砌。
+- 长周期任务如何 checkpoint 和恢复。
+- Agent 失败如何定位：规划失败、检索失败、工具失败、生成失败、质量门失败。
+
+### 11.2 RAG 必背
+
+- 切块策略：固定长度、滑窗、段落、语义、递归切分。
+- 检索策略：关键词、BM25/TF-IDF、向量、多路召回、混合检索。
+- 错召处理：重排、过滤、权威性打分、质量门。
+- 漏召处理：query rewrite、同义词、top-k、知识补全、GraphRAG。
+- 评估指标：Recall@k、Precision@k、MRR、NDCG、faithfulness、source coverage。
+- RAG vs 微调：知识更新与引用优先 RAG，稳定风格和能力迁移可微调。
+
+### 11.3 Tool / MCP / Skill 必背
+
+- Function Calling 是模型输出结构化工具调用。
+- MCP 是连接 Host/Client/Server 的上下文协议。
+- Skill 是工程治理单元，包含描述、Schema、权限、缓存、熔断和日志。
+- 渐进式披露是按需暴露工具/技能描述，避免上下文噪声。
+- 工具可靠性要看 schema validation、timeout、retry、circuit breaker、observability。
+
+### 11.4 训练算法基础必背
+
+- SFT：监督微调，学习高质量示例。
+- LoRA：低秩适配，减少训练参数。
+- RLHF/PPO：基于偏好和奖励模型做策略优化。
+- DPO：直接偏好优化，不显式训练 reward model。
+- GRPO：面向组内相对优势的强化学习优化思路。
+- SFT 遗忘：混合通用数据、降低学习率、正则、分阶段训练、评测监控。
+
+### 11.5 后端基础必背
+
+- FastAPI：Pydantic、Depends、UploadFile、FileResponse、BackgroundTasks。
+- 缓存：TTL、key 设计、失效策略、穿透/击穿/雪崩。
+- 熔断：失败计数、open/half-open/closed、恢复窗口。
+- 异步任务：评测、Deep Research、报告生成适合后台跑。
+- 数据迁移：文件 Repository 到 DB/对象存储/日志系统的演进。
