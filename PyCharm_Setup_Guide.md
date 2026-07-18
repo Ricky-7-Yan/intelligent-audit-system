@@ -54,14 +54,14 @@ python -m spacy download en_core_web_sm
 MYSQL_HOST=localhost
 MYSQL_PORT=3306
 MYSQL_USER=root
-MYSQL_PASSWORD=123456
+MYSQL_PASSWORD=your_mysql_password
 MYSQL_DATABASE=audit_system
 
 NEO4J_URI=bolt://localhost:7687
 NEO4J_USER=neo4j
-NEO4J_PASSWORD=12345678
+NEO4J_PASSWORD=your_neo4j_password
 
-QWEN_API_KEY=sk-484fb339d2274307b3aa3fd6400964ae
+QWEN_API_KEY=your_qwen_or_openai_compatible_api_key
 QWEN_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
 
 WEB_HOST=0.0.0.0

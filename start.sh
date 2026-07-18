@@ -55,12 +55,12 @@ if [ ! -f "config.env" ]; then
 MYSQL_HOST=localhost
 MYSQL_PORT=3306
 MYSQL_USER=root
-MYSQL_PASSWORD=123456
+MYSQL_PASSWORD=
 MYSQL_DATABASE=audit_system
 NEO4J_URI=bolt://localhost:7687
 NEO4J_USER=neo4j
-NEO4J_PASSWORD=12345678
-QWEN_API_KEY=sk-484fb339d2274307b3aa3fd6400964ae
+NEO4J_PASSWORD=
+QWEN_API_KEY=
 EOF
     fi
     echo "[信息] 请编辑config.env文件，配置数据库和API信息"
