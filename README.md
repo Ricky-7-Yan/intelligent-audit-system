@@ -1,39 +1,70 @@
-# 审脉 AuditPilot
+<p align="center">
+  <img src="docs/assets/auditpilot-logo.svg" width="108" alt="AuditPilot logo" />
+</p>
 
-面向真实审计交付的企业级 AI Agent 工作台。AuditPilot 将审计立项、RAG 取证、控制映射、风险评估、整改闭环、Human Review、评测门禁和交付包沉淀在同一条可追溯证据链里，用一个可运行的 Web 产品展示 Agent 工程化落地能力。
+<h1 align="center">审脉 AuditPilot</h1>
 
-> 默认支持无外部大模型密钥的确定性降级模式；配置兼容 OpenAI 协议的模型后，可启用 LLM 增强分析。真实 API Key 只应放在本地 `config.env` 或部署平台 Secret 中，仓库不会提交密钥。
+<p align="center">
+  面向审计交付场景的企业级 AI Agent 工作台：把 RAG 取证、控制映射、工具治理、评测门禁和人工复核放进同一条可追溯工作流。
+</p>
+
+<p align="center">
+  <img alt="Python" src="https://img.shields.io/badge/Python-3.10%2B-3776AB?style=flat-square&logo=python&logoColor=white" />
+  <img alt="FastAPI" src="https://img.shields.io/badge/FastAPI-Agentic%20Backend-009688?style=flat-square&logo=fastapi&logoColor=white" />
+  <img alt="RAG" src="https://img.shields.io/badge/Agentic_RAG-Evidence_Grounded-0F766E?style=flat-square" />
+  <img alt="Evaluation" src="https://img.shields.io/badge/Eval_Harness-Release_Gate-2563EB?style=flat-square" />
+  <img alt="Secrets" src="https://img.shields.io/badge/Secrets-Not_Committed-10B981?style=flat-square" />
+</p>
 
 ![AuditPilot 工作台](docs/screenshots/auditpilot-overview-desktop.png)
 
-## 项目亮点
+## Why AuditPilot
 
-| 能力 | 说明 |
+很多 Agent 项目停留在聊天框或 Demo。AuditPilot 选择一个更“硬”的落地场景：企业审计交付。它需要证据、控制、风险、复核、报告和整改闭环，也天然要求可追溯、可回归、可解释。
+
+AuditPilot 的目标不是替代审计师，而是把审计师反复执行的取证、映射、检查、补证和交付动作，组织成一套可治理的 Agent 工作流。
+
+## What it does
+
+| 模块 | 能力 |
 | --- | --- |
-| 审计交付闭环 | 从范围、控制矩阵、审计程序、抽样、证据请求、发现、整改到交付包，形成可复核链路。 |
-| Agent Runtime | 支持 Plan / Execute / Reflect、任务产物、失败恢复、安全门和运行指标。 |
+| Audit Workspace | 审计立项、控制矩阵、审计程序、抽样计划、发现、整改和交付包。 |
+| Agent Runtime | Plan / Execute / Reflect、任务产物、失败恢复、安全门和运行指标。 |
 | Agentic RAG | 知识写入、切块、检索、来源引用、证据质量门和缺证提示。 |
-| Skills / MCP 治理 | 工具 Schema、权限声明、TTL 缓存、熔断器、调用日志和指标诊断。 |
-| 分层记忆 | Working / Episodic / Profile Memory，支持多轮审计上下文保留。 |
-| Evaluation Harness | Agent / RAG / Research 评测、基线对比、release gate、badcase 沉淀。 |
-| 自进化诊断 | 将大厂 Agent 面经/JD 关注的 Runtime、RAG、Tool、Memory、评测和生产化问题转为可执行诊断。 |
-| 生产化基础 | FastAPI、Docker、健康检查、CORS、本地持久化、可选 MySQL / Neo4j / 云平台配置。 |
+| Skills / MCP-style Tools | 工具 Schema、权限声明、TTL 缓存、熔断器、调用日志和工具指标。 |
+| Memory | Working / Episodic / Profile Memory，保留多轮审计上下文。 |
+| Evaluation Harness | Agent / RAG / Research 评测、基线对比、release gate 和 badcase 沉淀。 |
+| Interview-driven Diagnostics | 将大厂 Agent 面经/JD 中常问的 Runtime、RAG、Tool、Memory、评测和生产化问题转成可执行诊断。 |
 
-## Web 截图
+## Screenshots
 
-| 工作台首页 | 审计项目工作台 |
+| Audit workspace | Agent runtime |
 | --- | --- |
-| ![工作台首页](docs/screenshots/auditpilot-overview-desktop.png) | ![审计项目工作台](docs/screenshots/auditpilot-audit-workbench.png) |
+| ![审计项目工作台](docs/screenshots/auditpilot-audit-workbench.png) | ![Agent 运行时](docs/screenshots/auditpilot-agent-runtime.png) |
 
-| Agent 协作 | Agent 运行时 |
+| Agent collaboration | Mobile overview |
 | --- | --- |
-| ![Agent 协作](docs/screenshots/auditpilot-agent-chat.png) | ![Agent 运行时](docs/screenshots/auditpilot-agent-runtime.png) |
+| ![Agent 协作](docs/screenshots/auditpilot-agent-chat.png) | ![移动端首页](docs/screenshots/auditpilot-overview-mobile.png) |
 
-| 移动端首页 |
-| --- |
-| ![移动端首页](docs/screenshots/auditpilot-overview-mobile.png) |
+## Architecture
 
-## 快速启动
+```text
+Audit request
+  -> Hybrid Intent Router
+  -> Working + Episodic + Profile Memory
+  -> Planner / Evidence / Control / Risk / Compliance / Remediation Agents
+  -> Agentic RAG + Knowledge Graph + Skills / MCP-style Tools
+  -> Safety Gate + Reflection + Human Review
+  -> Audit Repository + Evaluation Baseline + Delivery Package
+```
+
+Design boundaries:
+
+- LLMs help with understanding, summarization and explanation.
+- Evidence gaps, quality gates, permissions, risk signals and delivery state stay auditable.
+- High-risk or low-confidence outputs are routed to evidence补充 and human review.
+
+## Quick start
 
 ```powershell
 python -m venv .venv
@@ -43,71 +74,43 @@ Copy-Item config.env.example config.env
 python start.py
 ```
 
-## 安全配置
+The system can run in deterministic fallback mode without model keys. Add an OpenAI-compatible provider only when you want LLM-enhanced analysis.
 
-请不要把任何真实密钥提交到 GitHub。推荐做法：
+## Security
 
-1. 复制 `config.env.example` 为本地 `config.env`。
-2. 在 `config.env` 中填写 `DEEPSEEK_API_KEY`、`OPENAI_API_KEY` 或其他 OpenAI-compatible Key。
-3. 生产部署时使用 Railway / Fly.io / Render / Docker Secret 等平台 Secret 管理。
-4. `config.env`、`.env*`、运行数据、日志、模型文件和本地数据库已写入 `.gitignore`。
+Do not commit real API keys.
 
-不配置模型密钥时，系统仍可运行审计流程、RAG 检索、控制映射、证据分析、Agent Runtime、评测与页面演示，只是 LLM 增强分析会降级。
+- Put local secrets in `config.env`.
+- Use platform secrets for deployment.
+- `config.env`, `.env*`, runtime data, logs, model artifacts and local databases are ignored by Git.
+- Example config files use placeholders only.
 
-## 页面地图
-
-| 路由 | 用途 |
-| --- | --- |
-| `/` | 产品级总览、核心指标、Self-Evolution Harness、审计项目和交付信号。 |
-| `/audit` | 从立项到整改关闭的完整审计项目工作台。 |
-| `/chat` | 多 Agent 协作入口，输出上下文、风险、证据缺口和质量门。 |
-| `/knowledge` | 知识写入、文档切块、RAG 检索和来源验证。 |
-| `/skills` | Agent Runtime、Skills、MCP-style Tool Use、质量诊断和自进化控制面。 |
-| `/training` | Agent / RAG / Research 评测、基线回归和发布门禁。 |
-
-## 架构概览
-
-```text
-审计项目 / 用户输入
-  -> Hybrid Intent Router
-  -> Working + Episodic + Profile Memory
-  -> Planner / Evidence / Control / Risk / Compliance / Remediation Agents
-  -> Agentic RAG + Knowledge Graph + Skills / MCP Tools
-  -> Safety Gate + Reflection + Human Review
-  -> Audit Repository + Evaluation Baseline + Delivery Package
-```
-
-系统边界：
-
-- 模型负责理解、归纳、解释和生成建议；证据缺口、质量门、权限、安全门、交付状态保留可审计的确定性逻辑。
-- Agent 不替代审计师最终专业判断；证据不足、高风险或低置信度会进入补证和人工复核。
-
-## 测试
+## Validation
 
 ```powershell
 .\.venv\Scripts\python.exe -m compileall -q agents services rag web tests scripts
 .\.venv\Scripts\python.exe -m unittest discover -s tests -p "test_*.py"
 ```
 
-当前自动化测试覆盖意图路由、分层记忆、Skill 输入治理与缓存、Agent Runtime 反思、评测基线回归、自进化 Harness、质量诊断和全局搜索。
+Current tests cover intent routing, memory compaction, skill validation/cache, runtime reflection, evaluation regression, self-evolution harness, quality diagnostics and global search.
 
-## 项目结构
+## Project layout
 
 ```text
-agents/                 审计 Agent 主链与控制库
-services/               Runtime、Memory、Router、Skills、安全、评测、交付
-rag/                    Agentic RAG 与持久化知识库
-knowledge_graph/        图谱构建与 Neo4j 可选接入
-training/               Agent 评测与离线训练入口
-web/                    FastAPI 应用与 API
-templates/ + static/    产品界面
-tests/                  自动化回归测试
-docs/                   项目归档、面试材料与截图
-data/                   本地运行数据，大部分已被 Git 忽略
+agents/                 audit agent chain and control library
+services/               runtime, memory, router, skills, safety, evaluation, delivery
+rag/                    agentic RAG and persisted knowledge base
+knowledge_graph/        optional graph construction and Neo4j adapter
+training/               evaluation and offline training entry points
+web/                    FastAPI application and APIs
+templates/ + static/    product UI
+tests/                  regression tests
+docs/                   project archive, interview material and screenshots
+data/                   local runtime data, mostly ignored by Git
 ```
 
-## 真实性说明
+## Reality notes
 
-- 项目中的运行记录、工具调用、评测、记忆和审计档案由真实代码生成并持久化，不是静态截图。
-- 未经压测验证的吞吐、准确率或可用性不作为项目事实；简历量化应使用实际评测结果。
-- SFT / RLHF 类重训练被明确放在离线任务中；Web 进程提供评测和数据准备入口。
+- Runtime records, tool calls, evaluations, memory and audit cases are generated by real code and persisted locally.
+- Untested throughput, accuracy or availability claims are intentionally not presented as project facts.
+- SFT / RLHF-style model training is treated as an offline extension; the Web app focuses on workflow, evaluation and data preparation.
