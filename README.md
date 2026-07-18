@@ -43,12 +43,6 @@ Copy-Item config.env.example config.env
 python start.py
 ```
 
-访问地址：
-
-- 产品工作台：<http://127.0.0.1:8000>
-- OpenAPI：<http://127.0.0.1:8000/docs>
-- 健康检查：<http://127.0.0.1:8000/api/health>
-
 ## 安全配置
 
 请不要把任何真实密钥提交到 GitHub。推荐做法：
@@ -96,18 +90,6 @@ python start.py
 ```
 
 当前自动化测试覆盖意图路由、分层记忆、Skill 输入治理与缓存、Agent Runtime 反思、评测基线回归、自进化 Harness、质量诊断和全局搜索。
-
-## 文档
-
-- [01 项目架构与设计](docs/01-项目架构与设计.md)
-- [02 完整使用与演示指南](docs/02-完整使用与演示指南.md)
-- [03 Agent 核心能力详解](docs/03-Agent核心能力详解.md)
-- [04 API 与数据模型](docs/04-API与数据模型.md)
-- [05 JD 对齐与简历面试指南](docs/05-JD对齐与简历面试指南.md)
-- [06 测试部署与生产化清单](docs/06-测试部署与生产化清单.md)
-- [15 大厂 Agent 面经驱动面试指导](docs/15-大厂Agent面经驱动面试指导.md)
-- [16 面经驱动 Agent 质量诊断升级](docs/16-面经驱动Agent质量诊断升级.md)
-- [部署说明](DEPLOYMENT.md)
 
 ## 项目结构
 
