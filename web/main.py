@@ -29,6 +29,7 @@ from services.conversation_memory import ConversationMemory
 from services.evaluation_repository import EvaluationRunRepository
 from services.evidence_analyzer import EvidenceAnalyzer
 from services.evolution_harness import EvolutionHarness
+from services.harness_control import HarnessControlPlane
 from services.agent_quality import AgentQualityDiagnostics
 from services.intent_router import HybridIntentRouter
 from services.product_insights import ProductInsights
@@ -54,8 +55,15 @@ evaluation_repository = EvaluationRunRepository()
 evidence_analyzer = EvidenceAnalyzer()
 conversation_memory = ConversationMemory()
 intent_router = HybridIntentRouter()
-evolution_harness = EvolutionHarness(evaluation_repository, agent_runtime, skill_registry, conversation_memory)
-agent_quality = AgentQualityDiagnostics(evaluation_repository, agent_runtime, skill_registry, conversation_memory)
+harness_control = HarnessControlPlane()
+evolution_harness = EvolutionHarness(evaluation_repository, agent_runtime, skill_registry, conversation_memory, harness_control)
+agent_quality = AgentQualityDiagnostics(
+    evaluation_repository,
+    agent_runtime,
+    skill_registry,
+    conversation_memory,
+    harness_control,
+)
 evaluation_cache: Dict[str, Any] = {}
 research_cache: Dict[str, Any] = {}
 
@@ -192,6 +200,16 @@ def prewarm_evaluation_runtime() -> None:
             ]
         )
         rag = init_rag_lazy()
+        RAGEvaluator(rag).evaluate(
+            [
+                {
+                    "case_id": "PREWARM-RAG",
+                    "question": "ERP 权限审计需要哪些访问控制证据？",
+                    "expected_terms": ["权限", "审批", "日志", "复核"],
+                    "category": "runtime_prewarm",
+                }
+            ]
+        )
         if audit_agent is None:
             audit_agent = AuditAgent(rag_pipeline=rag, enable_llm=False)
         audit_agent.process_audit_query(
@@ -305,6 +323,19 @@ class AgentTaskStepRequest(BaseModel):
 class SafetyGateRequest(BaseModel):
     payload: Dict[str, Any] = Field(default_factory=dict)
     stage: str = Field("runtime", max_length=100)
+
+
+class HarnessEvaluationRequest(BaseModel):
+    baseline: Dict[str, float] = Field(default_factory=dict)
+    held_in: Dict[str, float] = Field(default_factory=dict)
+    held_out: Dict[str, float] = Field(default_factory=dict)
+    checks: List[Dict[str, Any]] = Field(default_factory=list)
+
+
+class HarnessReviewRequest(BaseModel):
+    decision: str = Field(..., pattern="^(approve|reject)$")
+    reviewer: str = Field("Human Reviewer", max_length=200)
+    comment: str = Field("", max_length=4000)
 
 
 class ReviewRequest(BaseModel):
@@ -650,6 +681,44 @@ async def agent_evolution_api():
     return {"success": True, "evolution": evolution_harness.report(), "timestamp": datetime.now().isoformat()}
 
 
+@app.get("/api/agent/harness")
+async def agent_harness_api():
+    return {"success": True, "harness": harness_control.summary(), "timestamp": datetime.now().isoformat()}
+
+
+@app.post("/api/agent/harness/candidates/{candidate_id}/evaluate")
+async def harness_candidate_evaluate_api(candidate_id: str, request: HarnessEvaluationRequest):
+    try:
+        candidate = harness_control.evaluate_candidate(
+            candidate_id,
+            request.baseline,
+            request.held_in,
+            request.held_out,
+            request.checks,
+        )
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail="Harness 候选不存在") from exc
+    return {"success": True, "candidate": candidate, "timestamp": datetime.now().isoformat()}
+
+
+@app.post("/api/agent/harness/candidates/{candidate_id}/review")
+async def harness_candidate_review_api(candidate_id: str, request: HarnessReviewRequest):
+    try:
+        candidate = harness_control.review_candidate(candidate_id, request.decision, request.reviewer, request.comment)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail="Harness 候选不存在") from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    return {"success": True, "candidate": candidate, "timestamp": datetime.now().isoformat()}
+
+
+@app.delete("/api/agent/harness/candidates/{candidate_id}")
+async def harness_candidate_archive_api(candidate_id: str):
+    if not harness_control.archive_candidate(candidate_id):
+        raise HTTPException(status_code=404, detail="Harness 候选不存在")
+    return {"success": True, "archived": candidate_id, "recoverable": True, "timestamp": datetime.now().isoformat()}
+
+
 @app.get("/api/agent/quality-diagnostics")
 async def agent_quality_diagnostics_api():
     rag_stats = rag_pipeline.get_statistics() if rag_pipeline is not None else {"total_documents": 0, "total_chunks": 0}
@@ -697,6 +766,13 @@ async def memory_session_detail_api(session_id: str):
     if not session:
         raise HTTPException(status_code=404, detail="会话记忆不存在")
     return {"success": True, "session": session, "timestamp": datetime.now().isoformat()}
+
+
+@app.delete("/api/memory/sessions/{session_id}")
+async def memory_session_delete_api(session_id: str):
+    if not conversation_memory.delete_session(session_id):
+        raise HTTPException(status_code=404, detail="会话记忆不存在")
+    return {"success": True, "deleted": session_id, "timestamp": datetime.now().isoformat()}
 
 
 @app.get("/api/search")

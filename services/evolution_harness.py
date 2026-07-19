@@ -125,11 +125,12 @@ JD_REQUIREMENTS: List[Dict[str, Any]] = [
 class EvolutionHarness:
     """Derives self-improvement proposals from runtime, eval, memory, and market signals."""
 
-    def __init__(self, evaluation_repository, agent_runtime, skill_registry, conversation_memory) -> None:
+    def __init__(self, evaluation_repository, agent_runtime, skill_registry, conversation_memory, harness_control=None) -> None:
         self.evaluation_repository = evaluation_repository
         self.agent_runtime = agent_runtime
         self.skill_registry = skill_registry
         self.conversation_memory = conversation_memory
+        self.harness_control = harness_control
 
     def report(self) -> Dict[str, Any]:
         eval_runs = self.evaluation_repository.list_runs(limit=30)
@@ -170,6 +171,7 @@ class EvolutionHarness:
             "evolution_proposals": proposals,
             "evolution_control_plane": self.control_plane(proposals, risks),
             "harness_loops": loops,
+            "harness_governance": self.harness_control.summary() if self.harness_control else {},
         }
 
     def market_alignment(
@@ -322,16 +324,29 @@ class EvolutionHarness:
         )
         if not proposal:
             raise KeyError(proposal_id)
+        surface_map = {
+            "HNS-01": "training/",
+            "HNS-02": "services/skill_registry.py",
+            "HNS-03": "services/conversation_memory.py",
+            "HNS-04": "services/agent_runtime.py",
+            "HNS-05": "training/",
+        }
+        editable_surface = surface_map.get(proposal_id, "services/")
+        candidate = self.harness_control.create_candidate(proposal, editable_surface) if self.harness_control else None
         objective = f"执行自进化提案 {proposal_id}：{proposal['title']}。验证标准：{proposal['validation']}"
         context = {
             "source": "evolution_harness",
             "proposal_id": proposal_id,
+            "candidate_id": candidate.get("candidate_id") if candidate else None,
             "proposal": proposal,
             "risk_topics": ["harness", "evaluation", "tool", "memory"],
             "risk_level": "high" if proposal.get("priority") == "high" else "medium",
             "audit_item": "AuditPilot Agent 自进化链路",
         }
-        return self.agent_runtime.create_task(objective, context)
+        task = self.agent_runtime.create_task(objective, context)
+        if candidate:
+            task["harness_candidate"] = candidate
+        return task
 
     def _regression_risks(
         self,

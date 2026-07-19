@@ -11,6 +11,7 @@ from services.conversation_memory import ConversationMemory
 from services.evaluation_repository import EvaluationRunRepository
 from services.evidence_analyzer import EvidenceAnalyzer
 from services.evolution_harness import EvolutionHarness
+from services.harness_control import HarnessControlPlane
 from services.intent_router import HybridIntentRouter
 from services.safety_gate import SafetyGate
 from services.skill_registry import Skill, SkillRegistry
@@ -45,6 +46,36 @@ class ConversationMemoryTests(unittest.TestCase):
             self.assertIn("ISO27001", session["profile"]["standards"])
             context = memory.context_for("audit-session", "继续检查权限证据")
             self.assertIn("会话摘要", context["prompt_text"])
+            self.assertLessEqual(context["context_budget"]["estimated_tokens"], context["context_budget"]["limit_tokens"])
+            self.assertTrue(memory.delete_session("audit-session"))
+            self.assertIsNone(memory.get_session("audit-session"))
+
+
+class HarnessControlPlaneTests(unittest.TestCase):
+    def test_requires_locked_surfaces_two_split_gate_and_human_review(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            project = Path(tmp) / "project"
+            for relative in ("services/evaluation_repository.py", "training/training_pipeline.py", "tests/test_agent_platform.py"):
+                path = project / relative
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text(f"locked:{relative}", encoding="utf-8")
+            control = HarnessControlPlane(Path(tmp) / "harness", project)
+            candidate = control.create_candidate(
+                {"proposal_id": "HNS-T", "title": "测试候选", "action": "优化工具契约", "validation": "双集无回归"},
+                "services/skill_registry.py",
+            )
+            evaluated = control.evaluate_candidate(
+                candidate["candidate_id"],
+                {"quality": 0.80, "latency": 0.70},
+                {"quality": 0.84, "latency": 0.70},
+                {"quality": 0.82, "latency": 0.72},
+                [{"name": "unit", "status": "pass"}],
+            )
+            self.assertEqual(evaluated["status"], "awaiting_human_review")
+            approved = control.review_candidate(candidate["candidate_id"], "approve", "tester", "verified")
+            self.assertEqual(approved["status"], "approved")
+            self.assertGreaterEqual(control.summary()["event_count"], 3)
+            self.assertTrue(control.archive_candidate(candidate["candidate_id"]))
 
 
 class SkillRegistryTests(unittest.TestCase):
@@ -215,7 +246,8 @@ class AgentQualityDiagnosticsTests(unittest.TestCase):
             )
             registry.execute("audit.control_mapper", {"audit_item": "ERP", "standard": "ISO27001"})
 
-            report = AgentQualityDiagnostics(repository, runtime, registry, memory).report(
+            harness = HarnessControlPlane(Path(tmp) / "harness", Path(tmp))
+            report = AgentQualityDiagnostics(repository, runtime, registry, memory, harness).report(
                 {"total_documents": 4, "total_chunks": 12}
             )
 
@@ -235,6 +267,10 @@ class AgentQualityDiagnosticsTests(unittest.TestCase):
             self.assertTrue(report["interview_pitch"])
             self.assertIn("top_tools", report["tool_use_diagnostics"])
             self.assertTrue(report["production_readiness"])
+            harness_dimension = next(
+                item for item in report["dimensions"] if item["dimension_id"] == "evaluation_harness"
+            )
+            self.assertTrue(any("人工审批" in evidence for evidence in harness_dimension["evidence"]))
 
 
 class GlobalSearchTests(unittest.TestCase):

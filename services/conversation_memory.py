@@ -15,11 +15,18 @@ from config import PATHS
 class ConversationMemory:
     """Persist conversation context without requiring Redis or a vector service."""
 
-    def __init__(self, base_dir: Optional[Path] = None, compress_at: int = 18, retain_recent: int = 8) -> None:
+    def __init__(
+        self,
+        base_dir: Optional[Path] = None,
+        compress_at: int = 18,
+        retain_recent: int = 8,
+        context_budget_tokens: int = 2400,
+    ) -> None:
         self.base_dir = base_dir or PATHS["data"] / "conversation_memory"
         self.base_dir.mkdir(parents=True, exist_ok=True)
         self.compress_at = compress_at
         self.retain_recent = retain_recent
+        self.context_budget_tokens = max(600, context_budget_tokens)
         self._lock = threading.RLock()
 
     def context_for(self, session_id: str, message: str) -> Dict[str, Any]:
@@ -37,13 +44,22 @@ class ConversationMemory:
             prompt_parts.append(
                 "[最近对话]\n" + "\n".join(f"{item['role']}: {item['content'][:360]}" for item in recent)
             )
+        prompt_text = self._fit_context(prompt_parts)
+        estimated_tokens = self._estimate_tokens(prompt_text)
         return {
             "session_id": session_id,
             "summary": session.get("summary", ""),
             "profile": session.get("profile", {}),
             "related_messages": related,
             "recent_messages": recent,
-            "prompt_text": "\n\n".join(prompt_parts),
+            "prompt_text": prompt_text,
+            "context_budget": {
+                "limit_tokens": self.context_budget_tokens,
+                "estimated_tokens": estimated_tokens,
+                "utilization": round(estimated_tokens / max(self.context_budget_tokens, 1), 3),
+                "policy": "JIT retrieval → observation masking → compaction",
+                "cache_stable_prefix": True,
+            },
             "memory_layers": {
                 "working": len(session.get("messages", [])),
                 "episodic": len(session.get("episodes", [])),
@@ -94,6 +110,14 @@ class ConversationMemory:
                 continue
         return sessions
 
+    def delete_session(self, session_id: str) -> bool:
+        """Delete a user-manageable conversation record."""
+        path = self._path(session_id)
+        if not path.exists():
+            return False
+        path.unlink()
+        return True
+
     def stats(self) -> Dict[str, Any]:
         sessions = self.list_sessions(limit=1000)
         return {
@@ -131,6 +155,13 @@ class ConversationMemory:
                 "episode_id": f"EP-{len(session.get('episodes', [])) + 1:04d}",
                 "summary": summary,
                 "message_count": len(archived),
+                "confidence": 0.72,
+                "status": "active",
+                "valid_from": datetime.now().isoformat(),
+                "valid_until": None,
+                "privacy": "session",
+                "helpful_count": 0,
+                "harmful_count": 0,
                 "created_at": datetime.now().isoformat(),
             }
         )
@@ -178,6 +209,47 @@ class ConversationMemory:
 
     def _tokens(self, text: str) -> set[str]:
         return set(re.findall(r"[a-z0-9_]+|[\u4e00-\u9fff]{1,4}", text.lower()))
+
+    def _fit_context(self, parts: List[str]) -> str:
+        """Keep high-signal sections within budget without mutating durable memory."""
+        if not parts:
+            return ""
+        selected: List[str] = []
+        used_tokens = 0
+        mask = "\n[其余内容已遮罩，可从会话记忆按需取回]"
+        for part in parts:
+            separator_tokens = self._estimate_tokens("\n\n") if selected else 0
+            remaining = self.context_budget_tokens - used_tokens - separator_tokens
+            if remaining <= 0:
+                break
+            part_tokens = self._estimate_tokens(part)
+            if part_tokens <= remaining:
+                selected.append(part)
+                used_tokens += separator_tokens + part_tokens
+                continue
+
+            mask_tokens = self._estimate_tokens(mask)
+            available = max(0, remaining - mask_tokens)
+            low, high = 0, len(part)
+            while low < high:
+                middle = (low + high + 1) // 2
+                if self._estimate_tokens(part[:middle]) <= available:
+                    low = middle
+                else:
+                    high = middle - 1
+            reference = f"{part[:low]}{mask}" if low else mask.strip()
+            if self._estimate_tokens(reference) <= remaining:
+                selected.append(reference)
+            break
+        return "\n\n".join(selected)
+
+    def _estimate_tokens(self, text: str) -> int:
+        if not text:
+            return 0
+        latin = len(re.findall(r"[A-Za-z0-9_]+", text))
+        cjk = len(re.findall(r"[\u4e00-\u9fff]", text))
+        symbols = max(0, len(text) - cjk)
+        return max(1, int(cjk * 0.9 + latin * 0.35 + symbols * 0.18))
 
     def _summary(self, session: Dict[str, Any]) -> Dict[str, Any]:
         return {

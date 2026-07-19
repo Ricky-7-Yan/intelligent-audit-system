@@ -82,6 +82,7 @@ async function loadEvolution() {
   const backlog = evolution.benchmark_backlog || [];
   const proposals = evolution.evolution_proposals || [];
   const control = evolution.evolution_control_plane || {};
+  const governance = evolution.harness_governance || {};
 
   setText("#harnessMaturity", evolution.maturity_score || 0);
   setText("#governanceLanes", control.lanes?.length || 0);
@@ -141,6 +142,66 @@ async function loadEvolution() {
       ])
     ]));
   });
+  renderHarnessCandidates(governance);
+}
+
+function harnessStatusLabel(status) {
+  return {
+    draft: "待执行",
+    awaiting_human_review: "待人工审批",
+    approved: "已批准",
+    rejected: "已拒绝",
+    archived: "已归档"
+  }[status] || status || "未知";
+}
+
+function renderHarnessCandidates(governance = {}) {
+  const node = qs("#harnessCandidates");
+  if (!node) return;
+  const candidates = governance.candidates || [];
+  clearNode(node);
+  setText("#harnessArchiveMeta", `${governance.candidate_count || 0} 个候选 · ${governance.event_count || 0} 条事件`);
+  if (!candidates.length) {
+    node.appendChild(el("div", { class: "empty-compact" }, [
+      el("strong", { text: "暂无 Harness 候选" }),
+      el("span", { text: "将上方优化提案物化为任务后，系统会自动创建受治理的候选档案。" })
+    ]));
+    return;
+  }
+  candidates.forEach((candidate) => {
+    const archiveButton = el("button", { class: "btn danger ghost", type: "button", text: "归档" });
+    archiveButton.addEventListener("click", () => archiveHarnessCandidate(candidate.candidate_id));
+    const acceptance = candidate.acceptance || {};
+    node.appendChild(el("details", { class: "candidate-card" }, [
+      el("summary", {}, [
+        el("div", { class: "record-title" }, [
+          el("strong", { text: `${candidate.candidate_id} · ${candidate.title}` }),
+          el("small", { text: `${candidate.editable_surface || "-"} · ${candidate.updated_at || candidate.created_at || ""}` })
+        ]),
+        el("div", { class: "record-actions" }, [
+          el("span", { class: `badge ${candidate.status === "approved" ? "low" : candidate.status === "rejected" ? "high" : "medium"}`, text: harnessStatusLabel(candidate.status) }),
+          archiveButton
+        ])
+      ]),
+      el("div", { class: "detail-body" }, [
+        el("p", { class: "muted", text: candidate.hypothesis || "尚未填写变更假设。" }),
+        el("div", { class: "trace-summary" }, [
+          el("span", { text: `锁定面 ${acceptance.locked_surfaces_unchanged === false ? "异常" : "受保护"}` }),
+          el("span", { text: `双集无回归 ${acceptance.no_regression === true ? "通过" : "待验证"}` }),
+          el("span", { text: `严格提升 ${acceptance.strict_improvement === true ? "通过" : "待验证"}` }),
+          el("span", { text: `状态 ${harnessStatusLabel(candidate.status)}` })
+        ]),
+        el("small", { class: "muted", text: `验证计划：${candidate.validation_plan || "等待绑定评测用例"}` })
+      ])
+    ]));
+  });
+}
+
+async function archiveHarnessCandidate(candidateId) {
+  if (!window.confirm(`确认归档 Harness 候选 ${candidateId}？事件日志会保留，候选仍可从 archive 恢复。`)) return;
+  await apiFetch(`/api/agent/harness/candidates/${encodeURIComponent(candidateId)}`, { method: "DELETE" });
+  await loadEvolution();
+  showToast(`已归档 Harness 候选 ${candidateId}`, "success");
 }
 
 async function loadQualityDiagnostics() {
@@ -232,7 +293,8 @@ async function materializeProposal(proposalId, button) {
     const data = await apiFetch(`/api/agent/evolution/proposals/${proposalId}/task`, { method: "POST" });
     renderTask(data.task);
     await Promise.all([loadTasks(), loadObservability(), loadRuns(), loadEvolution()]);
-    showToast(`已生成运行时任务 ${data.task.task_id}`, "success");
+    const candidateId = data.task.harness_candidate?.candidate_id;
+    showToast(candidateId ? `已生成任务 ${data.task.task_id} 与候选 ${candidateId}` : `已生成运行时任务 ${data.task.task_id}`, "success");
   } catch (error) {
     showToast(`提案物化失败：${error.message}`, "error");
   } finally {

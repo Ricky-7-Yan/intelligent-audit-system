@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import hashlib
 import statistics
 import uuid
 from datetime import datetime
@@ -22,6 +23,7 @@ class AgentRuntime:
         self.safety_gate = safety_gate or SafetyGate()
         self.runtime_dir = PATHS["data"] / "agent_runtime"
         self.runtime_dir.mkdir(parents=True, exist_ok=True)
+        self.event_log = self.runtime_dir / "events.jsonl"
 
     def create_task(self, objective: str, context: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         context = context or {}
@@ -54,6 +56,7 @@ class AgentRuntime:
             "updated_at": now,
         }
         self._write_task(task)
+        self._append_event(task_id, "task_created", {"status": status, "plan_steps": len(plan)})
         if status != "blocked":
             self.run_next_step(task_id)
         return self.get_task(task_id) or task
@@ -80,6 +83,23 @@ class AgentRuntime:
         if not task:
             raise KeyError(task_id)
         if task["status"] == "blocked":
+            return task
+
+        max_calls = int(task.get("budgets", {}).get("max_tool_calls", 10))
+        if len(task.get("tool_calls", [])) >= max_calls:
+            task["status"] = "needs_review"
+            task.setdefault("reflections", []).append(
+                {
+                    "reflection_id": f"REF-{uuid.uuid4().hex[:8].upper()}",
+                    "verdict": "human_review",
+                    "confidence": 1.0,
+                    "issues": ["工具调用预算已耗尽。"],
+                    "next_action": "由复核人扩展预算或收窄任务范围。",
+                    "created_at": datetime.now().isoformat(),
+                }
+            )
+            self._write_task(task)
+            self._append_event(task_id, "budget_exhausted", {"max_tool_calls": max_calls})
             return task
 
         completed = {step["step_id"] for step in task.get("steps", []) if step.get("status") == "success"}
@@ -125,6 +145,24 @@ class AgentRuntime:
             }
         )
         task["steps"].append(step_record)
+        task.setdefault("role_traces", []).append(
+            {
+                "trace_id": f"ROLE-{uuid.uuid4().hex[:8].upper()}",
+                "agent_role": next_plan.get("agent_role", "audit_agent"),
+                "step_id": next_plan["step_id"],
+                "skill": next_plan["skill"],
+                "input_hash": self._hash_payload(payload),
+                "decision": next_plan.get("purpose", ""),
+                "status": run["status"],
+                "attempts": len(runs),
+                "duration_ms": run.get("duration_ms", 0),
+                "artifact_refs": [],
+                "handoff": {
+                    "depends_on": next_plan.get("depends_on", []),
+                    "next_step": self._next_step_id(task, next_plan["step_id"]),
+                },
+            }
+        )
         for attempt, item in enumerate(runs, start=1):
             task["tool_calls"].append(
                 {
@@ -142,7 +180,9 @@ class AgentRuntime:
         reflection = self._reflect(next_plan, run, len(runs))
         task.setdefault("reflections", []).append(reflection)
         if run["status"] == "success":
-            task["artifacts"].extend(self._artifacts_from_run(next_plan, run))
+            artifacts = self._artifacts_from_run(next_plan, run)
+            task["artifacts"].extend(artifacts)
+            task["role_traces"][-1]["artifact_refs"] = [item["artifact_id"] for item in artifacts]
         task["metrics"] = self._metrics(task)
         if run["status"] != "success":
             task["status"] = "needs_review"
@@ -150,6 +190,11 @@ class AgentRuntime:
             task["status"] = "completed" if len(completed) + 1 >= len(task.get("plan", [])) else "running"
         task["updated_at"] = datetime.now().isoformat()
         self._write_task(task)
+        self._append_event(
+            task_id,
+            "step_finished",
+            {"step_id": next_plan["step_id"], "skill": next_plan["skill"], "status": run["status"], "attempts": len(runs)},
+        )
         return task
 
     def add_step(self, task_id: str, step: Dict[str, Any]) -> Dict[str, Any]:
@@ -340,6 +385,28 @@ class AgentRuntime:
 
     def _path(self, task_id: str) -> Path:
         return self.runtime_dir / f"{task_id}.json"
+
+    def _hash_payload(self, payload: Dict[str, Any]) -> str:
+        serialized = json.dumps(payload, ensure_ascii=False, sort_keys=True, default=str)
+        return hashlib.sha256(serialized.encode("utf-8")).hexdigest()[:16]
+
+    def _next_step_id(self, task: Dict[str, Any], current_step_id: str) -> Optional[str]:
+        plan = task.get("plan", [])
+        for index, item in enumerate(plan):
+            if item.get("step_id") == current_step_id and index + 1 < len(plan):
+                return plan[index + 1].get("step_id")
+        return None
+
+    def _append_event(self, task_id: str, event_type: str, payload: Dict[str, Any]) -> None:
+        record = {
+            "event_id": f"AE-{uuid.uuid4().hex[:10].upper()}",
+            "task_id": task_id,
+            "event_type": event_type,
+            "payload": payload,
+            "at": datetime.now().isoformat(),
+        }
+        with self.event_log.open("a", encoding="utf-8") as stream:
+            stream.write(json.dumps(record, ensure_ascii=False, default=str) + "\n")
 
     def _read(self, path: Path) -> Dict[str, Any]:
         return json.loads(path.read_text(encoding="utf-8"))

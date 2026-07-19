@@ -147,12 +147,13 @@ class ServiceStatus:
 
 
 class OptionalAuditTools:
-    def __init__(self) -> None:
+    def __init__(self, connect: bool = True) -> None:
         self.mysql_connection = None
         self.neo4j_driver = None
         self.status = ServiceStatus()
-        self._connect_mysql()
-        self._connect_neo4j()
+        if connect:
+            self._connect_mysql()
+            self._connect_neo4j()
 
     def _connect_mysql(self) -> None:
         if not pymysql or not MYSQL_CONFIG.get("password"):
@@ -246,8 +247,13 @@ class OptionalAuditTools:
 
 
 class AuditAgent:
-    def __init__(self, rag_pipeline: Any = None, enable_llm: Optional[bool] = None) -> None:
-        self.tools = OptionalAuditTools()
+    def __init__(
+        self,
+        rag_pipeline: Any = None,
+        enable_llm: Optional[bool] = None,
+        enable_external_tools: bool = True,
+    ) -> None:
+        self.tools = OptionalAuditTools(connect=enable_external_tools)
         self.rag_pipeline = rag_pipeline
         self.session_memory: Dict[str, List[BaseMessage]] = {}
         self.llm = self._init_llm() if enable_llm is not False else None

@@ -17,6 +17,7 @@
   --shadow-soft: 0 1px 2px rgba(20, 35, 55, 0.04);
   --glow: 0 22px 60px rgba(13, 117, 111, 0.13);
   --glass: rgba(255, 255, 255, 0.76);
+  --ease-out-ui: cubic-bezier(.16, 1, .3, 1);
 }
 
 * { box-sizing: border-box; }
@@ -170,7 +171,7 @@ a { color: inherit; text-decoration: none; }
 
 .page-title h1 {
   margin: 0;
-  font-size: clamp(23px, 2vw, 29px);
+  font-size: 1.75rem;
   letter-spacing: -.02em;
   line-height: 1.25;
 }
@@ -228,7 +229,8 @@ a { color: inherit; text-decoration: none; }
 
 .quickbar-link:hover,
 .quickbar-link.active,
-.density-toggle {
+.density-toggle,
+.section-focus-mode .focus-toggle {
   background: #0d756f;
   color: #fff;
   transform: translateY(-1px);
@@ -2100,6 +2102,27 @@ section.section-collapsed::after {
   pointer-events: none;
 }
 
+section.section-focus-hidden {
+  display: none !important;
+}
+
+.section-focus-mode .main {
+  min-height: 100vh;
+}
+
+section[data-collapsible="true"].grid {
+  padding-top: 38px;
+}
+
+section[data-collapsible="true"].grid > .section-collapse-btn {
+  top: 4px;
+  right: 0;
+}
+
+.focus-toggle {
+  border: 1px solid rgba(13,117,111,.16);
+}
+
 .density-compact .panel,
 .density-compact .card,
 .density-compact .item {
@@ -2306,9 +2329,68 @@ section.section-collapsed::after {
 .radar-grid,
 .backlog-list,
 .proposal-stack,
-.control-plane {
+.control-plane,
+.candidate-grid {
   display: grid;
   gap: 10px;
+}
+
+.candidate-card {
+  border: 1px solid rgba(201,212,222,.88);
+  border-radius: 15px;
+  background: rgba(255,255,255,.82);
+  box-shadow: var(--shadow-soft);
+  overflow: hidden;
+}
+
+.candidate-card > summary {
+  cursor: pointer;
+  list-style: none;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  padding: 13px 14px;
+}
+
+.candidate-card > summary::-webkit-details-marker { display: none; }
+.candidate-card .detail-body { padding: 0 14px 14px; border-top: 1px solid var(--line); }
+
+/* Product UI refinement: stable type, readable wrapping, and state-led motion. */
+h1, h2, h3 {
+  text-wrap: balance;
+  letter-spacing: -.02em;
+}
+
+p, li, td, th, small, strong {
+  overflow-wrap: anywhere;
+}
+
+.page-title p,
+.hero-copy,
+.muted {
+  text-wrap: pretty;
+}
+
+.page-quickbar {
+  box-shadow: 0 4px 8px rgba(20, 35, 55, .07);
+}
+
+.quickbar-link,
+.btn,
+.candidate-card,
+.governance-detail,
+.section-collapse-btn {
+  transition-duration: 180ms;
+  transition-timing-function: var(--ease-out-ui);
+}
+
+.candidate-card[open] {
+  border-color: rgba(13,117,111,.24);
+}
+
+.candidate-card[open] .detail-body {
+  animation: panelIn 180ms var(--ease-out-ui);
 }
 
 .radar-card,
@@ -2410,6 +2492,17 @@ section.section-collapsed::after {
   grid-template-columns: 42px minmax(0, 1fr);
   gap: 10px;
   align-items: center;
+}
+
+.lane-card > div {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.lane-card strong,
+.lane-card small {
+  display: block;
 }
 
 .lane-index {
@@ -2704,4 +2797,20 @@ section.section-collapsed::after {
   .project-table th:nth-child(5),
   .project-table td:nth-child(5) { display: none; }
   .control-row { grid-template-columns: minmax(120px, 1fr) 90px 30px; }
+  .btn,
+  .btn.danger.ghost,
+  .quickbar-link,
+  .section-collapse-btn,
+  .candidate-card > summary,
+  .governance-detail > summary,
+  input,
+  select {
+    min-height: 44px;
+  }
+  .candidate-card > summary {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .record-actions {
+    justify-content: flex-start;
+  }
 }

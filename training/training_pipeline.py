@@ -196,46 +196,21 @@ class BenchmarkEvaluator:
         from agents.audit_agent import AuditAgent
 
         if self._agent is None:
-            self._agent = AuditAgent(enable_llm=False)
+            self._agent = AuditAgent(enable_llm=False, enable_external_tools=False)
         agent = self._agent
         started = time.perf_counter()
-        results = []
-        for raw_case in test_cases or self.create_test_cases():
-            test_case = self._normalize_case(raw_case)
-            case_started = time.perf_counter()
-            output = agent.process_audit_query(test_case["question"])
-            response = output.get("response", "")
-            evaluation = self._evaluate_response(
-                test_case["question"],
-                response,
-                test_case.get("expected_answer", ""),
-                test_case.get("expected_terms", []),
-                test_case.get("evaluation_criteria", []),
-                output,
-            )
-            trajectory = self._evaluate_trajectory(output)
-            latency_ms = round((time.perf_counter() - case_started) * 1000)
-            results.append(
-                {
-                    "test_id": test_case["id"],
-                    "category": test_case["category"],
-                    "question": test_case["question"],
-                    "expected_answer": test_case.get("expected_answer", ""),
-                    "expected_terms": test_case.get("expected_terms", []),
-                    "actual_answer": response,
-                    "evaluation": evaluation,
-                    "trajectory": trajectory,
-                    "latency_ms": latency_ms,
-                    "regression_risks": self._regression_risks(evaluation, trajectory, latency_ms),
-                    "optimization_suggestions": self._suggestions(evaluation, trajectory),
-                }
-            )
+        raw_cases = test_cases or self.create_test_cases()
+        # The deterministic evaluator is sub-millisecond per case once external
+        # connectors are disabled; a thread pool costs more than it saves here.
+        results = [self._evaluate_case(agent, item) for item in raw_cases]
         return {
             "results": results,
             "overall_metrics": self._calculate_overall_metrics(results),
             "evaluation_framework": {
                 "metrics": self.DEFAULT_METRICS,
                 "profile": "fast_deterministic_agent_regression",
+                "execution": "deterministic_local",
+                "workers": 1,
                 "jd_alignment": [
                     "agent trajectory quality",
                     "tool-use precision",
@@ -248,6 +223,39 @@ class BenchmarkEvaluator:
             "training_config": TRAINING_CONFIG,
             "evaluation_date": datetime.now().isoformat(),
             "elapsed_ms": round((time.perf_counter() - started) * 1000),
+        }
+
+    def _evaluate_case(self, agent, raw_case: Dict[str, Any]) -> Dict[str, Any]:
+        test_case = self._normalize_case(raw_case)
+        case_started = time.perf_counter()
+        output = agent.process_audit_query(
+            test_case["question"],
+            session_id=f"eval_{test_case['id']}_{time.time_ns()}",
+            prefer_llm=False,
+        )
+        response = output.get("response", "")
+        evaluation = self._evaluate_response(
+            test_case["question"],
+            response,
+            test_case.get("expected_answer", ""),
+            test_case.get("expected_terms", []),
+            test_case.get("evaluation_criteria", []),
+            output,
+        )
+        trajectory = self._evaluate_trajectory(output)
+        latency_ms = round((time.perf_counter() - case_started) * 1000)
+        return {
+            "test_id": test_case["id"],
+            "category": test_case["category"],
+            "question": test_case["question"],
+            "expected_answer": test_case.get("expected_answer", ""),
+            "expected_terms": test_case.get("expected_terms", []),
+            "actual_answer": response,
+            "evaluation": evaluation,
+            "trajectory": trajectory,
+            "latency_ms": latency_ms,
+            "regression_risks": self._regression_risks(evaluation, trajectory, latency_ms),
+            "optimization_suggestions": self._suggestions(evaluation, trajectory),
         }
 
     def evaluate_model(self, model, tokenizer, test_cases: List[Dict[str, Any]]) -> Dict[str, Any]:

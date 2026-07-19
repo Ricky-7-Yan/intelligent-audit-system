@@ -356,6 +356,13 @@ function initSectionNavigator() {
     else main.prepend(nav);
   }
   clearNode(nav);
+  let focusMode = false;
+  let activeSection = sections[0];
+  const applyFocus = (section = activeSection) => {
+    activeSection = section || activeSection;
+    sections.forEach((item) => item.classList.toggle("section-focus-hidden", focusMode && item !== activeSection));
+    document.body.classList.toggle("section-focus-mode", focusMode);
+  };
   const label = el("span", { class: "quickbar-label", text: "页面导航" });
   nav.appendChild(label);
   function sectionDisplayLabel(section) {
@@ -390,7 +397,11 @@ function initSectionNavigator() {
     if (!section.id) section.id = `section-${index + 1}`;
     section.dataset.sectionLabel = sectionDisplayLabel(section);
     const button = el("button", { class: "quickbar-link", type: "button", text: section.dataset.sectionLabel });
-    button.addEventListener("click", () => section.scrollIntoView({ behavior: "smooth", block: "start" }));
+    button.addEventListener("click", () => {
+      activeSection = section;
+      if (focusMode) applyFocus(section);
+      section.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
     nav.appendChild(button);
     if (section.dataset.collapsible === "true" && !qs(".section-collapse-btn", section)) {
       const collapse = el("button", { class: "section-collapse-btn", type: "button", text: "收起" });
@@ -407,9 +418,17 @@ function initSectionNavigator() {
     density.textContent = document.body.classList.contains("density-compact") ? "舒展视图" : "紧凑视图";
   });
   nav.appendChild(density);
+  const focus = el("button", { class: "quickbar-link focus-toggle", type: "button", text: "专注视图" });
+  focus.addEventListener("click", () => {
+    focusMode = !focusMode;
+    focus.textContent = focusMode ? "显示全部" : "专注视图";
+    applyFocus(activeSection);
+  });
+  nav.appendChild(focus);
   const observer = new IntersectionObserver((entries) => {
     const visible = entries.filter((entry) => entry.isIntersecting).sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
     if (!visible) return;
+    activeSection = visible.target;
     qsa(".quickbar-link", nav).forEach((button) => {
       button.classList.toggle("active", button.textContent === visible.target.dataset.sectionLabel);
     });

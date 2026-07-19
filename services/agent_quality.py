@@ -14,6 +14,7 @@ from typing import Any, Dict, Iterable, List, Optional
 from services.agent_runtime import AgentRuntime
 from services.conversation_memory import ConversationMemory
 from services.evaluation_repository import EvaluationRunRepository
+from services.harness_control import HarnessControlPlane
 from services.skill_registry import SkillRegistry
 
 
@@ -48,7 +49,7 @@ DIMENSIONS = [
         "evaluation_harness",
         "评测、发布门禁与自进化 Harness",
         "面试官会追问效果如何证明、怎么防止改坏、badcase 如何沉淀。",
-        "Agent/RAG/Research 评测会持久化并和历史基线比较，Harness 只生成可验证提案，不自动上线。",
+        "锁定评测器与可编辑面分离，候选必须通过 Held-in/Held-out 双集门禁和人工审批，拒绝样例保留且不会自动上线。",
     ),
     QualityDimension(
         "memory_context",
@@ -74,11 +75,13 @@ class AgentQualityDiagnostics:
         agent_runtime: AgentRuntime,
         skill_registry: SkillRegistry,
         conversation_memory: ConversationMemory,
+        harness_control: Optional[HarnessControlPlane] = None,
     ) -> None:
         self.evaluation_repository = evaluation_repository
         self.agent_runtime = agent_runtime
         self.skill_registry = skill_registry
         self.conversation_memory = conversation_memory
+        self.harness_control = harness_control
 
     def report(self, rag_stats: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         observability = self.agent_runtime.observability()
@@ -91,7 +94,7 @@ class AgentQualityDiagnostics:
             self._agent_runtime_dimension(observability),
             self._rag_dimension(eval_runs, rag_stats),
             self._tool_dimension(skill_metrics),
-            self._evaluation_dimension(eval_runs),
+            self._evaluation_dimension(eval_runs, self.harness_control.summary() if self.harness_control else None),
             self._memory_dimension(memory_stats),
             self._production_dimension(observability, skill_metrics, eval_runs, rag_stats),
         ]
@@ -183,27 +186,48 @@ class AgentQualityDiagnostics:
             ["演示 /api/mcp/tools 的 inputSchema 与权限声明。", "解释 TTL 缓存和熔断如何降低延迟与故障放大。"],
         )
 
-    def _evaluation_dimension(self, eval_runs: List[Dict[str, Any]]) -> Dict[str, Any]:
+    def _evaluation_dimension(
+        self,
+        eval_runs: List[Dict[str, Any]],
+        harness: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
         run_count = len(eval_runs)
         blocked = [run for run in eval_runs if (run.get("release_gate") or {}).get("status") == "blocked"]
         review = [run for run in eval_runs if (run.get("release_gate") or {}).get("status") == "review"]
-        score = 42 + min(run_count, 20) * 2.2 - len(blocked) * 8 - len(review) * 2
+        surfaces = (harness or {}).get("surfaces") or {}
+        policy = surfaces.get("policy") or {}
+        locked_count = len(surfaces.get("locked") or [])
+        harness_ready = bool(harness and locked_count and policy.get("automatic_promotion") is False)
+        score = 42 + min(run_count, 20) * 1.5 - min(len(blocked), 5) * 3 - min(len(review), 5)
+        if harness_ready:
+            score += 26
         gaps = []
         if run_count == 0:
             gaps.append("缺少评测历史，面试时难证明效果和回归控制。")
         if blocked:
             gaps.append(f"存在 {len(blocked)} 个 blocked release gate，需要优先处理。")
+        if not harness_ready:
+            gaps.append("缺少独立 Harness 控制面或人工推广边界。")
         evidence = [
             f"评测记录 {run_count}",
             f"review 门禁 {len(review)}",
             f"blocked 门禁 {len(blocked)}",
         ]
+        if harness_ready:
+            evidence.extend(
+                [
+                    f"锁定评测表面 {locked_count}",
+                    "Held-in / Held-out 双集无回归",
+                    "严格提升 + 人工审批，禁止自动推广",
+                    f"Harness 候选 {(harness or {}).get('candidate_count', 0)}，事件 {(harness or {}).get('event_count', 0)}",
+                ]
+            )
         return self._dimension(
             "evaluation_harness",
             score,
             evidence,
             gaps,
-            ["把最新 blocker 转成 badcase，再运行回归评测。", "说明 Harness 只生成提案，不自动上线。"],
+            ["把最新 blocker 转成 badcase，再运行双集回归评测。", "通过门禁后由人工复核候选，再决定推广或回滚。"],
         )
 
     def _memory_dimension(self, memory_stats: Dict[str, Any]) -> Dict[str, Any]:
@@ -397,4 +421,3 @@ class AgentQualityDiagnostics:
         if score >= 55:
             return "需要补证"
         return "证据不足"
-

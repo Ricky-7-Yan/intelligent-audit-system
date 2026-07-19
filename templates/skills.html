@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Agent 运行时中心 - 审脉 AuditPilot</title>
-  <link rel="stylesheet" href="../static/app.css?v=4.6.0">
+  <link rel="stylesheet" href="../static/app.css?v=5.0.0">
 </head>
 <body>
   <div class="app-shell">
@@ -95,6 +95,11 @@
           <div class="mt-16">
             <div class="mini-head"><h3>控制平面</h3><span class="badge">Observe → Ship</span></div>
             <div id="controlPlane" class="control-plane"></div>
+          </div>
+          <div class="mt-16">
+            <div class="mini-head"><h3>Harness 候选档案</h3><span class="badge" id="harnessArchiveMeta">0 个候选</span></div>
+            <p class="muted">每个候选只允许修改一个声明过的表面；锁定评测器、双数据集无回归与人工审批共同决定是否可以推广。</p>
+            <div id="harnessCandidates" class="candidate-grid"></div>
           </div>
         </details>
       </section>
@@ -189,7 +194,7 @@
       </section>
     </main>
   </div>
-  <script src="../static/app.js?v=4.6.0"></script>
-  <script src="../static/skills.js?v=4.6.0"></script>
+  <script src="../static/app.js?v=5.0.0"></script>
+  <script src="../static/skills.js?v=5.0.0"></script>
 </body>
 </html>

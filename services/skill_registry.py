@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import statistics
+import threading
 import time
 import uuid
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeoutError
@@ -36,6 +37,7 @@ class SkillRegistry:
         self._executor = ThreadPoolExecutor(max_workers=6, thread_name_prefix="audit-skill")
         self._cache: Dict[str, Tuple[float, Dict[str, Any]]] = {}
         self._circuits: Dict[str, Dict[str, Any]] = {}
+        self._log_lock = threading.RLock()
         self._register_builtin_skills()
 
     def list_skills(self) -> List[Dict[str, Any]]:
@@ -45,8 +47,18 @@ class SkillRegistry:
         return [
             {
                 "name": skill.name,
+                "qualifiedName": f"AuditPilot:{skill.name}",
                 "description": skill.description,
                 "inputSchema": skill.input_schema,
+                "outputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "ok": {"type": "boolean"},
+                        "data": {"type": "object"},
+                        "error": {"type": "object"},
+                        "meta": {"type": "object"},
+                    },
+                },
                 "annotations": {
                     "title": skill.title,
                     "permissions": skill.permissions,
@@ -73,11 +85,24 @@ class SkillRegistry:
         cache_key = self._cache_key(name, payload)
 
         if validation_errors:
-            result = {"error": "input validation failed", "details": validation_errors}
+            result = self._error_payload(
+                "INPUT_VALIDATION_ERROR",
+                "输入校验失败",
+                False,
+                "按 inputSchema 补充必填字段并修正字段类型后重试。",
+                validation_errors,
+            )
             status = "failed"
             error_type = "InputValidationError"
         elif circuit["state"] == "open" and time.time() < float(circuit["open_until"]):
-            result = {"error": "tool circuit is open", "retry_after": round(float(circuit["open_until"]) - time.time(), 2)}
+            retry_after = round(float(circuit["open_until"]) - time.time(), 2)
+            result = self._error_payload(
+                "CIRCUIT_OPEN",
+                "工具熔断器处于开启状态",
+                True,
+                f"等待 {retry_after} 秒后重试，或选择等价的降级工具。",
+                {"retry_after": retry_after},
+            )
             status = "failed"
             error_type = "CircuitOpenError"
         elif self._cached(cache_key):
@@ -91,17 +116,29 @@ class SkillRegistry:
             if not validation_errors and not cache_hit and error_type != "CircuitOpenError":
                 future = self._executor.submit(skill.handler, payload)
                 result = future.result(timeout=skill.timeout_seconds)
+                if not isinstance(result, dict):
+                    result = {"value": result}
                 status = "success"
                 circuit.update({"failures": 0, "state": "closed", "open_until": 0.0})
                 if skill.cache_ttl_seconds > 0:
                     self._cache[cache_key] = (time.time() + skill.cache_ttl_seconds, result)
         except FutureTimeoutError:
-            result = {"error": f"tool execution exceeded {skill.timeout_seconds}s"}
+            result = self._error_payload(
+                "TOOL_TIMEOUT",
+                f"工具执行超过 {skill.timeout_seconds} 秒",
+                True,
+                "缩小输入范围后重试；若再次超时，切换降级工具或转人工复核。",
+            )
             status = "failed"
             error_type = "ToolTimeoutError"
             self._record_failure(skill, circuit)
         except Exception as exc:
-            result = {"error": str(exc)}
+            result = self._error_payload(
+                "TOOL_EXECUTION_ERROR",
+                str(exc),
+                True,
+                "检查参数、依赖与权限；仅在输入不变且错误可重试时再次调用。",
+            )
             status = "failed"
             error_type = exc.__class__.__name__
             self._record_failure(skill, circuit)
@@ -113,7 +150,7 @@ class SkillRegistry:
             "run_id": run_id,
             "skill": name,
             "status": status,
-            "input": payload,
+            "input": self._redact(payload),
             "output": result,
             "started_at": started,
             "finished_at": finished,
@@ -127,8 +164,9 @@ class SkillRegistry:
             "validation_errors": validation_errors,
         }
 
-        with self.log_file.open("a", encoding="utf-8") as stream:
-            stream.write(json.dumps(record, ensure_ascii=False) + "\n")
+        with self._log_lock:
+            with self.log_file.open("a", encoding="utf-8") as stream:
+                stream.write(json.dumps(record, ensure_ascii=False) + "\n")
         return record
 
     def recent_runs(self, limit: int = 20) -> List[Dict[str, Any]]:
@@ -200,6 +238,38 @@ class SkillRegistry:
 
     def _register(self, skill: Skill) -> None:
         self.skills[skill.name] = skill
+
+    def _error_payload(
+        self,
+        code: str,
+        message: str,
+        retryable: bool,
+        recovery: str,
+        details: Any = None,
+    ) -> Dict[str, Any]:
+        return {
+            "ok": False,
+            "error": message,
+            "error_detail": {
+                "code": code,
+                "message": message,
+                "retryable": retryable,
+                "recovery": recovery,
+                "details": details,
+            },
+        }
+
+    def _redact(self, value: Any, key: str = "") -> Any:
+        sensitive = {"api_key", "apikey", "token", "secret", "password", "authorization", "cookie"}
+        if key.lower().replace("-", "_") in sensitive:
+            return "[REDACTED]"
+        if isinstance(value, dict):
+            return {item_key: self._redact(item, str(item_key)) for item_key, item in value.items()}
+        if isinstance(value, list):
+            return [self._redact(item, key) for item in value]
+        if isinstance(value, str) and (value.startswith("sk-") or value.startswith("Bearer ")):
+            return "[REDACTED]"
+        return value
 
     def _describe(self, skill: Skill) -> Dict[str, Any]:
         return {
