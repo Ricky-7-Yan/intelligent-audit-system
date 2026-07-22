@@ -1,11 +1,11 @@
 <p align="center">
-  <img src="docs/assets/auditpilot-logo.svg" width="108" alt="AuditPilot logo" />
+  <img src="static/assets/auditpilot-logo.svg" width="108" alt="AuditPilot logo" />
 </p>
 
 <h1 align="center">审脉 AuditPilot</h1>
 
 <p align="center">
-  面向审计交付场景的企业级 AI Agent 工作台：把 RAG 取证、控制映射、工具治理、评测门禁和人工复核放进同一条可追溯工作流。
+  面向审计交付场景的企业级 AI Agent 工作台：把证据检索、工具执行、Harness 评测、人工复核与整改闭环放进同一条可追溯工作流。
 </p>
 
 <p align="center">
@@ -33,8 +33,8 @@ AuditPilot 的目标不是替代审计师，而是把审计师反复执行的取
 | Agentic RAG | 知识写入、切块、检索、来源引用、证据质量门和缺证提示。 |
 | Skills / MCP-style Tools | 工具 Schema、权限声明、TTL 缓存、熔断器、调用日志和工具指标。 |
 | Memory | Working / Episodic / Profile Memory，保留多轮审计上下文。 |
-| Evaluation Harness | Agent / RAG / Research 评测、基线对比、release gate 和 badcase 沉淀。 |
-| Interview-driven Diagnostics | 将大厂 Agent 面经/JD 中常问的 Runtime、RAG、Tool、Memory、评测和生产化问题转成可执行诊断。 |
+| Evaluation Harness | 持久化评测运行、Held-in / Held-out 门禁、服务端评测谱系、人工批准和可回滚候选。 |
+| Episode & Observability | 隐私友好的任务轨迹包、工具证据、安全门、失败归因、干预记录和完整性摘要。 |
 
 ## Screenshots
 
@@ -55,14 +55,14 @@ Audit request
   -> Planner / Evidence / Control / Risk / Compliance / Remediation Agents
   -> Agentic RAG + Knowledge Graph + Skills / MCP-style Tools
   -> Safety Gate + Reflection + Human Review
-  -> Audit Repository + Evaluation Baseline + Delivery Package
+  -> Episode Package + Evaluation Lineage + Delivery Package
 ```
 
 Design boundaries:
 
 - LLMs help with understanding, summarization and explanation.
 - Evidence gaps, quality gates, permissions, risk signals and delivery state stay auditable.
-- High-risk or low-confidence outputs are routed to evidence补充 and human review.
+- High-risk or low-confidence outputs are routed to evidence completion and human review.
 
 ## Quick start
 
@@ -92,7 +92,7 @@ Do not commit real API keys.
 .\.venv\Scripts\python.exe -m unittest discover -s tests -p "test_*.py"
 ```
 
-Current tests cover intent routing, memory compaction, skill validation/cache, runtime reflection, evaluation regression, self-evolution harness, quality diagnostics and global search.
+Current tests cover intent routing, memory compaction, skill validation/cache, runtime reflection, evaluation regression, repository-bound Harness gating, episode packaging, quality diagnostics and global search.
 
 ## Project layout
 
@@ -105,7 +105,7 @@ training/               evaluation and offline training entry points
 web/                    FastAPI application and APIs
 templates/ + static/    product UI
 tests/                  regression tests
-docs/                   project archive, interview material and screenshots
+docs/screenshots/       public product screenshots only
 data/                   local runtime data, mostly ignored by Git
 ```
 

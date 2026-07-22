@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional
 
 from config import PATHS, PROJECT_ROOT
+from services.evaluation_repository import EvaluationRunRepository
 
 
 DEFAULT_SURFACES: Dict[str, List[str]] = {
@@ -39,6 +40,8 @@ DEFAULT_SURFACES: Dict[str, List[str]] = {
         "destructive operations",
     ],
 }
+
+LOWER_IS_BETTER_METRICS = {"avg_latency_ms", "regression_count", "error_rate", "cost"}
 
 
 class HarnessControlPlane:
@@ -89,6 +92,9 @@ class HarnessControlPlane:
             "title": proposal.get("title") or "未命名 Harness 候选",
             "hypothesis": proposal.get("action") or proposal.get("hypothesis") or "",
             "validation_plan": proposal.get("validation") or "",
+            "business_outcome": proposal.get("business_outcome") or proposal.get("impact") or "",
+            "success_metric": proposal.get("success_metric") or "",
+            "rollback_trigger": proposal.get("rollback_trigger") or "任一锁定指标回归或确定性检查失败",
             "editable_surface": editable_surface,
             "parent_id": parent_id,
             "status": "draft",
@@ -111,16 +117,28 @@ class HarnessControlPlane:
         held_in: Dict[str, float],
         held_out: Dict[str, float],
         checks: Optional[List[Dict[str, Any]]] = None,
+        directions: Optional[Dict[str, str]] = None,
     ) -> Dict[str, Any]:
         candidate = self.get_candidate(candidate_id)
         if not candidate:
             raise KeyError(candidate_id)
         locked_unchanged = candidate.get("locked_fingerprints") == self._fingerprints(DEFAULT_SURFACES["locked"])
-        dimensions = sorted(set(baseline) | set(held_in) | set(held_out))
+        dimensions = sorted(set(baseline) & set(held_in) & set(held_out))
+        if not dimensions:
+            raise ValueError("baseline、held_in 与 held_out 至少需要一个共同指标")
+        metric_directions = {
+            name: (directions or {}).get(name) or ("lower" if name in LOWER_IS_BETTER_METRICS else "higher")
+            for name in dimensions
+        }
         deltas = {
             name: {
-                "held_in": round(float(held_in.get(name, 0)) - float(baseline.get(name, 0)), 4),
-                "held_out": round(float(held_out.get(name, 0)) - float(baseline.get(name, 0)), 4),
+                "direction": metric_directions[name],
+                "held_in": self._improvement_delta(
+                    float(baseline[name]), float(held_in[name]), metric_directions[name]
+                ),
+                "held_out": self._improvement_delta(
+                    float(baseline[name]), float(held_out[name]), metric_directions[name]
+                ),
             }
             for name in dimensions
         }
@@ -149,6 +167,74 @@ class HarnessControlPlane:
             self._append_event("candidate_evaluated", candidate_id, candidate["acceptance"])
             if not accepted:
                 self._append_jsonl(self.rejected_file, {"candidate_id": candidate_id, "at": candidate["updated_at"], "acceptance": candidate["acceptance"], "deltas": deltas})
+        return candidate
+
+    def evaluate_from_runs(
+        self,
+        candidate_id: str,
+        repository: EvaluationRunRepository,
+        baseline_run_id: str,
+        held_in_run_id: str,
+        held_out_run_id: str,
+        checks: Optional[List[Dict[str, Any]]] = None,
+    ) -> Dict[str, Any]:
+        """Evaluate with server-owned results instead of client-supplied scores."""
+        run_ids = [baseline_run_id, held_in_run_id, held_out_run_id]
+        if len(set(run_ids)) != 3:
+            raise ValueError("baseline、held_in 与 held_out 必须引用三个不同评测运行")
+        records = [repository.get_run(run_id) for run_id in run_ids]
+        missing = [run_id for run_id, record in zip(run_ids, records) if not record]
+        if missing:
+            raise KeyError(",".join(missing))
+        resolved = [record for record in records if record]
+        run_types = {str(record.get("run_type") or "") for record in resolved}
+        if len(run_types) != 1:
+            raise ValueError("三个评测运行必须属于同一 run_type")
+
+        metric_names = set.intersection(
+            *(set((record.get("metrics") or {}).keys()) for record in resolved)
+        )
+        metric_names &= {"overall_score", "pass_rate", "regression_count", "avg_latency_ms"}
+        metrics: List[Dict[str, float]] = []
+        for record in resolved:
+            source = record.get("metrics") or {}
+            metrics.append(
+                {
+                    name: float(source[name])
+                    for name in sorted(metric_names)
+                    if isinstance(source.get(name), (int, float)) and not isinstance(source.get(name), bool)
+                }
+            )
+        shared = set.intersection(*(set(item.keys()) for item in metrics)) if metrics else set()
+        if not shared:
+            raise ValueError("评测运行之间没有可比较的共同质量指标")
+        comparable = [{name: item[name] for name in sorted(shared)} for item in metrics]
+        lineage_check = {
+            "name": "evaluation_lineage",
+            "status": "pass",
+            "detail": "分数由 EvaluationRunRepository 读取，客户端不能覆盖",
+        }
+        candidate = self.evaluate_candidate(
+            candidate_id,
+            comparable[0],
+            comparable[1],
+            comparable[2],
+            [lineage_check, *(checks or [])],
+        )
+        lineage = {
+            "run_type": next(iter(run_types)),
+            "baseline_run_id": baseline_run_id,
+            "held_in_run_id": held_in_run_id,
+            "held_out_run_id": held_out_run_id,
+            "metric_names": sorted(shared),
+            "repository_bound": True,
+            "metrics_digest": self._payload_digest(comparable),
+        }
+        candidate["evaluator_lineage"] = lineage
+        candidate["updated_at"] = datetime.now().isoformat()
+        with self._lock:
+            self._write_candidate(candidate)
+            self._append_event("evaluation_lineage_bound", candidate_id, lineage)
         return candidate
 
     def review_candidate(self, candidate_id: str, decision: str, reviewer: str, comment: str = "") -> Dict[str, Any]:
@@ -250,6 +336,14 @@ class HarnessControlPlane:
     def _candidate_path(self, candidate_id: str) -> Path:
         safe = "".join(ch for ch in candidate_id if ch.isalnum() or ch in {"-", "_"})
         return self.candidate_dir / f"{safe}.json"
+
+    def _improvement_delta(self, baseline: float, candidate: float, direction: str) -> float:
+        delta = baseline - candidate if direction == "lower" else candidate - baseline
+        return round(delta, 4)
+
+    def _payload_digest(self, payload: Any) -> str:
+        serialized = json.dumps(payload, ensure_ascii=False, sort_keys=True, default=str)
+        return hashlib.sha256(serialized.encode("utf-8")).hexdigest()
 
     def _write_candidate(self, record: Dict[str, Any]) -> None:
         target = self._candidate_path(str(record["candidate_id"]))

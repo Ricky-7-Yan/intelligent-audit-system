@@ -332,6 +332,13 @@ class HarnessEvaluationRequest(BaseModel):
     checks: List[Dict[str, Any]] = Field(default_factory=list)
 
 
+class HarnessRunEvaluationRequest(BaseModel):
+    baseline_run_id: str = Field(..., min_length=3, max_length=120)
+    held_in_run_id: str = Field(..., min_length=3, max_length=120)
+    held_out_run_id: str = Field(..., min_length=3, max_length=120)
+    checks: List[Dict[str, Any]] = Field(default_factory=list)
+
+
 class HarnessReviewRequest(BaseModel):
     decision: str = Field(..., pattern="^(approve|reject)$")
     reviewer: str = Field("Human Reviewer", max_length=200)
@@ -646,6 +653,15 @@ async def agent_task_detail_api(task_id: str):
     return {"success": True, "task": task, "timestamp": datetime.now().isoformat()}
 
 
+@app.get("/api/agent/tasks/{task_id}/episode")
+async def agent_task_episode_api(task_id: str):
+    try:
+        package = agent_runtime.episode_package(task_id)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail="Agent 任务不存在") from exc
+    return {"success": True, "episode": package, "timestamp": datetime.now().isoformat()}
+
+
 @app.delete("/api/agent/tasks/{task_id}")
 async def agent_task_delete_api(task_id: str):
     if not agent_runtime.delete_task(task_id):
@@ -707,6 +723,24 @@ async def harness_candidate_review_api(candidate_id: str, request: HarnessReview
         candidate = harness_control.review_candidate(candidate_id, request.decision, request.reviewer, request.comment)
     except KeyError as exc:
         raise HTTPException(status_code=404, detail="Harness 候选不存在") from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    return {"success": True, "candidate": candidate, "timestamp": datetime.now().isoformat()}
+
+
+@app.post("/api/agent/harness/candidates/{candidate_id}/evaluate-runs")
+async def harness_candidate_evaluate_runs_api(candidate_id: str, request: HarnessRunEvaluationRequest):
+    try:
+        candidate = harness_control.evaluate_from_runs(
+            candidate_id,
+            evaluation_repository,
+            request.baseline_run_id,
+            request.held_in_run_id,
+            request.held_out_run_id,
+            request.checks,
+        )
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=f"Harness 候选或评测运行不存在：{exc}") from exc
     except ValueError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     return {"success": True, "candidate": candidate, "timestamp": datetime.now().isoformat()}

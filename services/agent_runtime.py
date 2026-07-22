@@ -78,6 +78,79 @@ class AgentRuntime:
         path.unlink()
         return True
 
+    def episode_package(self, task_id: str) -> Dict[str, Any]:
+        """Build a trace-based, auditable episode without exposing raw secrets."""
+        task = self.get_task(task_id)
+        if not task:
+            raise KeyError(task_id)
+        events = self._events_for_task(task_id)
+        context = task.get("context") or {}
+        reflections = task.get("reflections") or []
+        failed_steps = [step for step in task.get("steps", []) if step.get("status") != "success"]
+        confidence_values = [
+            float(item.get("confidence"))
+            for item in reflections
+            if isinstance(item.get("confidence"), (int, float))
+        ]
+        package = {
+            "schema": "audit-agent-episode-v1",
+            "task_id": task_id,
+            "task_specification": {
+                "objective": task.get("objective"),
+                "protocol": task.get("protocol"),
+                "plan_steps": len(task.get("plan", [])),
+                "budgets": task.get("budgets", {}),
+            },
+            "context_evidence": {
+                "context_hash": self._hash_payload(context),
+                "available_fields": sorted(context.keys()),
+                "raw_context_included": False,
+            },
+            "action_evidence": task.get("role_traces", []),
+            "tool_evidence": task.get("tool_calls", []),
+            "verification_evidence": {
+                "task_safety_gate": task.get("safety_gate", {}),
+                "step_safety_gates": [
+                    {"step_id": step.get("step_id"), "gate": step.get("safety_gate", {})}
+                    for step in task.get("steps", [])
+                ],
+                "reflections": reflections,
+            },
+            "failure_attribution": [
+                {
+                    "step_id": step.get("step_id"),
+                    "skill": step.get("skill"),
+                    "status": step.get("status"),
+                    "error": (step.get("output") or {}).get("error")
+                    if isinstance(step.get("output"), dict)
+                    else str(step.get("output") or ""),
+                }
+                for step in failed_steps
+            ],
+            "intervention_record": [
+                event for event in events if event.get("event_type") in {"budget_exhausted", "manual_step_added", "human_review"}
+            ],
+            "entropy_audit": {
+                "reflection_count": len(reflections),
+                "mean_confidence": round(statistics.mean(confidence_values), 3) if confidence_values else None,
+                "retry_count": task.get("metrics", {}).get("retry_count", 0),
+                "cache_hits": task.get("metrics", {}).get("cache_hits", 0),
+            },
+            "outcome": {
+                "status": task.get("status"),
+                "metrics": task.get("metrics", {}),
+                "artifact_refs": [item.get("artifact_id") for item in task.get("artifacts", [])],
+                "completed_steps": sum(1 for step in task.get("steps", []) if step.get("status") == "success"),
+            },
+            "event_log": events,
+            "generated_at": datetime.now().isoformat(),
+        }
+        package["integrity"] = {
+            "algorithm": "sha256",
+            "digest": self._package_digest(package),
+        }
+        return package
+
     def run_next_step(self, task_id: str) -> Dict[str, Any]:
         task = self.get_task(task_id)
         if not task:
@@ -212,6 +285,7 @@ class AgentRuntime:
         task["status"] = "planned"
         task["updated_at"] = datetime.now().isoformat()
         self._write_task(task)
+        self._append_event(task_id, "manual_step_added", {"step_id": new_step["step_id"], "skill": new_step["skill"]})
         return task
 
     def observability(self) -> Dict[str, Any]:
@@ -405,8 +479,28 @@ class AgentRuntime:
             "payload": payload,
             "at": datetime.now().isoformat(),
         }
-        with self.event_log.open("a", encoding="utf-8") as stream:
+        event_log = self.runtime_dir / "events.jsonl"
+        self.event_log = event_log
+        with event_log.open("a", encoding="utf-8") as stream:
             stream.write(json.dumps(record, ensure_ascii=False, default=str) + "\n")
+
+    def _events_for_task(self, task_id: str) -> List[Dict[str, Any]]:
+        event_log = self.runtime_dir / "events.jsonl"
+        if not event_log.exists():
+            return []
+        events: List[Dict[str, Any]] = []
+        for line in event_log.read_text(encoding="utf-8").splitlines():
+            try:
+                event = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if event.get("task_id") == task_id:
+                events.append(event)
+        return events
+
+    def _package_digest(self, package: Dict[str, Any]) -> str:
+        serialized = json.dumps(package, ensure_ascii=False, sort_keys=True, default=str)
+        return hashlib.sha256(serialized.encode("utf-8")).hexdigest()
 
     def _read(self, path: Path) -> Dict[str, Any]:
         return json.loads(path.read_text(encoding="utf-8"))

@@ -66,16 +66,45 @@ class HarnessControlPlaneTests(unittest.TestCase):
             )
             evaluated = control.evaluate_candidate(
                 candidate["candidate_id"],
-                {"quality": 0.80, "latency": 0.70},
-                {"quality": 0.84, "latency": 0.70},
-                {"quality": 0.82, "latency": 0.72},
+                {"quality": 0.80, "avg_latency_ms": 700},
+                {"quality": 0.84, "avg_latency_ms": 680},
+                {"quality": 0.82, "avg_latency_ms": 690},
                 [{"name": "unit", "status": "pass"}],
             )
             self.assertEqual(evaluated["status"], "awaiting_human_review")
+            self.assertGreater(evaluated["scores"]["deltas"]["avg_latency_ms"]["held_out"], 0)
             approved = control.review_candidate(candidate["candidate_id"], "approve", "tester", "verified")
             self.assertEqual(approved["status"], "approved")
             self.assertGreaterEqual(control.summary()["event_count"], 3)
             self.assertTrue(control.archive_candidate(candidate["candidate_id"]))
+
+    def test_binds_candidate_scores_to_persisted_evaluation_runs(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            project = Path(tmp) / "project"
+            for relative in ("services/evaluation_repository.py", "training/training_pipeline.py", "tests/test_agent_platform.py"):
+                path = project / relative
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text(f"locked:{relative}", encoding="utf-8")
+            repository = EvaluationRunRepository(Path(tmp) / "evals")
+            control = HarnessControlPlane(Path(tmp) / "harness", project)
+            candidate = control.create_candidate({"title": "真实评测绑定"}, "services/agent_runtime.py")
+
+            def create(score: float, pass_rate: float, latency: float):
+                return repository.create_run(
+                    "agent",
+                    {},
+                    {"overall_metrics": {"overall_score": score, "total_tests": 6, "pass_rate": pass_rate, "regression_count": 0, "avg_latency_ms": latency}},
+                )
+
+            baseline = create(0.80, 0.80, 420)
+            held_in = create(0.84, 0.83, 390)
+            held_out = create(0.82, 0.81, 400)
+            evaluated = control.evaluate_from_runs(
+                candidate["candidate_id"], repository, baseline["run_id"], held_in["run_id"], held_out["run_id"]
+            )
+            self.assertEqual(evaluated["status"], "awaiting_human_review")
+            self.assertTrue(evaluated["evaluator_lineage"]["repository_bound"])
+            self.assertIn("avg_latency_ms", evaluated["evaluator_lineage"]["metric_names"])
 
 
 class SkillRegistryTests(unittest.TestCase):
@@ -124,6 +153,10 @@ class SkillRegistryTests(unittest.TestCase):
             task = runtime.create_task("生成 ERP 权限审计计划", {"audit_item": "ERP 权限"})
             self.assertTrue(task["reflections"])
             self.assertIn(task["reflections"][0]["verdict"], {"pass", "review"})
+            episode = runtime.episode_package(task["task_id"])
+            self.assertEqual(episode["schema"], "audit-agent-episode-v1")
+            self.assertFalse(episode["context_evidence"]["raw_context_included"])
+            self.assertEqual(len(episode["integrity"]["digest"]), 64)
             self.assertTrue(runtime.delete_task(task["task_id"]))
             self.assertIsNone(runtime.get_task(task["task_id"]))
 

@@ -51,3 +51,17 @@ homepage-screenshot.png
 # Docker/local deployment
 .docker/
 node_modules/
+
+# Private project archive and interview/JD material
+# The public repository keeps product screenshots under docs only.
+docs/*
+!docs/screenshots/
+!docs/screenshots/**
+DEPLOYMENT.md
+JD_AGENT_COVERAGE.md
+JD_COVERAGE.md
+Project_Summary.md
+PyCharm_Setup_Guide.md
+下载模型说明.md
+scripts/build_project_archive.py
+scripts/verify_archive_artifacts.py
