@@ -37,6 +37,11 @@ class AgentRuntime:
             "protocol": "audit-agent-task-v1",
             "objective": objective,
             "context": context,
+            "applied_lessons": [
+                item
+                for item in context.get("experience_lessons", [])
+                if isinstance(item, dict) and item.get("status") == "approved"
+            ],
             "status": status,
             "plan": plan,
             "steps": [],
@@ -44,6 +49,13 @@ class AgentRuntime:
             "tool_calls": [],
             "reflections": [],
             "budgets": {"max_tool_calls": 10, "max_retries_per_step": 1},
+            "loop": {
+                "strategy": "bounded_dependency_loop",
+                "iterations": 0,
+                "termination_reason": "not_started",
+                "last_started_at": None,
+                "last_finished_at": None,
+            },
             "safety_gate": safety,
             "metrics": {
                 "tool_calls": 0,
@@ -60,6 +72,61 @@ class AgentRuntime:
         if status != "blocked":
             self.run_next_step(task_id)
         return self.get_task(task_id) or task
+
+    def run_until_pause(self, task_id: str, max_steps: int = 6) -> Dict[str, Any]:
+        """Run a bounded loop until completion, review, blocking, or step budget."""
+
+        task = self.get_task(task_id)
+        if not task:
+            raise KeyError(task_id)
+        bounded_steps = max(1, min(int(max_steps or 1), 12))
+        loop = task.setdefault("loop", {})
+        loop.update(
+            {
+                "strategy": "bounded_dependency_loop",
+                "last_started_at": datetime.now().isoformat(),
+                "termination_reason": "running",
+            }
+        )
+        self._write_task(task)
+        self._append_event(task_id, "loop_started", {"max_steps": bounded_steps})
+
+        executed = 0
+        while executed < bounded_steps:
+            before = self.get_task(task_id) or task
+            if before.get("status") in {"completed", "blocked", "needs_review"}:
+                break
+            before_steps = len(before.get("steps", []))
+            task = self.run_next_step(task_id)
+            executed += max(0, len(task.get("steps", [])) - before_steps)
+            if task.get("status") in {"completed", "blocked", "needs_review"}:
+                break
+            if len(task.get("steps", [])) == before_steps:
+                break
+
+        task = self.get_task(task_id) or task
+        if task.get("status") == "completed":
+            reason = "task_completed"
+        elif task.get("status") == "blocked":
+            reason = "safety_blocked"
+        elif task.get("status") == "needs_review":
+            reason = "human_review_required"
+        elif executed >= bounded_steps:
+            reason = "step_budget_reached"
+        else:
+            reason = "no_progress"
+        loop = task.setdefault("loop", {})
+        loop["iterations"] = int(loop.get("iterations") or 0) + executed
+        loop["last_finished_at"] = datetime.now().isoformat()
+        loop["termination_reason"] = reason
+        task["updated_at"] = datetime.now().isoformat()
+        self._write_task(task)
+        self._append_event(
+            task_id,
+            "loop_finished",
+            {"executed_steps": executed, "termination_reason": reason, "status": task.get("status")},
+        )
+        return task
 
     def list_tasks(self, limit: int = 30) -> List[Dict[str, Any]]:
         files = sorted(self.runtime_dir.glob("*.json"), key=lambda path: path.stat().st_mtime, reverse=True)
@@ -179,8 +246,37 @@ class AgentRuntime:
         next_plan = next((item for item in task.get("plan", []) if item["step_id"] not in completed), None)
         if not next_plan:
             task["status"] = "completed"
+            task.setdefault("loop", {})["termination_reason"] = "task_completed"
             task["updated_at"] = datetime.now().isoformat()
             self._write_task(task)
+            return task
+
+        missing_dependencies = [
+            dependency for dependency in next_plan.get("depends_on", []) if dependency not in completed
+        ]
+        if missing_dependencies:
+            task["status"] = "needs_review"
+            task.setdefault("reflections", []).append(
+                {
+                    "reflection_id": f"REF-{uuid.uuid4().hex[:8].upper()}",
+                    "step_id": next_plan.get("step_id"),
+                    "agent_role": next_plan.get("agent_role", "audit_agent"),
+                    "verdict": "human_review",
+                    "confidence": 1.0,
+                    "issues": [f"计划依赖未满足：{', '.join(missing_dependencies)}"],
+                    "attempts": 0,
+                    "next_action": "修复计划依赖或补充前置步骤后再继续。",
+                    "created_at": datetime.now().isoformat(),
+                }
+            )
+            task.setdefault("loop", {})["termination_reason"] = "dependency_violation"
+            task["updated_at"] = datetime.now().isoformat()
+            self._write_task(task)
+            self._append_event(
+                task_id,
+                "dependency_blocked",
+                {"step_id": next_plan.get("step_id"), "missing_dependencies": missing_dependencies},
+            )
             return task
 
         payload = self._payload_for_step(next_plan, task)
@@ -196,8 +292,15 @@ class AgentRuntime:
         }
         if safety["status"] == "blocked":
             step_record.update({"status": "blocked", "finished_at": datetime.now().isoformat(), "output": {"error": "blocked by safety gate"}})
+            step_record["evaluation"] = self._evaluate_step(
+                next_plan,
+                step_record,
+                task,
+                completed,
+            )
             task["steps"].append(step_record)
             task["status"] = "blocked"
+            task.setdefault("loop", {})["termination_reason"] = "safety_blocked"
             task["updated_at"] = datetime.now().isoformat()
             self._write_task(task)
             return task
@@ -216,6 +319,12 @@ class AgentRuntime:
                 "duration_ms": run.get("duration_ms", 0),
                 "attempts": len(runs),
             }
+        )
+        step_record["evaluation"] = self._evaluate_step(
+            next_plan,
+            step_record,
+            task,
+            completed,
         )
         task["steps"].append(step_record)
         task.setdefault("role_traces", []).append(
@@ -248,6 +357,22 @@ class AgentRuntime:
                     "attempt": attempt,
                     "cache_hit": item.get("cache_hit", False),
                     "circuit_state": item.get("circuit_state", "closed"),
+                    "error_type": item.get("error_type", ""),
+                    "validation_errors": item.get("validation_errors", []),
+                    "span": {
+                        "name": f"execute_tool {next_plan['skill']}",
+                        "kind": "execute_tool",
+                        "attributes": {
+                            "gen_ai.operation.name": "execute_tool",
+                            "gen_ai.tool.name": next_plan["skill"],
+                            "agent.task.id": task_id,
+                            "agent.step.id": next_plan["step_id"],
+                            "agent.role": next_plan.get("agent_role", "audit_agent"),
+                            "tool.attempt": attempt,
+                            "tool.cache_hit": bool(item.get("cache_hit", False)),
+                            "tool.circuit_state": item.get("circuit_state", "closed"),
+                        },
+                    },
                 }
             )
         reflection = self._reflect(next_plan, run, len(runs))
@@ -257,10 +382,16 @@ class AgentRuntime:
             task["artifacts"].extend(artifacts)
             task["role_traces"][-1]["artifact_refs"] = [item["artifact_id"] for item in artifacts]
         task["metrics"] = self._metrics(task)
-        if run["status"] != "success":
+        if run["status"] != "success" or float(step_record["evaluation"].get("score") or 0) < 0.6:
             task["status"] = "needs_review"
+            task.setdefault("loop", {})["termination_reason"] = (
+                "tool_failure" if run["status"] != "success" else "step_evaluation_failed"
+            )
         else:
             task["status"] = "completed" if len(completed) + 1 >= len(task.get("plan", [])) else "running"
+            task.setdefault("loop", {})["termination_reason"] = (
+                "task_completed" if task["status"] == "completed" else "step_completed"
+            )
         task["updated_at"] = datetime.now().isoformat()
         self._write_task(task)
         self._append_event(
@@ -441,6 +572,62 @@ class AgentRuntime:
             "attempts": attempts,
             "next_action": next_action,
             "created_at": datetime.now().isoformat(),
+        }
+
+    def _evaluate_step(
+        self,
+        plan_step: Dict[str, Any],
+        step_record: Dict[str, Any],
+        task: Dict[str, Any],
+        completed: set[str],
+    ) -> Dict[str, Any]:
+        """Evaluate a single execution step before the loop can continue."""
+
+        dependencies = plan_step.get("depends_on", [])
+        assertions = [
+            {
+                "key": "dependency_conformance",
+                "label": "前置依赖已完成",
+                "passed": all(item in completed for item in dependencies),
+                "evidence": dependencies,
+            },
+            {
+                "key": "safety_gate",
+                "label": "步骤安全门允许执行",
+                "passed": step_record.get("safety_gate", {}).get("status") != "blocked",
+                "evidence": step_record.get("safety_gate", {}).get("status"),
+            },
+            {
+                "key": "tool_result",
+                "label": "工具返回结构化结果",
+                "passed": step_record.get("status") == "success"
+                and isinstance(step_record.get("output"), dict),
+                "evidence": step_record.get("status"),
+            },
+            {
+                "key": "retry_budget",
+                "label": "重试次数未超预算",
+                "passed": int(step_record.get("attempts") or 0)
+                <= int(task.get("budgets", {}).get("max_retries_per_step", 1)) + 1,
+                "evidence": step_record.get("attempts"),
+            },
+            {
+                "key": "provenance",
+                "label": "运行记录具备来源标识",
+                "passed": bool(step_record.get("run_id")) or step_record.get("status") == "blocked",
+                "evidence": step_record.get("run_id"),
+            },
+        ]
+        score = round(
+            sum(1 for assertion in assertions if assertion["passed"]) / len(assertions),
+            3,
+        )
+        return {
+            "evaluator": "online_step_contract_v1",
+            "score": score,
+            "status": "pass" if score >= 0.8 else "review" if score >= 0.6 else "blocked",
+            "assertions": assertions,
+            "evaluated_at": datetime.now().isoformat(),
         }
 
     def _metrics(self, task: Dict[str, Any]) -> Dict[str, Any]:

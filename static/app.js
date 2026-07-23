@@ -404,10 +404,19 @@ function initSectionNavigator() {
     });
     nav.appendChild(button);
     if (section.dataset.collapsible === "true" && !qs(".section-collapse-btn", section)) {
-      const collapse = el("button", { class: "section-collapse-btn", type: "button", text: "收起" });
+      if (section.dataset.defaultCollapsed === "true") {
+        section.classList.add("section-collapsed");
+      }
+      const collapse = el("button", {
+        class: "section-collapse-btn",
+        type: "button",
+        text: section.classList.contains("section-collapsed") ? "展开" : "收起",
+        "aria-expanded": section.classList.contains("section-collapsed") ? "false" : "true",
+      });
       collapse.addEventListener("click", () => {
         section.classList.toggle("section-collapsed");
         collapse.textContent = section.classList.contains("section-collapsed") ? "展开" : "收起";
+        collapse.setAttribute("aria-expanded", section.classList.contains("section-collapsed") ? "false" : "true");
       });
       section.appendChild(collapse);
     }

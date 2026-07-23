@@ -1,9 +1,8 @@
-"""Interview-driven Agent quality diagnostics.
+"""Trace-driven Agent quality diagnostics for production delivery.
 
-This service turns the concerns repeatedly seen in Agent/RAG interview
-experiences into executable product diagnostics.  It intentionally reads real
-runtime state instead of returning static resume text, so the project can
-demonstrate the design decisions during an interview.
+The service turns runtime, retrieval, tool, memory and release requirements
+into executable diagnostics. It reads persisted runtime state rather than
+returning static capability claims.
 """
 
 from __future__ import annotations
@@ -30,44 +29,44 @@ DIMENSIONS = [
     QualityDimension(
         "agent_runtime",
         "Agent 架构与长任务执行",
-        "面试官会追问 Agent 是否只是 Chatbot、有没有规划/执行/反思/失败恢复。",
+        "确认系统具备可回放的规划、执行、反思与失败恢复链路，而不是一次性文本生成。",
         "采用轻量 Plan/Execute/Reflect Runtime，而不是把业务逻辑藏在框架里；生产可迁移 LangGraph/Temporal。",
     ),
     QualityDimension(
         "rag_grounding",
         "RAG 召回、错召/漏召与幻觉控制",
-        "面试官会追问切块、混合检索、重排、RAG 评测和证据不足时怎么办。",
+        "确认切块、混合检索、重排和证据不足降级均有可验证记录。",
         "审计场景需要标准编号和控制 ID 精确匹配，因此采用混合检索、来源置信度、质量门和补证任务。",
     ),
     QualityDimension(
         "tool_mcp",
         "Tool Use / MCP / Skill 治理",
-        "面试官会追问工具 Schema、权限、缓存、熔断、MCP 与 Function Calling 区别。",
+        "确认工具 Schema、权限、缓存、熔断与调用日志满足受控执行要求。",
         "SkillRegistry 把工具升级为治理单元，包含 Schema、权限、TTL、熔断、日志和 MCP-style 描述。",
     ),
     QualityDimension(
         "evaluation_harness",
         "评测、发布门禁与自进化 Harness",
-        "面试官会追问效果如何证明、怎么防止改坏、badcase 如何沉淀。",
+        "确认效果能够被量化，变更不会绕过回归门禁，badcase 能持续沉淀。",
         "锁定评测器与可编辑面分离，候选必须通过 Held-in/Held-out 双集门禁和人工审批，拒绝样例保留且不会自动上线。",
     ),
     QualityDimension(
         "memory_context",
         "Memory 与上下文压缩",
-        "面试官会追问短期/长期记忆、上下文压缩、记忆污染和删除策略。",
+        "确认短期与长期记忆分层、上下文压缩、污染防护和删除策略边界清晰。",
         "记忆分为 Working、Episodic、Profile、Related，分别处理顺序、摘要、画像和相关历史召回。",
     ),
     QualityDimension(
         "production_engineering",
         "生产化工程质量",
-        "面试官会追问是不是 demo、如何迁移数据库、异步任务、压测、日志和降级。",
+        "确认持久化、异步任务、性能、日志与降级机制具备可迁移的生产边界。",
         "当前保持本地可运行和透明持久化，生产可替换为数据库、对象存储、任务队列、Redis 与日志检索。",
     ),
 ]
 
 
 class AgentQualityDiagnostics:
-    """Build a single, executable quality report for interview-critical areas."""
+    """Build one executable quality report for release-critical areas."""
 
     def __init__(
         self,
@@ -118,7 +117,7 @@ class AgentQualityDiagnostics:
         score = 45 + min(task_count, 10) * 3 + min(tool_calls, 20) * 1.2 + min(reflections, 20) * 1.1
         gaps = []
         if task_count == 0:
-            gaps.append("缺少可回放的 AgentRuntime 任务，面试时难证明不是 Chatbot。")
+            gaps.append("缺少可回放的 Agent Runtime 任务，无法验证多步骤执行链路。")
         if reflections == 0:
             gaps.append("缺少反思记录，建议运行任务或制造失败样例验证恢复链路。")
         return self._dimension(
@@ -149,7 +148,7 @@ class AgentQualityDiagnostics:
             if gate.get("blockers"):
                 gaps.extend(gate.get("blockers", []))
         else:
-            gaps.append("缺少最近 RAG 评测，面试时难量化错召/漏召处理效果。")
+            gaps.append("缺少最近 RAG 评测，无法量化错召与漏召处理效果。")
         if doc_count == 0:
             gaps.append("知识库为空，RAG 只能讲设计，不能现场证明召回。")
         return self._dimension(
@@ -203,7 +202,7 @@ class AgentQualityDiagnostics:
             score += 26
         gaps = []
         if run_count == 0:
-            gaps.append("缺少评测历史，面试时难证明效果和回归控制。")
+            gaps.append("缺少评测历史，无法验证效果和回归控制。")
         if blocked:
             gaps.append(f"存在 {len(blocked)} 个 blocked release gate，需要优先处理。")
         if not harness_ready:
@@ -237,7 +236,7 @@ class AgentQualityDiagnostics:
         score = 45 + min(sessions, 10) * 2 + min(turns, 50) * 0.5 + min(episodes, 20) * 1.2
         gaps = []
         if sessions == 0:
-            gaps.append("缺少会话记忆样本，面试时无法演示上下文保留。")
+            gaps.append("缺少会话记忆样本，无法验证上下文保留与压缩。")
         if turns > 20 and episodes == 0:
             gaps.append("会话轮次较多但没有 episode，建议触发压缩验证上下文治理。")
         evidence = [f"会话 {sessions}", f"轮次 {turns}", f"工作消息 {memory_stats.get('working_messages', 0)}", f"episodes {episodes}"]
@@ -398,9 +397,9 @@ class AgentQualityDiagnostics:
     def _pitch(self, dimensions: Iterable[Dict[str, Any]]) -> List[str]:
         weak = [item for item in dimensions if item["score"] < 70]
         return [
-            "我把面经里高频追问的 Agent 架构、RAG、Tool Use、评测、Memory 和生产化都做成了可运行诊断，而不是只写在文档里。",
+            "Agent 架构、RAG、Tool Use、评测、Memory 和生产化能力均由可运行诊断验证，而不是静态能力声明。",
             "每个诊断项都绑定真实运行数据：任务、工具日志、评测门禁、RAG 文档和记忆状态。",
-            "如果面试官追问缺点，我会直接展示 gap 和 next action，说明项目边界和生产化演进。",
+            "质量缺口会直接关联 gap 与 next action，便于负责人判断项目边界和生产化演进顺序。",
             f"当前最需要补强的是：{weak[0]['name'] if weak else '继续积累真实 badcase 和生产压测'}。",
         ]
 
@@ -415,7 +414,7 @@ class AgentQualityDiagnostics:
 
     def _label(self, score: float) -> str:
         if score >= 85:
-            return "面试强证据"
+            return "发布证据充分"
         if score >= 70:
             return "可演示可解释"
         if score >= 55:

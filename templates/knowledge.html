@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>&#30693;&#35782;&#24211; - &#26234;&#33021;&#23457;&#35745; Agent &#24179;&#21488;</title>
   <link rel="stylesheet" href="../static/app.css?v=4.6.0">
+  <link rel="stylesheet" href="../static/workspace.css?v=6.1.0">
 </head>
 <body>
   <div class="app-shell">
@@ -47,7 +48,7 @@
 
     </main>
   </div>
-  <script src="../static/app.js"></script>
+  <script src="../static/app.js?v=6.1.0"></script>
 
   <script>
     async function refreshStats() { const data = await apiFetch("/api/knowledge/stats"); const stats = data.stats; setText("#statsText", `${stats.total_documents} 个切片 · ${stats.semantic_retrieval ? "语义向量" : "TF-IDF"} 检索 · 切块 ${stats.chunk_size}/${stats.chunk_overlap}`); }

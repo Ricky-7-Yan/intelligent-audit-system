@@ -78,11 +78,26 @@ class EvaluationRunRepository:
         cases = payload.get("test_cases") or payload.get("cases") or []
         return {
             "model_path": payload.get("model_path", "current-agent"),
-            "case_count": len(cases) if isinstance(cases, list) else 0,
+            "case_count": int(payload.get("case_count") or (len(cases) if isinstance(cases, list) else 0)),
             "customized": bool(cases),
+            "task_id": payload.get("task_id"),
+            "source": payload.get("source"),
         }
 
     def _extract_metrics(self, run_type: str, results: Dict[str, Any]) -> Dict[str, Any]:
+        if run_type in {"task_component", "runtime_component"}:
+            summary = results.get("summary", {})
+            critical_failures = summary.get("critical_failures") or []
+            return {
+                "overall_score": float(summary.get("overall_score") or 0),
+                "total_tests": int(summary.get("total_tests") or summary.get("component_count") or 0),
+                "pass_rate": float(summary.get("pass_rate") or 0),
+                "regression_count": len(critical_failures),
+                "critical_failures": critical_failures,
+                "avg_latency_ms": summary.get("avg_latency_ms"),
+                "required_score": 0.78,
+                "required_pass_rate": 0.80,
+            }
         if run_type == "rag":
             total = int(results.get("total_cases") or 0)
             regressions = sum(
@@ -148,12 +163,15 @@ class EvaluationRunRepository:
         pass_rate = float(metrics.get("pass_rate") or 0)
         regressions = int(metrics.get("regression_count") or 0)
         blockers = []
-        if score < 0.75:
-            blockers.append("整体得分低于 0.75。")
-        if pass_rate < 0.7:
-            blockers.append("通过率低于 70%。")
+        required_score = float(metrics.get("required_score") or 0.75)
+        required_pass_rate = float(metrics.get("required_pass_rate") or 0.70)
+        if score < required_score:
+            blockers.append(f"整体得分低于 {required_score:.2f}。")
+        if pass_rate < required_pass_rate:
+            blockers.append(f"通过率低于 {required_pass_rate:.0%}。")
         if regressions > 0:
             blockers.append("存在需要处理的回归风险。")
+        blockers.extend(str(item) for item in metrics.get("critical_failures", []) if str(item).strip())
         if comparison and comparison.get("regressions"):
             blockers.extend(comparison["regressions"])
         if not blockers:
@@ -171,5 +189,9 @@ class EvaluationRunRepository:
             "blockers": blockers,
             "baseline_run_id": (comparison or {}).get("baseline_run_id"),
             "deltas": (comparison or {}).get("deltas", {}),
-            "thresholds": {"overall_score": 0.75, "pass_rate": 0.7, "regression_count": 0},
+            "thresholds": {
+                "overall_score": required_score,
+                "pass_rate": required_pass_rate,
+                "regression_count": 0,
+            },
         }

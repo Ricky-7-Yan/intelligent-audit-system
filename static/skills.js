@@ -354,8 +354,21 @@ function renderTask(task) {
       metricPill("平均耗时", `${task.metrics?.avg_latency_ms || 0}ms`)
     ])
   ]));
+  const loop = task.loop || {};
+  node.appendChild(el("div", { class: "loop-status" }, [
+    el("span", { text: `循环策略：${loop.strategy || "bounded_dependency_loop"}` }),
+    el("span", { text: `迭代：${loop.iterations || 0}` }),
+    el("span", { text: `停止原因：${loop.termination_reason || "未开始"}` }),
+  ]));
+  if ((task.applied_lessons || []).length) {
+    node.appendChild(el("div", { class: "item compact" }, [
+      el("strong", { text: "已应用人工批准经验" }),
+      el("div", { class: "muted", text: compactList(task.applied_lessons.map((item) => item.title), 4) }),
+    ]));
+  }
   (task.plan || []).forEach((step) => {
     const done = (task.steps || []).find((item) => item.step_id === step.step_id);
+    const evaluation = done?.evaluation;
     node.appendChild(el("details", { class: "item compact eval-detail" }, [
       el("summary", {}, [
         el("strong", { text: `${step.step_id} · ${step.name}` }),
@@ -363,7 +376,16 @@ function renderTask(task) {
       ]),
       el("div", { class: "detail-body" }, [
         el("div", { class: "muted", text: `${step.agent_role || "audit_agent"} · ${step.skill} · ${step.purpose || ""}` }),
-        el("small", { class: "muted", text: `依赖：${compactList(step.depends_on || [], 6) || "无"}` })
+        el("small", { class: "muted", text: `依赖：${compactList(step.depends_on || [], 6) || "无"}` }),
+        evaluation ? el("div", { class: "step-evaluation" }, [
+          el("div", { class: "item-head" }, [
+            el("strong", { text: `单步评测 ${Number(evaluation.score || 0).toFixed(3)}` }),
+            el("span", { class: `badge ${evaluation.status === "pass" ? "pass" : evaluation.status === "blocked" ? "blocked" : "review"}`, text: evaluation.status }),
+          ]),
+          el("div", { class: "assertion-list" }, (evaluation.assertions || []).map((assertion) =>
+            el("span", { class: assertion.passed ? "pass" : "", text: assertion.label })
+          )),
+        ]) : el("small", { class: "muted", text: "该步骤尚未执行，暂无单步评测。" }),
       ])
     ]));
   });
@@ -375,6 +397,32 @@ function renderTask(task) {
     el("strong", { text: `反思 · ${reflection.agent_role || reflection.step_id} · ${reflection.verdict}` }),
     el("div", { class: "muted", text: `置信度 ${reflection.confidence} · ${reflection.next_action}` })
   ])));
+}
+
+function renderTaskEvaluation(report) {
+  const node = qs("#taskDetail");
+  const summary = report.summary || {};
+  const gate = report.release_gate || {};
+  node.appendChild(el("div", { class: "item selected-task" }, [
+    el("div", { class: "item-head" }, [
+      el("strong", { text: `组件评测 · ${Number(summary.overall_score || 0).toFixed(3)}` }),
+      el("span", { class: `badge ${gate.status === "pass" ? "pass" : gate.status === "blocked" ? "blocked" : "review"}`, text: gate.label || gate.status || "需复核" }),
+    ]),
+    el("div", { class: "loop-status" }, [
+      el("span", { text: `断言通过率 ${Math.round(Number(summary.pass_rate || 0) * 100)}%` }),
+      el("span", { text: `组件 ${summary.component_count || 0}` }),
+      el("span", { text: `关键失败 ${(summary.critical_failures || []).length}` }),
+    ]),
+    el("div", { class: "component-evaluation-grid mt-12" }, (report.components || []).map((component) =>
+      el("div", { class: "component-score-card" }, [
+        el("div", { class: "component-score-head" }, [
+          el("strong", { text: component.name }),
+          el("span", { class: `badge ${component.status === "pass" ? "pass" : component.status === "blocked" ? "blocked" : "review"}`, text: Number(component.score || 0).toFixed(3) }),
+        ]),
+        el("progress", { max: "1", value: String(component.score || 0), "aria-label": `${component.name} 得分` }),
+      ])
+    )),
+  ]));
 }
 
 async function deleteTask(taskId) {
@@ -421,6 +469,96 @@ async function runNextStep() {
   await Promise.all([loadTasks(), loadObservability(), loadRuns(), loadEvolution()]);
 }
 
+async function runTaskLoop() {
+  if (!selectedTaskId) {
+    showToast("请先在右侧选择一个任务。", "error");
+    return;
+  }
+  const data = await apiFetch(`/api/agent/tasks/${selectedTaskId}/run`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ max_steps: 8 }),
+  });
+  renderTask(data.task);
+  await Promise.all([loadTasks(), loadObservability(), loadRuns(), loadEvolution()]);
+  showToast(`循环已停止：${data.loop?.termination_reason || data.task.status}`, "success");
+}
+
+async function evaluateSelectedTask() {
+  if (!selectedTaskId) {
+    showToast("请先在右侧选择一个任务。", "error");
+    return;
+  }
+  const taskData = await apiFetch(`/api/agent/tasks/${selectedTaskId}`);
+  renderTask(taskData.task);
+  const data = await apiFetch(`/api/agent/tasks/${selectedTaskId}/evaluate`, { method: "POST" });
+  renderTaskEvaluation(data.evaluation || {});
+  showToast(`任务评测完成：${data.evaluation?.release_gate?.label || "待复核"}`, "success");
+}
+
+async function curateSelectedTask() {
+  if (!selectedTaskId) {
+    showToast("请先在右侧选择一个任务。", "error");
+    return;
+  }
+  const data = await apiFetch(`/api/agent/tasks/${selectedTaskId}/curate`, { method: "POST" });
+  const taskData = await apiFetch(`/api/agent/tasks/${selectedTaskId}`);
+  renderTask(taskData.task);
+  renderTaskEvaluation(data.evaluation || {});
+  await loadExperiences();
+  showToast(`已生成经验候选：${data.experience?.experience_id}`, "success");
+}
+
+async function loadExperiences() {
+  const node = qs("#experienceCandidates");
+  if (!node) return;
+  clearNode(node);
+  const data = await apiFetch("/api/agent/experience?limit=12");
+  const experiences = data.experiences || [];
+  setText("#experienceMeta", `${experiences.length} 条经验`);
+  if (!experiences.length) {
+    node.appendChild(el("p", { class: "muted", text: "暂无经验候选。完成任务评测后可从真实弱项沉淀。" }));
+    return;
+  }
+  experiences.forEach((experience) => {
+    const actions = experience.lesson?.do || [];
+    const buttons = [];
+    if (experience.status === "proposed") {
+      buttons.push(el("button", {
+        class: "btn",
+        type: "button",
+        text: "批准复用",
+        onclick: () => reviewExperience(experience.experience_id, "approved"),
+      }));
+      buttons.push(el("button", {
+        class: "btn danger ghost",
+        type: "button",
+        text: "拒绝",
+        onclick: () => reviewExperience(experience.experience_id, "rejected"),
+      }));
+    }
+    node.appendChild(el("article", { class: "candidate-card" }, [
+      el("div", { class: "item-head" }, [
+        el("strong", { text: experience.title }),
+        el("span", { class: `badge ${experience.status === "approved" ? "pass" : experience.status === "rejected" ? "blocked" : "review"}`, text: experience.status }),
+      ]),
+      el("p", { class: "muted", text: actions.join("；") || "沿用当前任务计划并保留验证证据。" }),
+      el("div", { class: "toolbar" }, buttons),
+    ]));
+  });
+}
+
+async function reviewExperience(experienceId, decision) {
+  if (!window.confirm(`${decision === "approved" ? "批准" : "拒绝"}经验候选 ${experienceId}？`)) return;
+  await apiFetch(`/api/agent/experience/${encodeURIComponent(experienceId)}/review`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ decision, reviewer: "Human Reviewer", comment: "Runtime workspace review" }),
+  });
+  await loadExperiences();
+  showToast(`经验候选已${decision === "approved" ? "批准" : "拒绝"}`, "success");
+}
+
 async function runSafetyCheck() {
   const data = await apiFetch("/api/safety/check", {
     method: "POST",
@@ -464,7 +602,7 @@ async function deleteSkillRun(runId) {
 }
 
 async function bootSkillsPage() {
-  await Promise.all([loadSkills(), loadTasks(), loadObservability(), loadRuns(), loadEvolution(), loadQualityDiagnostics()]);
+  await Promise.all([loadSkills(), loadTasks(), loadObservability(), loadRuns(), loadEvolution(), loadQualityDiagnostics(), loadExperiences()]);
 }
 
 async function openRuntimeDeepLink() {
@@ -483,6 +621,9 @@ async function openRuntimeDeepLink() {
 document.addEventListener("DOMContentLoaded", () => {
   qs("#createTask")?.addEventListener("click", createTask);
   qs("#runNextStep")?.addEventListener("click", runNextStep);
+  qs("#runTaskLoop")?.addEventListener("click", runTaskLoop);
+  qs("#evaluateTask")?.addEventListener("click", evaluateSelectedTask);
+  qs("#curateTask")?.addEventListener("click", curateSelectedTask);
   qs("#runSafetyCheck")?.addEventListener("click", runSafetyCheck);
   qs("#refreshTasks")?.addEventListener("click", () => Promise.all([loadTasks(), loadObservability()]));
   qs("#refreshRuns")?.addEventListener("click", loadRuns);

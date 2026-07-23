@@ -303,6 +303,110 @@ function renderEvaluationPlan(plan) {
   }
 }
 
+function componentTone(status) {
+  if (status === "pass") return "pass";
+  if (status === "blocked") return "blocked";
+  return "review";
+}
+
+function renderComponentCatalog(catalog = {}) {
+  const node = qs("#componentBoundaryGrid");
+  if (!node) return;
+  clearNode(node);
+  (catalog.components || []).forEach((component) => {
+    node.appendChild(el("article", { class: "component-contract" }, [
+      el("div", { class: "component-contract-head" }, [
+        el("div", {}, [
+          el("h3", { text: component.name }),
+          el("small", { class: "muted", text: component.owner }),
+        ]),
+        el("span", { class: `badge ${component.critical ? "review" : ""}`, text: component.critical ? "关键边界" : "支持边界" }),
+      ]),
+      el("p", { text: component.purpose }),
+      el("div", { class: "contract-meta" }, [
+        el("span", { text: `输入：${(component.inputs || []).join(" · ")}` }),
+        el("span", { text: `输出：${(component.outputs || []).join(" · ")}` }),
+        el("span", { text: `不负责：${(component.does_not_own || []).join(" · ")}` }),
+        el("span", { text: `不变量：${(component.invariants || []).join("；")}` }),
+      ]),
+    ]));
+  });
+}
+
+function renderComponentEvaluation(report = {}) {
+  const node = qs("#componentEvaluation");
+  if (!node) return;
+  clearNode(node);
+  const summary = report.summary || {};
+  const components = report.components || [];
+  const criticalFailures = summary.critical_failures || [];
+  const gate = report.release_gate || {};
+  setQuality(summary.overall_score || 0);
+  setText("#totalTests", summary.total_tests ?? summary.component_count ?? "-");
+  setText("#passRate", percentText(summary.pass_rate));
+  setText("#regressionCount", criticalFailures.length);
+  setText("#latencyScore", summary.avg_latency_ms ? `${summary.avg_latency_ms}ms` : "-");
+  const evidence = components.find((item) => item.id === "evidence_grounding");
+  const tool = components.find((item) => item.id === "tool_runtime");
+  setText("#faithfulnessScore", scoreText(evidence?.score));
+  setText("#toolScore", scoreText(tool?.score));
+  const graphScores = (report.task_reports || [])
+    .map((item) => item.evidence_graph?.metrics?.provenance_coverage)
+    .filter((item) => item !== undefined);
+  setText("#authorityScore", scoreText(avg(graphScores)));
+  setText("#componentEvalMeta", `${gate.label || gate.status || "待复核"} · ${components.length} 个组件`);
+
+  const summaryNode = qs("#componentEvaluationSummary");
+  if (summaryNode) {
+    clearNode(summaryNode);
+    summaryNode.appendChild(el("span", { text: `整体得分 ${scoreText(summary.overall_score)}` }));
+    summaryNode.appendChild(el("span", { text: `断言通过率 ${percentText(summary.pass_rate)}` }));
+    summaryNode.appendChild(el("span", { text: `关键失败 ${criticalFailures.length}` }));
+  }
+
+  components.forEach((component) => {
+    const assertions = component.assertions || [];
+    node.appendChild(el("article", { class: "component-score-card" }, [
+      el("div", { class: "component-score-head" }, [
+        el("div", {}, [
+          el("strong", { text: component.name }),
+          el("div", { class: "muted", text: component.owner || `${component.task_count || 0} 个任务` }),
+        ]),
+        el("span", { class: `badge ${componentTone(component.status)}`, text: scoreText(component.score) }),
+      ]),
+      el("progress", { max: "1", value: String(component.score || 0), "aria-label": `${component.name} 得分` }),
+      el("div", { class: "assertion-list" }, assertions.slice(0, 6).map((assertion) =>
+        el("span", { class: assertion.passed ? "pass" : "", text: assertion.label })
+      )),
+    ]));
+  });
+
+  if (!components.length) {
+    node.appendChild(el("p", { class: "muted", text: "当前没有可评测的运行任务，请先在 Agent 运行时创建任务。" }));
+  }
+  qs("#training-components")?.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+async function loadComponentCatalog() {
+  try {
+    const data = await apiFetch("/api/evaluation/components");
+    renderComponentCatalog(data.catalog || {});
+  } catch (error) {
+    const node = qs("#componentBoundaryGrid");
+    if (node) {
+      clearNode(node);
+      node.appendChild(el("p", { class: "muted", text: `组件契约加载失败：${error.message}` }));
+    }
+  }
+}
+
+async function runComponentEvaluation() {
+  setBusy("正在从服务端真实轨迹执行分层评测…");
+  const data = await apiFetch("/api/evaluation/runtime?limit=12", { method: "POST" });
+  renderComponentEvaluation(data.evaluation || {});
+  await loadEvaluationRuns();
+}
+
 async function runAgentEval(cases) {
   setBusy("Agent 评测运行中...");
   const data = await apiFetch("/api/training/evaluate", {
@@ -366,6 +470,7 @@ async function openEvaluationDeepLink() {
     const run = data.run || {};
     if (run.run_type === "rag") renderRagResults(run.results || {});
     else if (run.run_type === "research") renderResearch(run.results || {});
+    else if (["task_component", "runtime_component"].includes(run.run_type)) renderComponentEvaluation(run.results || {});
     else renderEvalResults(run.results || {});
     qs("#evalResults")?.prepend(el("div", { class: "item compact selected-task" }, [
       el("strong", { text: `已打开评测记录 ${runId}` }),
@@ -387,6 +492,7 @@ function bindTrainingPage() {
   renderMetricToggles();
   renderCustomCases();
   loadEvaluationPlan();
+  loadComponentCatalog();
   loadEvaluationRuns().then(openEvaluationDeepLink);
 
   qsa("#modeTabs .seg").forEach((button) => button.addEventListener("click", () => setMode(button.dataset.mode)));
@@ -411,6 +517,14 @@ function bindTrainingPage() {
       await runAgentEval(customCases.length ? customCases : undefined);
     } catch (error) {
       setBusy(`Agent 评测失败：${error.message}`);
+    }
+  });
+
+  qs("#runComponentEval")?.addEventListener("click", async () => {
+    try {
+      await runComponentEvaluation();
+    } catch (error) {
+      setBusy(`分层评测失败：${error.message}`);
     }
   });
 

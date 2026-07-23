@@ -26,8 +26,10 @@ from services.audit_delivery import AuditDeliveryService
 from services.audit_repository import AuditRunRepository
 from services.audit_templates import list_audit_templates
 from services.conversation_memory import ConversationMemory
+from services.evaluation_orchestrator import ComponentEvaluationOrchestrator
 from services.evaluation_repository import EvaluationRunRepository
 from services.evidence_analyzer import EvidenceAnalyzer
+from services.experience_curator import ExperienceCurator
 from services.evolution_harness import EvolutionHarness
 from services.harness_control import HarnessControlPlane
 from services.agent_quality import AgentQualityDiagnostics
@@ -52,6 +54,7 @@ agent_runtime = AgentRuntime(skill_registry, safety_gate)
 product_insights = ProductInsights(audit_repository, skill_registry)
 audit_delivery = AuditDeliveryService(audit_repository)
 evaluation_repository = EvaluationRunRepository()
+experience_curator = ExperienceCurator()
 evidence_analyzer = EvidenceAnalyzer()
 conversation_memory = ConversationMemory()
 intent_router = HybridIntentRouter()
@@ -63,6 +66,11 @@ agent_quality = AgentQualityDiagnostics(
     skill_registry,
     conversation_memory,
     harness_control,
+)
+component_evaluator = ComponentEvaluationOrchestrator(
+    agent_runtime,
+    evaluation_repository,
+    skill_registry,
 )
 evaluation_cache: Dict[str, Any] = {}
 research_cache: Dict[str, Any] = {}
@@ -318,6 +326,16 @@ class AgentTaskStepRequest(BaseModel):
     stage: str = Field("manual", max_length=100)
     skill: str = Field(..., min_length=1, max_length=200)
     purpose: str = Field("", max_length=1000)
+
+
+class AgentLoopRequest(BaseModel):
+    max_steps: int = Field(default=6, ge=1, le=12)
+
+
+class ExperienceReviewRequest(BaseModel):
+    decision: str = Field(..., pattern="^(approved|rejected)$")
+    reviewer: str = Field("human-reviewer", max_length=200)
+    comment: str = Field("", max_length=4000)
 
 
 class SafetyGateRequest(BaseModel):
@@ -636,7 +654,11 @@ async def safety_check_api(request: SafetyGateRequest):
 
 @app.post("/api/agent/tasks")
 async def agent_task_create_api(request: AgentTaskRequest):
-    task = agent_runtime.create_task(request.objective, request.context)
+    context = dict(request.context or {})
+    lessons = experience_curator.relevant(request.objective)
+    if lessons:
+        context["experience_lessons"] = lessons
+    task = agent_runtime.create_task(request.objective, context)
     return {"success": task["status"] != "blocked", "task": task, "timestamp": datetime.now().isoformat()}
 
 
@@ -676,6 +698,83 @@ async def agent_task_run_next_api(task_id: str):
     except KeyError as exc:
         raise HTTPException(status_code=404, detail="Agent 任务不存在") from exc
     return {"success": task["status"] != "blocked", "task": task, "timestamp": datetime.now().isoformat()}
+
+
+@app.post("/api/agent/tasks/{task_id}/run")
+async def agent_task_run_api(task_id: str, request: AgentLoopRequest):
+    try:
+        task = agent_runtime.run_until_pause(task_id, request.max_steps)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail="Agent 任务不存在") from exc
+    return {
+        "success": task["status"] != "blocked",
+        "task": task,
+        "loop": task.get("loop", {}),
+        "timestamp": datetime.now().isoformat(),
+    }
+
+
+@app.post("/api/agent/tasks/{task_id}/evaluate")
+async def agent_task_evaluate_api(task_id: str):
+    try:
+        report = component_evaluator.evaluate_task(task_id, persist=True)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail="Agent 任务不存在") from exc
+    return {"success": True, "evaluation": report, "timestamp": datetime.now().isoformat()}
+
+
+@app.get("/api/agent/tasks/{task_id}/evidence-graph")
+async def agent_task_evidence_graph_api(task_id: str):
+    try:
+        report = component_evaluator.evaluate_task(task_id, persist=False)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail="Agent 任务不存在") from exc
+    return {
+        "success": True,
+        "graph": report["evidence_graph"],
+        "trace_binding": report["trace_binding"],
+        "timestamp": datetime.now().isoformat(),
+    }
+
+
+@app.post("/api/agent/tasks/{task_id}/curate")
+async def agent_task_curate_api(task_id: str):
+    task = agent_runtime.get_task(task_id)
+    if not task:
+        raise HTTPException(status_code=404, detail="Agent 任务不存在")
+    evaluation = component_evaluator.evaluate_task(task_id, persist=True)
+    experience = experience_curator.propose(task, evaluation)
+    return {
+        "success": True,
+        "experience": experience,
+        "evaluation": evaluation,
+        "timestamp": datetime.now().isoformat(),
+    }
+
+
+@app.get("/api/agent/experience")
+async def agent_experience_api(limit: int = 30, status: Optional[str] = None):
+    return {
+        "success": True,
+        "experiences": experience_curator.list(limit=limit, status=status),
+        "timestamp": datetime.now().isoformat(),
+    }
+
+
+@app.post("/api/agent/experience/{experience_id}/review")
+async def agent_experience_review_api(experience_id: str, request: ExperienceReviewRequest):
+    try:
+        experience = experience_curator.review(
+            experience_id,
+            request.decision,
+            request.reviewer,
+            request.comment,
+        )
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail="经验候选不存在") from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {"success": True, "experience": experience, "timestamp": datetime.now().isoformat()}
 
 
 @app.post("/api/agent/tasks/{task_id}/steps")
@@ -1058,6 +1157,25 @@ async def evaluate_model_api(request: EvaluationRequest, benchmark=Depends(get_e
         results["cache_hit"] = False
     run = evaluation_repository.create_run("agent", request.model_dump(), results)
     return {"success": True, "run": run, "results": results, "timestamp": datetime.now().isoformat()}
+
+
+@app.get("/api/evaluation/components")
+async def evaluation_components_api():
+    return {
+        "success": True,
+        "catalog": component_evaluator.catalog(),
+        "timestamp": datetime.now().isoformat(),
+    }
+
+
+@app.post("/api/evaluation/runtime")
+async def evaluate_runtime_components_api(limit: int = 12):
+    report = component_evaluator.evaluate_runtime(limit=limit, persist=True)
+    return {
+        "success": True,
+        "evaluation": report,
+        "timestamp": datetime.now().isoformat(),
+    }
 
 
 @app.post("/api/evaluation/rag")

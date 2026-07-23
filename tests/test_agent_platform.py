@@ -9,7 +9,9 @@ from services.agent_quality import AgentQualityDiagnostics
 from services.audit_repository import AuditRunRepository
 from services.conversation_memory import ConversationMemory
 from services.evaluation_repository import EvaluationRunRepository
+from services.evaluation_orchestrator import ComponentEvaluationOrchestrator
 from services.evidence_analyzer import EvidenceAnalyzer
+from services.experience_curator import ExperienceCurator
 from services.evolution_harness import EvolutionHarness
 from services.harness_control import HarnessControlPlane
 from services.intent_router import HybridIntentRouter
@@ -190,6 +192,64 @@ class EvaluationRepositoryTests(unittest.TestCase):
             self.assertTrue(run["release_gate"]["blockers"])
             self.assertTrue(repository.delete_run(run["run_id"]))
             self.assertIsNone(repository.get_run(run["run_id"]))
+
+
+class ComponentEvaluationTests(unittest.TestCase):
+    def test_runs_bounded_loop_and_scores_every_component(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            registry = SkillRegistry()
+            registry.log_file = Path(tmp) / "runs.jsonl"
+            runtime = AgentRuntime(registry, SafetyGate())
+            runtime.runtime_dir = Path(tmp) / "runtime"
+            runtime.runtime_dir.mkdir()
+            repository = EvaluationRunRepository(Path(tmp) / "evals")
+            evaluator = ComponentEvaluationOrchestrator(runtime, repository, registry)
+
+            task = runtime.create_task(
+                "为 ERP 权限审计生成范围、控制、证据、抽样与整改计划",
+                {"audit_item": "ERP 权限", "standard": "ISO27001"},
+            )
+            completed = runtime.run_until_pause(task["task_id"], max_steps=12)
+            self.assertEqual(completed["status"], "completed")
+            self.assertEqual(completed["loop"]["termination_reason"], "task_completed")
+            self.assertTrue(all(step.get("evaluation") for step in completed["steps"]))
+            self.assertTrue(all(call.get("span", {}).get("name") for call in completed["tool_calls"]))
+
+            report = evaluator.evaluate_task(task["task_id"], persist=True)
+            self.assertEqual(report["schema"], "audit-component-evaluation-v1")
+            self.assertEqual(len(report["components"]), 9)
+            self.assertGreater(report["summary"]["assertion_count"], 20)
+            self.assertEqual(report["evidence_graph"]["metrics"]["broken_dependencies"], 0)
+            self.assertTrue(report["evaluation_run_id"])
+
+    def test_governs_experience_before_reuse(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            curator = ExperienceCurator(Path(tmp) / "experience")
+            task = {
+                "task_id": "AGT-TEST",
+                "objective": "ERP 权限审计证据复核",
+                "reflections": [{"issues": ["证据不足"]}],
+            }
+            evaluation = {
+                "evaluation_run_id": "EV-TEST",
+                "trace_binding": {"episode_digest": "digest"},
+                "components": [
+                    {
+                        "id": "evidence_grounding",
+                        "name": "检索与证据",
+                        "score": 0.5,
+                        "assertions": [{"label": "来源不足", "passed": False}],
+                    }
+                ],
+            }
+            candidate = curator.propose(task, evaluation)
+            self.assertEqual(candidate["status"], "proposed")
+            self.assertEqual(curator.relevant("ERP 权限审计"), [])
+            approved = curator.review(candidate["experience_id"], "approved", "tester", "held-out passed")
+            self.assertEqual(approved["status"], "approved")
+            relevant = curator.relevant("ERP 权限审计证据复核")
+            self.assertTrue(relevant)
+            self.assertEqual(relevant[0]["status"], "approved")
 
 
 class AuditEvidenceRepositoryTests(unittest.TestCase):

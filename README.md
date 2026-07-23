@@ -29,12 +29,14 @@ AuditPilot 的目标不是替代审计师，而是把审计师反复执行的取
 | 模块 | 能力 |
 | --- | --- |
 | Audit Workspace | 审计立项、控制矩阵、审计程序、抽样计划、发现、整改和交付包。 |
-| Agent Runtime | Plan / Execute / Reflect、任务产物、失败恢复、安全门和运行指标。 |
+| Agent Runtime | 有界 Plan / Execute / Reflect 循环、步骤依赖、运行预算、任务产物、失败恢复和人工复核出口。 |
 | Agentic RAG | 知识写入、切块、检索、来源引用、证据质量门和缺证提示。 |
 | Skills / MCP-style Tools | 工具 Schema、权限声明、TTL 缓存、熔断器、调用日志和工具指标。 |
 | Memory | Working / Episodic / Profile Memory，保留多轮审计上下文。 |
-| Evaluation Harness | 持久化评测运行、Held-in / Held-out 门禁、服务端评测谱系、人工批准和可回滚候选。 |
-| Episode & Observability | 隐私友好的任务轨迹包、工具证据、安全门、失败归因、干预记录和完整性摘要。 |
+| Evaluation Harness | 对任务、循环、工具、证据、图谱、安全、记忆、交付和改进分别评测；关键断言失败直接阻断发布。 |
+| Evidence Graph | 连接任务、步骤、工具运行和产物，检查来源覆盖、断裂依赖与关键孤点。 |
+| Governed Improvement | 失败只沉淀为经验候选，通过回归评测和人工批准后才允许复用。 |
+| Episode & Observability | 隐私友好的任务轨迹包、标准语义字段、工具证据、安全门、失败归因、干预记录和完整性摘要。 |
 
 ## Screenshots
 
@@ -42,9 +44,13 @@ AuditPilot 的目标不是替代审计师，而是把审计师反复执行的取
 | --- | --- |
 | ![审计项目工作台](docs/screenshots/auditpilot-audit-workbench.png) | ![Agent 运行时](docs/screenshots/auditpilot-agent-runtime.png) |
 
-| Agent collaboration | Mobile overview |
+| Agent collaboration | Layered evaluation |
 | --- | --- |
-| ![Agent 协作](docs/screenshots/auditpilot-agent-chat.png) | ![移动端首页](docs/screenshots/auditpilot-overview-mobile.png) |
+| ![Agent 协作](docs/screenshots/auditpilot-agent-chat.png) | ![分层评测](docs/screenshots/auditpilot-evaluation.png) |
+
+<p align="center">
+  <img src="docs/screenshots/auditpilot-overview-mobile.png" width="360" alt="AuditPilot mobile overview" />
+</p>
 
 ## Architecture
 
@@ -53,9 +59,11 @@ Audit request
   -> Hybrid Intent Router
   -> Working + Episodic + Profile Memory
   -> Planner / Evidence / Control / Risk / Compliance / Remediation Agents
-  -> Agentic RAG + Knowledge Graph + Skills / MCP-style Tools
+  -> Bounded dependency-aware Agent Loop
+  -> Agentic RAG + Evidence Graph + Skills / MCP-style Tools
   -> Safety Gate + Reflection + Human Review
-  -> Episode Package + Evaluation Lineage + Delivery Package
+  -> 9-layer Component Evaluation + Release Gate
+  -> Delivery Package + Governed Experience Candidate
 ```
 
 Design boundaries:
@@ -92,7 +100,7 @@ Do not commit real API keys.
 .\.venv\Scripts\python.exe -m unittest discover -s tests -p "test_*.py"
 ```
 
-Current tests cover intent routing, memory compaction, skill validation/cache, runtime reflection, evaluation regression, repository-bound Harness gating, episode packaging, quality diagnostics and global search.
+Current tests cover intent routing, memory compaction, skill validation/cache, bounded runtime execution, component assertions, evidence lineage, governed experience reuse, evaluation regression, repository-bound Harness gating, quality diagnostics and global search.
 
 ## Project layout
 

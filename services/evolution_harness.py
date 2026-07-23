@@ -422,7 +422,7 @@ class EvolutionHarness:
                 "trigger": f"tool_success_rate={observability.get('tool_success_rate', 0)}；open_circuits={skill_metrics.get('open_circuits', 0)}",
                 "action": "按 skill 汇总 error_type、input_schema、duration_ms，生成最小复现实例与恢复建议。",
                 "validation": "同输入重复运行时成功率提升，cache / circuit 指标不退化。",
-                "impact": "对齐大厂 JD 中工具调用准确性、失败定位和工程治理要求。",
+                "impact": "提升工具调用准确性、失败定位效率和生产工程治理能力。",
                 "can_materialize": True,
             },
             {

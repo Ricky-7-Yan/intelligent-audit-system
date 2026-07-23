@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Agent 运行时中心 - 审脉 AuditPilot</title>
   <link rel="stylesheet" href="../static/app.css?v=5.0.0">
+  <link rel="stylesheet" href="../static/workspace.css?v=6.1.0">
 </head>
 <body>
   <div class="app-shell">
@@ -58,7 +59,7 @@
         </aside>
       </section>
 
-      <section class="panel harness-console mt-16" data-section-label="治理" data-collapsible="true">
+      <section class="panel harness-console mt-16" data-section-label="治理" data-collapsible="true" data-default-collapsed="true">
         <div class="panel-head">
           <div>
             <span class="section-kicker">Runtime Governance</span>
@@ -101,21 +102,26 @@
             <p class="muted">每个候选只允许修改一个声明过的表面；锁定评测器、双数据集无回归与人工审批共同决定是否可以推广。</p>
             <div id="harnessCandidates" class="candidate-grid"></div>
           </div>
+          <div class="mt-16">
+            <div class="mini-head"><h3>经验候选</h3><span class="badge" id="experienceMeta">0 条经验</span></div>
+            <p class="muted">失败与弱项只能沉淀为候选经验；通过组件评测和人工批准后，才会匹配到后续同类任务。</p>
+            <div id="experienceCandidates" class="candidate-grid"></div>
+          </div>
         </details>
       </section>
 
-      <section class="panel mt-16 quality-diagnostics" data-section-label="质量诊断" data-collapsible="true">
+      <section class="panel mt-16 quality-diagnostics" data-section-label="质量诊断" data-collapsible="true" data-default-collapsed="true">
         <div class="panel-head">
           <div>
-            <span class="section-kicker">Interview-driven AgentOps</span>
-            <h2 class="panel-title">Agent 质量诊断与面试证据</h2>
-            <p class="muted">把面经中高频追问的 Agent 架构、RAG、Tool/MCP、评测、Memory 和生产化问题落到真实运行数据，便于现场解释“为什么这样设计”。</p>
+            <span class="section-kicker">Trace-driven AgentOps</span>
+            <h2 class="panel-title">Agent 质量诊断与发布证据</h2>
+            <p class="muted">把 Agent 架构、RAG、Tool/MCP、评测、Memory 和生产化要求落到真实运行数据，用可回放轨迹解释系统决策与发布风险。</p>
           </div>
           <button class="btn" id="refreshQuality">刷新质量诊断</button>
         </div>
         <div class="harness-metrics">
           <div class="harness-meter">
-            <span>面试证据成熟度</span>
+            <span>发布证据成熟度</span>
             <strong id="qualityScore">0</strong>
             <small id="qualityLabel">等待诊断</small>
           </div>
@@ -156,6 +162,9 @@
           <div class="toolbar mt-16">
             <button class="btn primary" id="createTask">创建并执行任务</button>
             <button class="btn" id="runNextStep">运行选中任务下一步</button>
+            <button class="btn" id="runTaskLoop">有界运行至暂停</button>
+            <button class="btn" id="evaluateTask">评测选中任务</button>
+            <button class="btn" id="curateTask">沉淀经验候选</button>
           </div>
           <div id="taskDetail" class="list mt-16"><p class="muted">暂无选中任务。</p></div>
         </div>
@@ -165,7 +174,7 @@
         </aside>
       </section>
 
-      <section class="grid layout-2 mt-16" data-section-label="工具" data-collapsible="true">
+      <section class="grid layout-2 mt-16" data-section-label="工具" data-collapsible="true" data-default-collapsed="true">
         <div class="panel">
           <h2 class="panel-title">Skill Registry</h2>
           <section class="grid grid-3" id="skillGrid"></section>
@@ -178,14 +187,14 @@
         </aside>
       </section>
 
-      <section class="panel mt-16" data-section-label="MCP" data-collapsible="true">
+      <section class="panel mt-16" data-section-label="MCP" data-collapsible="true" data-default-collapsed="true">
         <div class="section-title">
           <div><h2>MCP Tools</h2><p>面向工具协议的描述层，包含 inputSchema、权限注解、超时、缓存和熔断信息。</p></div>
         </div>
         <div class="matrix" id="mcpTools"></div>
       </section>
 
-      <section class="panel mt-16" data-section-label="日志" data-collapsible="true">
+      <section class="panel mt-16" data-section-label="日志" data-collapsible="true" data-default-collapsed="true">
         <div class="section-title">
           <div><h2>执行结果与日志</h2><p>所有自动化动作都应可追踪、可解释、可复盘。</p></div>
           <button class="btn" id="refreshRuns">刷新日志</button>
@@ -194,7 +203,7 @@
       </section>
     </main>
   </div>
-  <script src="../static/app.js?v=5.0.0"></script>
-  <script src="../static/skills.js?v=5.0.0"></script>
+  <script src="../static/app.js?v=6.1.0"></script>
+  <script src="../static/skills.js?v=6.1.0"></script>
 </body>
 </html>
