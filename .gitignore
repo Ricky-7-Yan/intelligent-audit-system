@@ -23,6 +23,7 @@ config.local.*
 logs/
 *.log
 data/chroma_db/
+data/rag_store/
 data/**/*.sqlite
 data/**/*.sqlite3
 data/**/*.db
@@ -59,6 +60,8 @@ node_modules/
 docs/*
 !docs/screenshots/
 !docs/screenshots/**
+*.docx
+*.pdf
 DEPLOYMENT.md
 JD_AGENT_COVERAGE.md
 JD_COVERAGE.md
