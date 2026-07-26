@@ -117,7 +117,6 @@ python start.py
 | Neo4j 图谱 | `NEO4J_URI`、`NEO4J_USER`、`NEO4J_PASSWORD` | 否 |
 | RAG 参数 | `RAG_CHUNK_SIZE`、`RAG_CHUNK_OVERLAP`、`RAG_TOP_K` | 否 |
 
-不要在代码、README、Issue 或提交记录中填写真实密钥。
 
 ## Security
 
