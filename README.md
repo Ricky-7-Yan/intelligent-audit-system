@@ -33,7 +33,7 @@ AuditPilot 的目标不是替代审计师，而是把审计师反复执行的取
 | Agentic RAG | 知识写入、切块、检索、来源引用、证据质量门和缺证提示。 |
 | Skills / MCP-style Tools | 工具 Schema、权限声明、TTL 缓存、熔断器、调用日志和工具指标。 |
 | Memory | Working / Episodic / Profile Memory，保留多轮审计上下文。 |
-| Evaluation Harness | 对任务、循环、工具、证据、图谱、安全、记忆、交付和改进分别评测；关键断言失败直接阻断发布。 |
+| Evaluation Harness | 对任务结果、执行轨迹、工具调用、证据依据、安全权限、上下文和鲁棒性分层评测；输出校准得分与置信下界，关键断言失败直接阻断发布。 |
 | Evidence Graph | 连接任务、步骤、工具运行和产物，检查来源覆盖、断裂依赖与关键孤点。 |
 | Governed Improvement | 失败只沉淀为经验候选，通过回归评测和人工批准后才允许复用。 |
 | Episode & Observability | 隐私友好的任务轨迹包、标准语义字段、工具证据、安全门、失败归因、干预记录和完整性摘要。 |

@@ -40,6 +40,8 @@ models/
 # IDE and OS files
 .idea/
 .vscode/
+.cursor/
+_venv_old/
 .DS_Store
 Thumbs.db
 

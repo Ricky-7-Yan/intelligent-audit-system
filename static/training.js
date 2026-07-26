@@ -14,7 +14,7 @@ let activeMode = "agent";
 
 function scoreText(value) {
   if (value === undefined || value === null || Number.isNaN(Number(value))) return "-";
-  return Number(value).toFixed(3);
+  return `${(Math.max(0, Math.min(0.999, Number(value))) * 100).toFixed(1)}%`;
 }
 
 function percentText(value) {
@@ -35,9 +35,14 @@ function setBusy(message) {
   ]));
 }
 
-function setQuality(score) {
+function setQuality(score, status) {
   const normalized = Math.max(0, Math.min(100, Math.round(Number(score || 0) * 100)));
-  qs("#qualityRing").style.setProperty("--score", normalized);
+  const ring = qs("#qualityRing");
+  const resolvedStatus = status || (normalized >= 82 ? "pass" : normalized >= 70 ? "review" : "blocked");
+  const statusLabel = { pass: "可进入发布复核", review: "需人工复核", blocked: "阻断发布" }[resolvedStatus] || "待评测";
+  ring.style.setProperty("--score", normalized);
+  ring.dataset.status = resolvedStatus;
+  ring.setAttribute("aria-label", `发布门禁得分 ${scoreText(score)}，状态 ${statusLabel}`);
   setText("#overallScore", scoreText(score));
 }
 
@@ -231,10 +236,11 @@ function renderEvaluationRuns(runs) {
         el("div", { class: "trace-summary" }, [
           el("span", { text: `得分 ${scoreText(metrics.overall_score)}` }),
           el("span", { text: `通过率 ${percentText(metrics.pass_rate)}` }),
+          el("span", { text: `置信下界 ${scoreText(metrics.confidence_lower_bound)}` }),
           el("span", { text: `回归 ${metrics.regression_count ?? 0}` }),
           el("span", { text: `基线 ${run.comparison?.baseline_run_id || "新基线"}` }),
         ]),
-        el("p", { class: "muted", text: (gate.blockers || []).join("；") || "满足当前发布门禁。" }),
+        el("p", { class: "muted", text: [...(gate.blockers || []), ...(gate.review_reasons || [])].join("；") || "满足当前发布门禁。" }),
       ]),
     ]));
   });
@@ -309,39 +315,31 @@ function componentTone(status) {
   return "review";
 }
 
-function renderComponentCatalog(catalog = {}) {
-  const node = qs("#componentBoundaryGrid");
-  if (!node) return;
-  clearNode(node);
-  (catalog.components || []).forEach((component) => {
-    node.appendChild(el("article", { class: "component-contract" }, [
-      el("div", { class: "component-contract-head" }, [
-        el("div", {}, [
-          el("h3", { text: component.name }),
-          el("small", { class: "muted", text: component.owner }),
-        ]),
-        el("span", { class: `badge ${component.critical ? "review" : ""}`, text: component.critical ? "关键边界" : "支持边界" }),
-      ]),
-      el("p", { text: component.purpose }),
-      el("div", { class: "contract-meta" }, [
-        el("span", { text: `输入：${(component.inputs || []).join(" · ")}` }),
-        el("span", { text: `输出：${(component.outputs || []).join(" · ")}` }),
-        el("span", { text: `不负责：${(component.does_not_own || []).join(" · ")}` }),
-        el("span", { text: `不变量：${(component.invariants || []).join("；")}` }),
-      ]),
-    ]));
-  });
-}
-
 function renderComponentEvaluation(report = {}) {
   const node = qs("#componentEvaluation");
   if (!node) return;
   clearNode(node);
   const summary = report.summary || {};
+  const dimensions = report.dimensions || [];
   const components = report.components || [];
   const criticalFailures = summary.critical_failures || [];
   const gate = report.release_gate || {};
-  setQuality(summary.overall_score || 0);
+  setQuality(summary.overall_score || 0, gate.status);
+  const resultNode = qs("#evalResults");
+  if (resultNode) {
+    const gateMessages = [...(gate.blockers || []), ...(gate.review_reasons || [])];
+    const compactGateMessage = gateMessages.length > 3
+      ? `${gateMessages.slice(0, 3).join("；")}；另有 ${gateMessages.length - 3} 项，请在评测历史中展开查看。`
+      : gateMessages.join("；");
+    clearNode(resultNode);
+    resultNode.appendChild(el("article", { class: "item compact" }, [
+      el("strong", { text: `分层评测完成 · ${gate.label || gate.status || "待复核"}` }),
+      el("p", {
+        class: "muted",
+        text: compactGateMessage || "当前未发现阻断项，等待发布人复核。",
+      }),
+    ]));
+  }
   setText("#totalTests", summary.total_tests ?? summary.component_count ?? "-");
   setText("#passRate", percentText(summary.pass_rate));
   setText("#regressionCount", criticalFailures.length);
@@ -354,55 +352,45 @@ function renderComponentEvaluation(report = {}) {
     .map((item) => item.evidence_graph?.metrics?.provenance_coverage)
     .filter((item) => item !== undefined);
   setText("#authorityScore", scoreText(avg(graphScores)));
-  setText("#componentEvalMeta", `${gate.label || gate.status || "待复核"} · ${components.length} 个组件`);
+  setText("#componentEvalMeta", `${gate.label || gate.status || "待复核"} · ${dimensions.length || components.length} 维`);
 
   const summaryNode = qs("#componentEvaluationSummary");
   if (summaryNode) {
     clearNode(summaryNode);
-    summaryNode.appendChild(el("span", { text: `整体得分 ${scoreText(summary.overall_score)}` }));
-    summaryNode.appendChild(el("span", { text: `断言通过率 ${percentText(summary.pass_rate)}` }));
-    summaryNode.appendChild(el("span", { text: `关键失败 ${criticalFailures.length}` }));
+    summaryNode.appendChild(el("span", { text: `校准总分 ${scoreText(summary.overall_score)}` }));
+    summaryNode.appendChild(el("span", { text: `95% 置信下界 ${scoreText(summary.confidence_lower_bound)}` }));
+    summaryNode.appendChild(el("span", { text: `证据覆盖 ${scoreText(summary.evidence_coverage)}` }));
   }
 
-  components.forEach((component) => {
-    const assertions = component.assertions || [];
+  const visibleDimensions = dimensions.length ? dimensions : components;
+  visibleDimensions.forEach((dimension) => {
+    const assertions = dimension.assertions || [];
     node.appendChild(el("article", { class: "component-score-card" }, [
       el("div", { class: "component-score-head" }, [
         el("div", {}, [
-          el("strong", { text: component.name }),
-          el("div", { class: "muted", text: component.owner || `${component.task_count || 0} 个任务` }),
+          el("strong", { text: dimension.name }),
+          el("div", { class: "muted", text: dimension.confidence_lower_bound !== null && dimension.confidence_lower_bound !== undefined
+            ? `置信下界 ${scoreText(dimension.confidence_lower_bound)} · ${dimension.signal_count || 0} 个信号`
+            : `${dimension.task_count || summary.trial_count || 0} 次试验` }),
         ]),
-        el("span", { class: `badge ${componentTone(component.status)}`, text: scoreText(component.score) }),
+        el("span", { class: `badge ${componentTone(dimension.status)}`, text: scoreText(dimension.score) }),
       ]),
-      el("progress", { max: "1", value: String(component.score || 0), "aria-label": `${component.name} 得分` }),
+      el("progress", { max: "1", value: String(dimension.score || 0), "aria-label": `${dimension.name} 得分` }),
       el("div", { class: "assertion-list" }, assertions.slice(0, 6).map((assertion) =>
         el("span", { class: assertion.passed ? "pass" : "", text: assertion.label })
       )),
     ]));
   });
 
-  if (!components.length) {
+  if (!visibleDimensions.length) {
     node.appendChild(el("p", { class: "muted", text: "当前没有可评测的运行任务，请先在 Agent 运行时创建任务。" }));
   }
   qs("#training-components")?.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
-async function loadComponentCatalog() {
-  try {
-    const data = await apiFetch("/api/evaluation/components");
-    renderComponentCatalog(data.catalog || {});
-  } catch (error) {
-    const node = qs("#componentBoundaryGrid");
-    if (node) {
-      clearNode(node);
-      node.appendChild(el("p", { class: "muted", text: `组件契约加载失败：${error.message}` }));
-    }
-  }
-}
-
 async function runComponentEvaluation() {
   setBusy("正在从服务端真实轨迹执行分层评测…");
-  const data = await apiFetch("/api/evaluation/runtime?limit=12", { method: "POST" });
+  const data = await apiFetch("/api/evaluation/runtime?limit=5", { method: "POST" });
   renderComponentEvaluation(data.evaluation || {});
   await loadEvaluationRuns();
 }
@@ -492,7 +480,6 @@ function bindTrainingPage() {
   renderMetricToggles();
   renderCustomCases();
   loadEvaluationPlan();
-  loadComponentCatalog();
   loadEvaluationRuns().then(openEvaluationDeepLink);
 
   qsa("#modeTabs .seg").forEach((button) => button.addEventListener("click", () => setMode(button.dataset.mode)));

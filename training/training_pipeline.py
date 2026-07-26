@@ -16,6 +16,12 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from config import PATHS, TRAINING_CONFIG
+from services.evaluation_calibration import (
+    beta_posterior_mean,
+    calibrate_continuous,
+    mean_score,
+    wilson_lower_bound,
+)
 
 
 logger = logging.getLogger(__name__)
@@ -286,7 +292,7 @@ class BenchmarkEvaluator:
     ) -> Dict[str, float]:
         source_count = len(agent_output.get("retrieved_context", {}).get("sources", [])) + len(agent_output.get("evidence_pack", []))
         quality_gate = agent_output.get("quality_gate", {})
-        metrics = {
+        raw_metrics = {
             "faithfulness": max(self._term_score(response, expected_terms), min(source_count / 6, 1.0) * 0.75),
             "completeness": min(len(response) / max(len(expected) * 2, 120), 1.0),
             "audit_professionalism": self._keyword_score(response, ["审计", "风险", "控制", "证据", "底稿", "抽样", "整改", "复核"]),
@@ -296,8 +302,22 @@ class BenchmarkEvaluator:
             "tool_trace_quality": self._trace_score(agent_output.get("execution_trace", [])),
             "human_review_awareness": 1.0 if quality_gate.get("escalation_required") or "复核" in response or "人工" in response else 0.45,
         }
+        evidence_units = {
+            "faithfulness": max(len(expected_terms), source_count, 1),
+            "completeness": 3,
+            "audit_professionalism": 8,
+            "actionability": 8,
+            "compliance_alignment": 8,
+            "agentic_capability": 8,
+            "tool_trace_quality": max(len(agent_output.get("execution_trace", [])), 1),
+            "human_review_awareness": 1,
+        }
+        metrics = {
+            key: calibrate_continuous(value, evidence_units=evidence_units[key])
+            for key, value in raw_metrics.items()
+        }
         selected = criteria or self.DEFAULT_METRICS
-        return {key: round(value, 3) for key, value in metrics.items() if key in selected}
+        return {key: value for key, value in metrics.items() if key in selected}
 
     def _evaluate_trajectory(self, output: Dict[str, Any]) -> Dict[str, Any]:
         trace = output.get("execution_trace", [])
@@ -369,18 +389,23 @@ class BenchmarkEvaluator:
             for metric, score in result["evaluation"].items():
                 metric_scores.setdefault(metric, []).append(score)
 
+        passed = sum(1 for score in all_scores if score >= 0.7)
+        total = len(all_scores)
         return {
-            "overall_score": round(sum(all_scores) / len(all_scores), 3) if all_scores else 0.0,
+            "overall_score": mean_score(all_scores),
             "total_tests": len(results),
             "category_scores": {
-                category: round(sum(scores) / len(scores), 3)
+                category: mean_score(scores)
                 for category, scores in category_scores.items()
             },
             "metric_scores": {
-                metric: round(sum(scores) / len(scores), 3)
+                metric: mean_score(scores)
                 for metric, scores in metric_scores.items()
             },
-            "pass_rate": round(sum(1 for score in all_scores if score >= 0.7) / len(all_scores), 3) if all_scores else 0.0,
+            "pass_rate": beta_posterior_mean(passed, total) if total else 0.0,
+            "raw_pass_rate": round(passed / total, 4) if total else 0.0,
+            "confidence_lower_bound": wilson_lower_bound(passed, total),
+            "grader_profile": ["response_rubric", "trajectory_checks", "quality_gate_checks"],
             "avg_latency_ms": round(sum(item.get("latency_ms", 0) for item in results) / len(results)) if results else 0,
             "regression_count": sum(1 for item in results for risk in item.get("regression_risks", []) if "未发现" not in risk),
         }

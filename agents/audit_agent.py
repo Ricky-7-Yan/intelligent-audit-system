@@ -565,11 +565,31 @@ class AuditAgent:
         requested_high = any(word in normalized for word in ["高", "high", "critical", "重点关注"])
         for keyword, definition in RISK_KEYWORDS.items():
             if keyword in text or keyword in audit_context.get("audit_item", ""):
-                matched.append({"topic": keyword, "domain": definition["domain"], "risk": definition["risk"], "score": definition["score"]})
+                matched.append(
+                    {
+                        "topic": keyword,
+                        "domain": definition["domain"],
+                        "risk": definition["risk"],
+                        "score": definition["score"],
+                        "impact": self._risk_impact_label(definition["score"]),
+                        "likelihood": self._risk_likelihood_label(definition["score"]),
+                        "control_gap": self._risk_control_gap(definition, control_matrix),
+                    }
+                )
                 scores.append(definition["score"])
         if not matched:
             base_score = 0.76 if requested_high else 0.52
-            matched.append({"topic": "通用控制", "domain": audit_context["business_domain"], "risk": "审计范围、证据链或控制责任未完全明确", "score": base_score})
+            matched.append(
+                {
+                    "topic": "通用控制",
+                    "domain": audit_context["business_domain"],
+                    "risk": "审计范围、证据链或控制责任未完全明确",
+                    "score": base_score,
+                    "impact": self._risk_impact_label(base_score),
+                    "likelihood": self._risk_likelihood_label(base_score),
+                    "control_gap": "审计范围、证据链或控制责任未完全明确，需补齐制度和流程",
+                }
+            )
             scores.append(base_score)
 
         control_reduction = min(sum(item["risk_reduction"] for item in control_matrix), 0.28)
@@ -731,6 +751,36 @@ class AuditAgent:
         }
         return mapping.get(domain, "完整性、授权、合规性")
 
+    @staticmethod
+    def _risk_impact_label(score: float) -> str:
+        if score >= 0.82:
+            return "高：可能导致重大监管处罚或业务中断"
+        if score >= 0.7:
+            return "中：可能导致财务、控制或运营偏差"
+        return "低：影响有限但仍需纳入整改跟踪"
+
+    @staticmethod
+    def _risk_likelihood_label(score: float) -> str:
+        if score >= 0.82:
+            return "高：相关线索或证据重复出现"
+        if score >= 0.7:
+            return "中：历史偶发且控制覆盖不均"
+        return "低：偶发但仍需保留证据"
+
+    @staticmethod
+    def _risk_control_gap(definition: Dict[str, Any], control_matrix: List[Dict[str, Any]]) -> str:
+        related = [
+            control
+            for control in control_matrix
+            if any(keyword in control["objective"] for keyword in [definition["domain"], definition["risk"][:6]])
+        ]
+        if not related:
+            return f"{definition['domain']} 控制尚需补充制度、抽查和异常处置证据"
+        gaps = "; ".join(
+            f"{control['control_id']} 成熟度 {control['maturity_level']}" for control in related[:2]
+        )
+        return f"已识别控制覆盖：{gaps}"
+
     def _generate_recommendations(
         self,
         risk_assessment: Dict[str, Any],
@@ -807,21 +857,37 @@ class AuditAgent:
             llm_response = self._compose_with_llm(user_input, audit_context, retrieved, risk_assessment, compliance_check, recommendations, quality_gate)
             if llm_response:
                 return llm_response
-        return self._compose_deterministic_response(audit_context, risk_assessment, compliance_check, recommendations, quality_gate)
-        standards = "、".join(compliance_check["standards"])
-        top_risks = "；".join(risk["risk"] for risk in risk_assessment["identified_risks"])
-        first_action = recommendations[0]["description"] if recommendations else "补齐审计证据。"
+        return self._compose_deterministic_response(user_input, audit_context, risk_assessment, compliance_check, recommendations, quality_gate)
+
+    def _compose_deterministic_response(
+        self,
+        user_input: str,
+        audit_context: Dict[str, Any],
+        risk_assessment: Dict[str, Any],
+        compliance_check: Dict[str, Any],
+        recommendations: List[Dict[str, Any]],
+        quality_gate: Dict[str, Any],
+    ) -> str:
+        standards = "、".join(compliance_check.get("standards", [])) or "企业内控标准"
+        top_risks = "；".join(item["risk"] for item in risk_assessment.get("identified_risks", [])[:4])
+        first_action = (
+            recommendations[0]["description"]
+            if recommendations
+            else "补齐审计证据后形成最终结论。"
+        )
+        body = self._compose_deterministic_body(audit_context, risk_assessment, compliance_check, recommendations, quality_gate)
         return (
             f"审计对象：{audit_context['audit_item']}。\n\n"
             f"结论摘要：当前剩余风险等级为 {risk_assessment['risk_level']}，风险评分 {risk_assessment['risk_score']}，"
-            f"控制抵减约 {risk_assessment['control_reduction']}。主要风险包括：{top_risks}。\n\n"
+            f"控制抵减约 {risk_assessment['control_reduction']}。主要风险包括：{top_risks or '按既定控制预期管理'}。\n\n"
             f"合规视角：建议按 {standards} 取证，当前合规评分约为 {compliance_check['compliance_score']}，"
             f"控制成熟度均值 {compliance_check['control_maturity_avg']}。\n\n"
             f"质量门：状态 {quality_gate['status']}，置信度 {quality_gate['confidence']}。{quality_gate['review_note']}\n\n"
-            f"优先动作：{first_action}"
+            f"优先动作：{first_action}\n\n"
+            f"{body}"
         )
 
-    def _compose_deterministic_response(
+    def _compose_deterministic_body(
         self,
         audit_context: Dict[str, Any],
         risk_assessment: Dict[str, Any],
@@ -841,10 +907,6 @@ class AuditAgent:
             for item in recs
         ) or "| 补齐审计证据 | 高 | 审计负责人 | 7 天 | 关键证据完整且可追溯 |"
         return (
-            "## 审计结论\n\n"
-            f"审计对象：{audit_context['audit_item']}。\n\n"
-            f"当前剩余风险等级为 **{risk_assessment['risk_level']}**，风险评分 **{risk_assessment['risk_score']}**，"
-            f"控制抵减约 **{risk_assessment['control_reduction']}**。建议按 **{standards}** 组织取证、控制测试和整改复核。\n\n"
             "## 高风险控制缺陷\n\n"
             "| 风险领域 | 影响 | 可能性 | 控制缺口 |\n"
             "| --- | --- | --- | --- |\n"

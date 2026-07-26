@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from config import PATHS
+from services.evaluation_calibration import beta_posterior_mean, wilson_lower_bound
 
 
 class EvaluationRunRepository:
@@ -46,6 +47,7 @@ class EvaluationRunRepository:
                     "run_id": record.get("run_id"),
                     "run_type": record.get("run_type"),
                     "created_at": record.get("created_at"),
+                    "is_baseline": bool(record.get("is_baseline")),
                     "payload_summary": record.get("payload_summary", {}),
                     "metrics": record.get("metrics", {}),
                     "comparison": record.get("comparison", {}),
@@ -92,11 +94,17 @@ class EvaluationRunRepository:
                 "overall_score": float(summary.get("overall_score") or 0),
                 "total_tests": int(summary.get("total_tests") or summary.get("component_count") or 0),
                 "pass_rate": float(summary.get("pass_rate") or 0),
+                "raw_pass_rate": float(summary.get("raw_pass_rate") or 0),
+                "confidence_lower_bound": float(summary.get("confidence_lower_bound") or 0),
+                "evidence_coverage": float(summary.get("evidence_coverage") or 0),
+                "trial_count": int(summary.get("trial_count") or summary.get("total_tests") or 1),
                 "regression_count": len(critical_failures),
                 "critical_failures": critical_failures,
                 "avg_latency_ms": summary.get("avg_latency_ms"),
-                "required_score": 0.78,
-                "required_pass_rate": 0.80,
+                "required_score": 0.82,
+                "required_pass_rate": 0.72,
+                "required_confidence_lower_bound": 0.68,
+                "required_evidence_coverage": 0.72,
             }
         if run_type == "rag":
             total = int(results.get("total_cases") or 0)
@@ -109,7 +117,15 @@ class EvaluationRunRepository:
             return {
                 "overall_score": float(results.get("overall_score") or 0),
                 "total_tests": total,
-                "pass_rate": round(sum(1 for item in results.get("results", []) if float(item.get("overall") or 0) >= 0.7) / total, 3) if total else 0,
+                "pass_rate": beta_posterior_mean(
+                    sum(1 for item in results.get("results", []) if float(item.get("overall") or 0) >= 0.7),
+                    total,
+                ) if total else 0,
+                "confidence_lower_bound": wilson_lower_bound(
+                    sum(1 for item in results.get("results", []) if float(item.get("overall") or 0) >= 0.7),
+                    total,
+                ),
+                "trial_count": total,
                 "regression_count": regressions,
                 "avg_latency_ms": None,
             }
@@ -118,7 +134,15 @@ class EvaluationRunRepository:
             return {
                 "overall_score": float(evaluation.get("faithfulness") or 0),
                 "total_tests": len(results.get("query_rewrites", [])),
-                "pass_rate": 0 if evaluation.get("requires_human_review") else 1,
+                "pass_rate": beta_posterior_mean(
+                    0 if evaluation.get("requires_human_review") else 1,
+                    1,
+                ),
+                "confidence_lower_bound": wilson_lower_bound(
+                    0 if evaluation.get("requires_human_review") else 1,
+                    1,
+                ),
+                "trial_count": 1,
                 "regression_count": 1 if evaluation.get("requires_human_review") else 0,
                 "avg_latency_ms": None,
             }
@@ -127,12 +151,17 @@ class EvaluationRunRepository:
             "overall_score": float(metrics.get("overall_score") or 0),
             "total_tests": int(metrics.get("total_tests") or 0),
             "pass_rate": float(metrics.get("pass_rate") or 0),
+            "confidence_lower_bound": float(metrics.get("confidence_lower_bound") or 0),
+            "trial_count": int(metrics.get("total_tests") or 0),
             "regression_count": int(metrics.get("regression_count") or 0),
             "avg_latency_ms": metrics.get("avg_latency_ms"),
         }
 
     def _compare_with_baseline(self, run_type: str, metrics: Dict[str, Any]) -> Dict[str, Any]:
-        baseline = next((item for item in self.list_runs(limit=100) if item.get("run_type") == run_type), None)
+        same_type_runs = [item for item in self.list_runs(limit=100) if item.get("run_type") == run_type]
+        baseline = next((item for item in same_type_runs if item.get("is_baseline")), None)
+        if baseline is None:
+            baseline = same_type_runs[0] if same_type_runs else None
         if not baseline:
             return {"baseline_run_id": None, "deltas": {}, "regressions": [], "status": "baseline_created"}
         previous = baseline.get("metrics", {})
@@ -153,10 +182,30 @@ class EvaluationRunRepository:
                 regressions.append("平均延迟较基线上升超过 25%")
         return {
             "baseline_run_id": baseline.get("run_id"),
+            "baseline_locked": bool(baseline.get("is_baseline")),
             "deltas": deltas,
             "regressions": regressions,
             "status": "regression" if regressions else "stable",
         }
+
+    def mark_as_baseline(self, run_id: str) -> Optional[Dict[str, Any]]:
+        record = self.get_run(run_id)
+        if not record:
+            return None
+        for item in self.list_runs(limit=200):
+            if item.get("run_type") != record.get("run_type"):
+                continue
+            current = self.get_run(item["run_id"]) or item
+            current["is_baseline"] = False
+            self._path(item["run_id"]).write_text(
+                json.dumps(current, ensure_ascii=False, indent=2),
+                encoding="utf-8",
+            )
+        updated = self.get_run(run_id) or record
+        updated["is_baseline"] = True
+        updated["updated_at"] = datetime.now().isoformat()
+        self._path(run_id).write_text(json.dumps(updated, ensure_ascii=False, indent=2), encoding="utf-8")
+        return updated
 
     def _release_gate(self, metrics: Dict[str, Any], comparison: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         score = float(metrics.get("overall_score") or 0)
@@ -165,33 +214,49 @@ class EvaluationRunRepository:
         blockers = []
         required_score = float(metrics.get("required_score") or 0.75)
         required_pass_rate = float(metrics.get("required_pass_rate") or 0.70)
+        required_lower_bound = float(metrics.get("required_confidence_lower_bound") or 0.60)
+        required_evidence_coverage = float(metrics.get("required_evidence_coverage") or 0.0)
+        confidence_lower_bound = float(metrics.get("confidence_lower_bound") or 0)
+        evidence_coverage = float(metrics.get("evidence_coverage") or 0)
+        trial_count = int(metrics.get("trial_count") or metrics.get("total_tests") or 0)
+        review_reasons = []
         if score < required_score:
             blockers.append(f"整体得分低于 {required_score:.2f}。")
         if pass_rate < required_pass_rate:
             blockers.append(f"通过率低于 {required_pass_rate:.0%}。")
+        if required_evidence_coverage and evidence_coverage < required_evidence_coverage:
+            blockers.append(f"证据覆盖率低于 {required_evidence_coverage:.0%}。")
+        if confidence_lower_bound < required_lower_bound:
+            review_reasons.append(f"95% 置信下界低于 {required_lower_bound:.0%}。")
+        if trial_count < 3:
+            review_reasons.append("独立试验少于 3 次，不能自动判定为可发布。")
         if regressions > 0:
             blockers.append("存在需要处理的回归风险。")
         blockers.extend(str(item) for item in metrics.get("critical_failures", []) if str(item).strip())
         if comparison and comparison.get("regressions"):
             blockers.extend(comparison["regressions"])
-        if not blockers:
-            status = "pass"
-            label = "可发布"
-        elif score >= 0.6 and regressions <= 2:
+        if blockers:
+            status = "blocked"
+            label = "阻断发布"
+        elif review_reasons:
             status = "review"
             label = "需复核"
         else:
-            status = "blocked"
-            label = "阻断发布"
+            status = "pass"
+            label = "可发布"
         return {
             "status": status,
             "label": label,
             "blockers": blockers,
+            "review_reasons": review_reasons,
             "baseline_run_id": (comparison or {}).get("baseline_run_id"),
             "deltas": (comparison or {}).get("deltas", {}),
             "thresholds": {
                 "overall_score": required_score,
                 "pass_rate": required_pass_rate,
+                "confidence_lower_bound": required_lower_bound,
+                "evidence_coverage": required_evidence_coverage,
+                "minimum_trials": 3,
                 "regression_count": 0,
             },
         }

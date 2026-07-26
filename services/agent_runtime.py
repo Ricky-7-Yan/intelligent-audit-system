@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from config import PATHS
+from services.evaluation_calibration import beta_posterior_mean, wilson_lower_bound
 from services.safety_gate import SafetyGate
 from services.skill_registry import SkillRegistry
 
@@ -618,13 +619,13 @@ class AgentRuntime:
                 "evidence": step_record.get("run_id"),
             },
         ]
-        score = round(
-            sum(1 for assertion in assertions if assertion["passed"]) / len(assertions),
-            3,
-        )
+        passed = sum(1 for assertion in assertions if assertion["passed"])
+        score = beta_posterior_mean(passed, len(assertions))
         return {
-            "evaluator": "online_step_contract_v1",
+            "evaluator": "online_step_contract_v2",
             "score": score,
+            "raw_pass_rate": round(passed / len(assertions), 4),
+            "confidence_lower_bound": wilson_lower_bound(passed, len(assertions)),
             "status": "pass" if score >= 0.8 else "review" if score >= 0.6 else "blocked",
             "assertions": assertions,
             "evaluated_at": datetime.now().isoformat(),
@@ -686,7 +687,8 @@ class AgentRuntime:
         return events
 
     def _package_digest(self, package: Dict[str, Any]) -> str:
-        serialized = json.dumps(package, ensure_ascii=False, sort_keys=True, default=str)
+        digest_input = {key: value for key, value in package.items() if key != "integrity"}
+        serialized = json.dumps(digest_input, ensure_ascii=False, sort_keys=True, default=str)
         return hashlib.sha256(serialized.encode("utf-8")).hexdigest()
 
     def _read(self, path: Path) -> Dict[str, Any]:

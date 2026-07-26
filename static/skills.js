@@ -379,7 +379,7 @@ function renderTask(task) {
         el("small", { class: "muted", text: `依赖：${compactList(step.depends_on || [], 6) || "无"}` }),
         evaluation ? el("div", { class: "step-evaluation" }, [
           el("div", { class: "item-head" }, [
-            el("strong", { text: `单步评测 ${Number(evaluation.score || 0).toFixed(3)}` }),
+            el("strong", { text: `单步评测 ${(Number(evaluation.score || 0) * 100).toFixed(1)}%` }),
             el("span", { class: `badge ${evaluation.status === "pass" ? "pass" : evaluation.status === "blocked" ? "blocked" : "review"}`, text: evaluation.status }),
           ]),
           el("div", { class: "assertion-list" }, (evaluation.assertions || []).map((assertion) =>
@@ -405,19 +405,19 @@ function renderTaskEvaluation(report) {
   const gate = report.release_gate || {};
   node.appendChild(el("div", { class: "item selected-task" }, [
     el("div", { class: "item-head" }, [
-      el("strong", { text: `组件评测 · ${Number(summary.overall_score || 0).toFixed(3)}` }),
+      el("strong", { text: `质量评测 · ${(Number(summary.overall_score || 0) * 100).toFixed(1)}%` }),
       el("span", { class: `badge ${gate.status === "pass" ? "pass" : gate.status === "blocked" ? "blocked" : "review"}`, text: gate.label || gate.status || "需复核" }),
     ]),
     el("div", { class: "loop-status" }, [
       el("span", { text: `断言通过率 ${Math.round(Number(summary.pass_rate || 0) * 100)}%` }),
-      el("span", { text: `组件 ${summary.component_count || 0}` }),
+      el("span", { text: `置信下界 ${(Number(summary.confidence_lower_bound || 0) * 100).toFixed(1)}%` }),
       el("span", { text: `关键失败 ${(summary.critical_failures || []).length}` }),
     ]),
-    el("div", { class: "component-evaluation-grid mt-12" }, (report.components || []).map((component) =>
+    el("div", { class: "component-evaluation-grid mt-12" }, ((report.dimensions || []).length ? report.dimensions : (report.components || [])).map((component) =>
       el("div", { class: "component-score-card" }, [
         el("div", { class: "component-score-head" }, [
           el("strong", { text: component.name }),
-          el("span", { class: `badge ${component.status === "pass" ? "pass" : component.status === "blocked" ? "blocked" : "review"}`, text: Number(component.score || 0).toFixed(3) }),
+          el("span", { class: `badge ${component.status === "pass" ? "pass" : component.status === "blocked" ? "blocked" : "review"}`, text: `${(Number(component.score || 0) * 100).toFixed(1)}%` }),
         ]),
         el("progress", { max: "1", value: String(component.score || 0), "aria-label": `${component.name} 得分` }),
       ])

@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Agent &#35780;&#20272;&#19982;&#21457;&#24067;&#38376;&#31105; - &#23457;&#33033; AuditPilot</title>
   <link rel="stylesheet" href="../static/app.css?v=4.6.0">
-  <link rel="stylesheet" href="../static/workspace.css?v=6.1.0">
+  <link rel="stylesheet" href="../static/workspace.css?v=7.0.1">
 </head>
 <body>
   <div class="app-shell">
@@ -51,7 +51,7 @@
         <aside class="panel">
           <h2 class="panel-title">&#21457;&#24067;&#38376;&#31105;</h2>
           <div class="quality">
-            <div class="quality-ring" id="qualityRing" style="--score: 0"><span id="overallScore">-</span></div>
+            <div class="quality-ring" id="qualityRing" style="--score: 0" data-status="review" role="img" aria-label="尚未生成发布门禁得分"><span id="overallScore">-</span></div>
             <div class="list dense">
               <div class="item compact"><strong>&#27979;&#35797;&#29992;&#20363;</strong><div class="muted" id="totalTests">-</div></div>
               <div class="item compact"><strong>&#36890;&#36807;&#29575;</strong><div class="muted" id="passRate">-</div></div>
@@ -64,26 +64,20 @@
       <section class="panel mt-16" id="training-components" data-section-label="分层评测" data-collapsible="true">
         <div class="panel-head">
           <div>
-            <span class="section-kicker">Trace-native evaluation</span>
-            <h2 class="panel-title">任务、步骤、工具与证据的分层评测</h2>
-            <p class="muted">服务端从真实任务轨迹生成断言，分别检查任务规格、依赖执行、工具调用、证据血缘、安全权限、上下文记忆、审计交付与持续改进；关键安全断言失败会直接阻断发布。</p>
+            <span class="section-kicker">Calibrated agent evaluation</span>
+            <h2 class="panel-title">结果、轨迹、工具与证据的多层评测</h2>
+            <p class="muted">服务端基于真实任务轨迹分别评测任务结果、执行轨迹、工具调用、证据溯源、安全权限、上下文与鲁棒性。聚合分经过小样本校准，并同时报告置信下界；关键安全失败仍会直接阻断发布。</p>
           </div>
           <span class="badge" id="componentEvalMeta">等待评测</span>
         </div>
         <div id="componentEvaluationSummary" class="loop-status">
-          <span>评测对象：最近运行任务</span>
-          <span>评分方式：确定性断言</span>
-          <span>发布原则：关键失败一票否决</span>
+          <span>评测对象：真实任务与完整轨迹</span>
+          <span>评分方式：校准得分 + 置信下界</span>
+          <span>发布原则：多次试验 + 关键失败一票否决</span>
         </div>
         <div id="componentEvaluation" class="component-evaluation-grid mt-16">
-          <p class="muted">运行全链路分层评测后，这里会展示每个组件的独立得分和失败断言。</p>
+          <p class="muted">运行全链路分层评测后，这里会展示面向交付的质量维度、证据信号和不确定性。</p>
         </div>
-        <details class="governance-detail mt-16">
-          <summary><span>查看组件边界与责任契约</span><small>输入、输出、不变量和非职责范围</small></summary>
-          <div id="componentBoundaryGrid" class="component-boundary-grid mt-16">
-            <p class="muted">正在加载组件责任契约。</p>
-          </div>
-        </details>
       </section>
 
       <section class="grid layout-2 mt-16" id="training-design" data-section-label="cases" data-collapsible="true" data-default-collapsed="true">
@@ -127,7 +121,7 @@
         <div class="card metric"><div class="metric-value" id="toolScore">-</div><div class="metric-label">Tool / Trace</div></div>
         <div class="card metric"><div class="metric-value" id="authorityScore">-</div><div class="metric-label">&#26435;&#23041;&#24615;</div></div>
         <div class="card metric"><div class="metric-value" id="latencyScore">-</div><div class="metric-label">&#24179;&#22343;&#32791;&#26102;</div></div>
-        <div class="card metric"><div class="metric-value">3.0.0</div><div class="metric-label">&#35780;&#27979;&#29256;&#26412;</div></div>
+        <div class="card metric"><div class="metric-value">4.0.0</div><div class="metric-label">&#35780;&#27979;&#29256;&#26412;</div></div>
       </section>
 
       <section class="grid layout-2 mt-16" id="training-results" data-section-label="results">
@@ -148,6 +142,6 @@
     </main>
   </div>
   <script src="../static/app.js?v=6.1.0"></script>
-  <script src="../static/training.js?v=6.1.0"></script>
+  <script src="../static/training.js?v=7.0.3"></script>
 </body>
 </html>

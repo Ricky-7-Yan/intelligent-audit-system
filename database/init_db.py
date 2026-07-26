@@ -53,6 +53,7 @@ def create_tables():
                     status ENUM('待审计', '审计中', '已完成', '需整改') DEFAULT '待审计' COMMENT '审计状态',
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
                     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+                    UNIQUE KEY uniq_item_name (item_name),
                     INDEX idx_item_type (item_type),
                     INDEX idx_risk_level (risk_level),
                     INDEX idx_status (status)
@@ -70,6 +71,7 @@ def create_tables():
                     requirements JSON COMMENT '具体要求（JSON格式）',
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
                     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+                    UNIQUE KEY uniq_standard_name (standard_name),
                     INDEX idx_standard_type (standard_type)
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='审计标准表'
             """)
@@ -206,7 +208,7 @@ def insert_initial_data():
             ]
 
             cursor.executemany("""
-                INSERT INTO audit_standards (standard_name, standard_type, version, description, requirements)
+                INSERT IGNORE INTO audit_standards (standard_name, standard_type, version, description, requirements)
                 VALUES (%s, %s, %s, %s, %s)
             """, standards_data)
 
@@ -220,7 +222,7 @@ def insert_initial_data():
             ]
 
             cursor.executemany("""
-                INSERT INTO audit_items (item_name, item_type, description, risk_level, status)
+                INSERT IGNORE INTO audit_items (item_name, item_type, description, risk_level, status)
                 VALUES (%s, %s, %s, %s, %s)
             """, audit_items_data)
 

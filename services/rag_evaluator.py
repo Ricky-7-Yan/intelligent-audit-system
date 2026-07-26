@@ -7,6 +7,8 @@ from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any, Dict, List
 
+from services.evaluation_calibration import calibrate_continuous, mean_score
+
 
 @dataclass
 class RAGEvalCase:
@@ -38,7 +40,7 @@ class RAGEvaluator:
             results = [self._evaluate_case(case) for case in eval_cases]
         scores = [item["overall"] for item in results]
         return {
-            "overall_score": round(sum(scores) / len(scores), 3) if scores else 0.0,
+            "overall_score": mean_score(scores),
             "total_cases": len(results),
             "results": results,
             "metrics": ["term_score", "source_score", "authority_score", "retrieval_confidence"],
@@ -50,18 +52,30 @@ class RAGEvaluator:
         answer = self.rag_pipeline.query(case.question)
         text = answer.get("answer", "")
         sources = answer.get("sources", [])
-        term_score = self._term_score(text, case.expected_terms)
-        source_score = min(len(sources) / 3, 1.0)
-        confidence = float(answer.get("confidence", 0.0))
-        authority = self._authority_score(sources)
-        overall = round(term_score * 0.35 + source_score * 0.2 + confidence * 0.2 + authority * 0.25, 3)
+        term_score = calibrate_continuous(
+            self._term_score(text, case.expected_terms),
+            evidence_units=max(len(case.expected_terms), 1),
+        )
+        source_score = calibrate_continuous(
+            min(len(sources) / 3, 1.0),
+            evidence_units=max(len(sources), 1),
+        )
+        confidence = calibrate_continuous(
+            float(answer.get("confidence", 0.0)),
+            evidence_units=max(len(sources), 1),
+        )
+        authority = calibrate_continuous(
+            self._authority_score(sources),
+            evidence_units=max(len(sources), 1),
+        )
+        overall = round(term_score * 0.35 + source_score * 0.2 + confidence * 0.2 + authority * 0.25, 4)
         return {
             "case_id": case.case_id,
             "category": case.category,
             "question": case.question,
             "expected_terms": case.expected_terms,
             "term_score": term_score,
-            "source_score": round(source_score, 3),
+            "source_score": source_score,
             "authority_score": authority,
             "retrieval_confidence": confidence,
             "overall": overall,

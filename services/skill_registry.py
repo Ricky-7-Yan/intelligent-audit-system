@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 import statistics
 import threading
 import time
@@ -259,6 +260,21 @@ class SkillRegistry:
             },
         }
 
+    _BEARER_PATTERN = re.compile(r"^Bearer\s+[A-Za-z0-9_\-]{12,}$")
+    _OPENAI_KEY_PATTERN = re.compile(r"^sk-[A-Za-z0-9_\-]{16,}$")
+    _AWS_ACCESS_KEY_PATTERN = re.compile(r"^AKIA[0-9A-Z]{16}$")
+
+    def _looks_like_secret(self, value: str) -> bool:
+        if not isinstance(value, str):
+            return False
+        if self._OPENAI_KEY_PATTERN.match(value):
+            return True
+        if self._AWS_ACCESS_KEY_PATTERN.match(value):
+            return True
+        if self._BEARER_PATTERN.match(value):
+            return True
+        return False
+
     def _redact(self, value: Any, key: str = "") -> Any:
         sensitive = {"api_key", "apikey", "token", "secret", "password", "authorization", "cookie"}
         if key.lower().replace("-", "_") in sensitive:
@@ -267,7 +283,7 @@ class SkillRegistry:
             return {item_key: self._redact(item, str(item_key)) for item_key, item in value.items()}
         if isinstance(value, list):
             return [self._redact(item, key) for item in value]
-        if isinstance(value, str) and (value.startswith("sk-") or value.startswith("Bearer ")):
+        if isinstance(value, str) and self._looks_like_secret(value):
             return "[REDACTED]"
         return value
 

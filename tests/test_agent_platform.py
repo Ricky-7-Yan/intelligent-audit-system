@@ -188,7 +188,7 @@ class EvaluationRepositoryTests(unittest.TestCase):
             }
             run = repository.create_run("agent", {}, current)
             self.assertEqual(run["comparison"]["status"], "regression")
-            self.assertEqual(run["release_gate"]["status"], "review")
+            self.assertEqual(run["release_gate"]["status"], "blocked")
             self.assertTrue(run["release_gate"]["blockers"])
             self.assertTrue(repository.delete_run(run["run_id"]))
             self.assertIsNone(repository.get_run(run["run_id"]))
@@ -216,9 +216,15 @@ class ComponentEvaluationTests(unittest.TestCase):
             self.assertTrue(all(call.get("span", {}).get("name") for call in completed["tool_calls"]))
 
             report = evaluator.evaluate_task(task["task_id"], persist=True)
-            self.assertEqual(report["schema"], "audit-component-evaluation-v1")
+            self.assertEqual(report["schema"], "audit-agent-evaluation-v2")
             self.assertEqual(len(report["components"]), 9)
+            self.assertEqual(len(report["dimensions"]), 7)
             self.assertGreater(report["summary"]["assertion_count"], 20)
+            self.assertLess(report["summary"]["overall_score"], 1.0)
+            self.assertLess(report["summary"]["pass_rate"], 1.0)
+            self.assertIn("confidence_lower_bound", report["summary"])
+            self.assertIn("evidence_coverage", report["summary"])
+            self.assertEqual(report["release_gate"]["status"], "review")
             self.assertEqual(report["evidence_graph"]["metrics"]["broken_dependencies"], 0)
             self.assertTrue(report["evaluation_run_id"])
 

@@ -6,6 +6,8 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
+from services.evaluation_calibration import calibrate_continuous
+
 
 @dataclass
 class ResearchStep:
@@ -130,13 +132,13 @@ class AuditResearchAgent:
 
     def evaluation_plan(self) -> Dict[str, Any]:
         metrics = [
-            {"metric": "faithfulness", "name": "真实性", "rule": "答案必须能回溯到来源、证据或审计底稿，不能新增无依据事实。"},
-            {"metric": "freshness", "name": "时效性", "rule": "对可变事实标注来源时间；高时效问题要求联网或接入企业实时数据源。"},
-            {"metric": "authority", "name": "权威性", "rule": "优先使用监管、标准、制度、审计底稿和企业系统数据。"},
-            {"metric": "relevance", "name": "相关性", "rule": "检索来源应覆盖审计对象、风险主题、标准和业务上下文。"},
-            {"metric": "tool_use", "name": "工具调用", "rule": "检查工具选择、参数、调用必要性、错误恢复和重试策略。"},
-            {"metric": "trajectory", "name": "轨迹质量", "rule": "评估规划、检索、推理、质量门、人工复核等中间步骤是否完整。"},
-            {"metric": "ux", "name": "用户体验", "rule": "答案应给出结论、依据、风险、动作、证据缺口和下一步。"},
+            {"metric": "task_outcome", "name": "任务结果", "rule": "检查审计结论、风险、证据缺口和整改动作是否满足任务验收标准。"},
+            {"metric": "trajectory", "name": "执行轨迹", "rule": "评估规划、检索、推理、质量门、人工复核等中间步骤是否必要且完整。"},
+            {"metric": "tool_use", "name": "工具调用", "rule": "检查工具选择、参数、授权边界、调用结果、错误恢复和重试策略。"},
+            {"metric": "grounding", "name": "证据依据", "rule": "结论必须回溯到来源、标准或审计底稿，并同时检查相关性、权威性与时效性。"},
+            {"metric": "safety", "name": "安全权限", "rule": "检查越权、敏感数据暴露、提示词注入和高风险动作是否被阻断或升级人工复核。"},
+            {"metric": "context", "name": "上下文保持", "rule": "检查多轮审计范围、用户约束、历史证据和会话记忆是否被正确继承。"},
+            {"metric": "robustness", "name": "鲁棒与降级", "rule": "检查工具异常、证据不足、冲突信息和超时场景下的降级、重试与可恢复性。"},
         ]
         cases = [
             {"case_id": "DR-01", "question": "ERP 权限审计如何覆盖职责分离、特权账号和复核证据？", "expected": ["权限", "职责分离", "证据", "复核"]},
@@ -149,9 +151,11 @@ class AuditResearchAgent:
             "benchmark_cases": cases,
             "closed_loop": ["采集失败样例", "分析检索/推理/工具缺口", "补充知识或规则", "回归评测", "发布版本"],
             "release_gate": {
-                "overall_score": ">= 0.75",
-                "faithfulness": ">= 0.70",
-                "tool_trace_quality": ">= 0.80",
+                "calibrated_overall_score": ">= 0.82",
+                "bayesian_pass_rate": ">= 0.72",
+                "wilson_95_lower_bound": ">= 0.68",
+                "evidence_coverage": ">= 0.72",
+                "minimum_independent_trials": ">= 3",
                 "critical_regressions": "0",
             },
         }
@@ -209,10 +213,23 @@ class AuditResearchAgent:
         )
 
     def _evaluate_answer(self, question: str, answer: str, sources: List[Dict[str, Any]]) -> Dict[str, Any]:
+        evidence_units = max(len(sources), 1)
         return {
-            "faithfulness": 0.82 if sources else 0.35,
-            "authority": min(1.0, 0.45 + sum(1 for item in sources if "seed" in str(item.get("source")) or "builtin" in str(item.get("source"))) * 0.12),
-            "relevance": 0.78 if any(term in answer for term in question[:12]) or sources else 0.4,
-            "completeness": 0.76 if "建议动作" in answer and "依据" in answer else 0.5,
+            "faithfulness": calibrate_continuous(
+                0.82 if sources else 0.35,
+                evidence_units=evidence_units,
+            ),
+            "authority": calibrate_continuous(
+                min(1.0, 0.45 + sum(1 for item in sources if "seed" in str(item.get("source")) or "builtin" in str(item.get("source"))) * 0.12),
+                evidence_units=evidence_units,
+            ),
+            "relevance": calibrate_continuous(
+                0.78 if any(term in answer for term in question[:12]) or sources else 0.4,
+                evidence_units=evidence_units,
+            ),
+            "completeness": calibrate_continuous(
+                0.76 if "建议动作" in answer and "依据" in answer else 0.5,
+                evidence_units=2,
+            ),
             "requires_human_review": len(sources) < 2,
         }

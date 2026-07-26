@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+import math
 import statistics
 from datetime import datetime
 from typing import Any, Dict, Iterable, List, Optional
 
 from services.component_contracts import component_catalog
+from services.evaluation_calibration import beta_posterior_mean, wilson_lower_bound
 
 
 class ComponentEvaluationOrchestrator:
@@ -17,7 +19,9 @@ class ComponentEvaluationOrchestrator:
     persisted report, but they never replace the executable assertions here.
     """
 
-    VERSION = "3.0.0"
+    VERSION = "4.0.0"
+    PRIOR_ALPHA = 3.0
+    PRIOR_BETA = 1.0
 
     def __init__(self, runtime, repository, skill_registry) -> None:
         self.runtime = runtime
@@ -28,13 +32,13 @@ class ComponentEvaluationOrchestrator:
         components = component_catalog()
         return {
             "version": self.VERSION,
-            "evaluation_unit": "task_trial_and_component",
+            "evaluation_unit": "task_trial_dimension_and_component",
             "components": components,
             "principles": [
-                "先执行确定性断言，再使用语义评审补充开放问题。",
-                "结果、轨迹、单步和工具调用分别计分。",
-                "关键安全断言失败时，无论平均分多高都阻断发布。",
-                "评测记录绑定任务、轨迹摘要和完整性摘要，避免客户端伪造分数。",
+                "分别评测最终结果、完整轨迹、单步决策、工具调用、证据质量和安全边界。",
+                "聚合分采用贝叶斯平滑并报告置信下界，避免少量样本产生虚假的满分。",
+                "确定性断言负责可验证事实，语义评审和人工复核只补充开放性质量判断。",
+                "关键安全断言失败一票否决；单任务只能进入人工复核，不能直接视为可发布。",
             ],
         }
 
@@ -48,7 +52,7 @@ class ComponentEvaluationOrchestrator:
         weighted_score = round(
             sum(float(item["score"]) * float(item["weight"]) for item in components)
             / max(sum(float(item["weight"]) for item in components), 0.001),
-            3,
+            4,
         )
         assertion_count = sum(len(item["assertions"]) for item in components)
         passed_assertions = sum(
@@ -61,22 +65,45 @@ class ComponentEvaluationOrchestrator:
             for assertion in item["assertions"]
             if not assertion["passed"] and assertion.get("critical", True)
         ]
-        pass_rate = round(passed_assertions / max(assertion_count, 1), 3)
-        release_gate = self._release_gate(weighted_score, pass_rate, critical_failures)
+        raw_pass_rate = round(passed_assertions / max(assertion_count, 1), 4)
+        pass_rate = self._calibrated_rate(passed_assertions, assertion_count)
+        confidence_lower_bound = self._wilson_lower_bound(passed_assertions, assertion_count)
+        evidence_count = sum(
+            1
+            for item in components
+            for assertion in item["assertions"]
+            if self._has_evidence(assertion.get("evidence"))
+        )
+        evidence_coverage = self._calibrated_rate(evidence_count, assertion_count, alpha=2.0, beta=1.0)
+        sample_adequacy = round(min(0.999, 1 - math.exp(-assertion_count / 36)), 4)
+        release_gate = self._release_gate(
+            weighted_score,
+            pass_rate,
+            critical_failures,
+            confidence_lower_bound=confidence_lower_bound,
+            evidence_coverage=evidence_coverage,
+            trial_count=1,
+        )
         report = {
-            "schema": "audit-component-evaluation-v1",
+            "schema": "audit-agent-evaluation-v2",
             "evaluator_version": self.VERSION,
             "task_id": task_id,
             "task_status": task.get("status"),
             "summary": {
                 "overall_score": weighted_score,
                 "pass_rate": pass_rate,
+                "raw_pass_rate": raw_pass_rate,
+                "confidence_lower_bound": confidence_lower_bound,
+                "evidence_coverage": evidence_coverage,
+                "sample_adequacy": sample_adequacy,
+                "trial_count": 1,
                 "component_count": len(components),
                 "assertion_count": assertion_count,
                 "passed_assertions": passed_assertions,
                 "critical_failures": critical_failures,
                 "avg_latency_ms": task.get("metrics", {}).get("avg_latency_ms", 0),
             },
+            "dimensions": self._public_dimensions(components),
             "components": components,
             "evidence_graph": graph,
             "release_gate": release_gate,
@@ -84,6 +111,11 @@ class ComponentEvaluationOrchestrator:
                 "episode_schema": episode.get("schema"),
                 "episode_digest": episode.get("integrity", {}).get("digest"),
                 "raw_context_included": episode.get("context_evidence", {}).get("raw_context_included"),
+            },
+            "grader_profile": {
+                "active": ["deterministic_assertions", "trace_and_outcome_checks"],
+                "available_on_review": ["rubric_model_judge", "human_auditor"],
+                "aggregation": "beta_posterior_mean_with_wilson_lower_bound",
             },
             "evaluated_at": datetime.now().isoformat(),
         }
@@ -101,7 +133,8 @@ class ComponentEvaluationOrchestrator:
         tasks = self.runtime.list_tasks(limit=max(1, min(limit, 30)))
         reports = [self.evaluate_task(task["task_id"], persist=False) for task in tasks]
         scores = [float(item["summary"]["overall_score"]) for item in reports]
-        pass_rates = [float(item["summary"]["pass_rate"]) for item in reports]
+        passed_assertions = sum(int(item["summary"]["passed_assertions"]) for item in reports)
+        assertion_count = sum(int(item["summary"]["assertion_count"]) for item in reports)
         component_scores: Dict[str, List[float]] = {}
         for report in reports:
             for component in report["components"]:
@@ -110,7 +143,7 @@ class ComponentEvaluationOrchestrator:
             (
                 {
                     "component_id": component_id,
-                    "score": round(statistics.mean(values), 3),
+                    "score": round(statistics.mean(values), 4),
                 }
                 for component_id, values in component_scores.items()
             ),
@@ -134,14 +167,36 @@ class ComponentEvaluationOrchestrator:
             for report in reports
             for failure in report["summary"]["critical_failures"]
         ]
-        overall = round(statistics.mean(scores), 3) if scores else 0.0
-        pass_rate = round(statistics.mean(pass_rates), 3) if pass_rates else 0.0
+        overall = round(statistics.mean(scores), 4) if scores else 0.0
+        pass_rate = self._calibrated_rate(passed_assertions, assertion_count)
+        raw_pass_rate = round(passed_assertions / max(assertion_count, 1), 4)
+        confidence_lower_bound = self._wilson_lower_bound(passed_assertions, assertion_count)
+        evidence_assertions = sum(
+            1
+            for report in reports
+            for component in report["components"]
+            for assertion in component["assertions"]
+            if self._has_evidence(assertion.get("evidence"))
+        )
+        evidence_coverage = self._calibrated_rate(
+            evidence_assertions,
+            assertion_count,
+            alpha=2.0,
+            beta=1.0,
+        )
         result = {
-            "schema": "audit-runtime-evaluation-v1",
+            "schema": "audit-agent-suite-evaluation-v2",
             "evaluator_version": self.VERSION,
             "summary": {
                 "overall_score": overall,
                 "pass_rate": pass_rate,
+                "raw_pass_rate": raw_pass_rate,
+                "confidence_lower_bound": confidence_lower_bound,
+                "evidence_coverage": evidence_coverage,
+                "sample_adequacy": round(min(0.999, 1 - math.exp(-assertion_count / 36)), 4),
+                "assertion_count": assertion_count,
+                "passed_assertions": passed_assertions,
+                "trial_count": len(reports),
                 "total_tests": len(reports),
                 "component_count": len(component_scores),
                 "critical_failures": critical_failures,
@@ -155,9 +210,17 @@ class ComponentEvaluationOrchestrator:
                 else 0,
             },
             "weakest_components": weakest[:4],
+            "dimensions": self._public_dimensions(aggregated_components),
             "components": aggregated_components,
             "task_reports": reports,
-            "release_gate": self._release_gate(overall, pass_rate, critical_failures),
+            "release_gate": self._release_gate(
+                overall,
+                pass_rate,
+                critical_failures,
+                confidence_lower_bound=confidence_lower_bound,
+                evidence_coverage=evidence_coverage,
+                trial_count=len(reports),
+            ),
             "evaluated_at": datetime.now().isoformat(),
         }
         if persist:
@@ -250,14 +313,32 @@ class ComponentEvaluationOrchestrator:
         results: List[Dict[str, Any]] = []
         for component_id, assertions in definitions.items():
             contract = contracts[component_id]
-            score = round(statistics.mean(float(item["score"]) for item in assertions), 3)
+            passed = sum(1 for item in assertions if item["passed"])
+            score = self._calibrated_rate(passed, len(assertions))
+            critical_failed = any(
+                not item["passed"] and item.get("critical", True) for item in assertions
+            )
             results.append(
                 {
                     "id": component_id,
                     "name": contract["name"],
                     "owner": contract["owner"],
                     "score": score,
-                    "status": "pass" if score >= 0.8 else "review" if score >= 0.6 else "blocked",
+                    "raw_pass_rate": round(passed / max(len(assertions), 1), 4),
+                    "confidence_lower_bound": self._wilson_lower_bound(passed, len(assertions)),
+                    "evidence_coverage": self._calibrated_rate(
+                        sum(1 for item in assertions if self._has_evidence(item.get("evidence"))),
+                        len(assertions),
+                        alpha=2.0,
+                        beta=1.0,
+                    ),
+                    "status": (
+                        "blocked"
+                        if critical_failed
+                        else "pass"
+                        if score >= 0.82
+                        else "review"
+                    ),
                     "weight": contract["weight"],
                     "critical": contract["critical"],
                     "assertions": assertions,
@@ -330,20 +411,113 @@ class ComponentEvaluationOrchestrator:
         score: float,
         pass_rate: float,
         critical_failures: List[str],
+        *,
+        confidence_lower_bound: float,
+        evidence_coverage: float,
+        trial_count: int,
     ) -> Dict[str, Any]:
         blockers: List[str] = []
-        if score < 0.78:
-            blockers.append("组件加权得分低于 0.78。")
-        if pass_rate < 0.80:
-            blockers.append("断言通过率低于 80%。")
+        review_reasons: List[str] = []
+        if score < 0.70:
+            blockers.append("校准总分低于 70%。")
+        elif score < 0.82:
+            review_reasons.append("校准总分尚未达到 82% 的发布候选线。")
+        if pass_rate < 0.72:
+            blockers.append("校准通过率低于 72%。")
+        if evidence_coverage < 0.72:
+            blockers.append("可验证证据覆盖率低于 72%。")
+        if confidence_lower_bound < 0.68:
+            review_reasons.append("95% 置信下界低于 68%，需要扩大样本或人工复核。")
+        if trial_count < 3:
+            review_reasons.append("独立试验少于 3 次，单次任务不能直接作为发布结论。")
         blockers.extend(critical_failures)
-        status = "pass" if not blockers else "review" if score >= 0.65 and not critical_failures else "blocked"
+        status = "blocked" if blockers else "review" if review_reasons else "pass"
         return {
             "status": status,
             "label": {"pass": "可进入发布复核", "review": "需人工复核", "blocked": "阻断发布"}[status],
             "blockers": blockers,
-            "thresholds": {"overall_score": 0.78, "pass_rate": 0.80, "critical_failures": 0},
+            "review_reasons": review_reasons,
+            "thresholds": {
+                "overall_score": 0.82,
+                "pass_rate": 0.72,
+                "confidence_lower_bound": 0.68,
+                "evidence_coverage": 0.72,
+                "minimum_trials": 3,
+                "critical_failures": 0,
+            },
         }
+
+    def _public_dimensions(self, components: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """Expose customer-facing quality dimensions, not internal ownership boundaries."""
+        definitions = [
+            ("task_outcome", "任务结果", ["task_specification", "audit_delivery"]),
+            ("trajectory", "规划与轨迹", ["agent_loop"]),
+            ("tool_use", "工具调用", ["tool_runtime"]),
+            ("grounding", "证据与溯源", ["evidence_grounding", "evidence_graph"]),
+            ("safety", "安全与权限", ["safety_governance"]),
+            ("context", "上下文与记忆", ["memory_context"]),
+            ("robustness", "复盘与改进", ["improvement_governance"]),
+        ]
+        by_id = {item["id"]: item for item in components}
+        dimensions: List[Dict[str, Any]] = []
+        for dimension_id, name, component_ids in definitions:
+            selected = [by_id[item_id] for item_id in component_ids if item_id in by_id]
+            if not selected:
+                continue
+            score = round(statistics.mean(float(item["score"]) for item in selected), 4)
+            confidence_values = [
+                float(item["confidence_lower_bound"])
+                for item in selected
+                if item.get("confidence_lower_bound") is not None
+            ]
+            dimensions.append(
+                {
+                    "id": dimension_id,
+                    "name": name,
+                    "score": score,
+                    "confidence_lower_bound": (
+                        round(min(confidence_values), 4) if confidence_values else None
+                    ),
+                    "status": (
+                        "blocked"
+                        if any(item.get("status") == "blocked" for item in selected)
+                        else "pass"
+                        if score >= 0.82
+                        else "review"
+                    ),
+                    "signal_count": sum(len(item.get("assertions", [])) for item in selected),
+                }
+            )
+        return dimensions
+
+    def _calibrated_rate(
+        self,
+        successes: int,
+        total: int,
+        *,
+        alpha: float | None = None,
+        beta: float | None = None,
+    ) -> float:
+        prior_alpha = self.PRIOR_ALPHA if alpha is None else alpha
+        prior_beta = self.PRIOR_BETA if beta is None else beta
+        return beta_posterior_mean(
+            successes,
+            total,
+            alpha=prior_alpha,
+            beta=prior_beta,
+        )
+
+    def _wilson_lower_bound(self, successes: int, total: int, z: float = 1.96) -> float:
+        return wilson_lower_bound(successes, total, z=z)
+
+    def _has_evidence(self, evidence: Any) -> bool:
+        if evidence is None:
+            return False
+        if isinstance(evidence, str):
+            return bool(evidence.strip())
+        if isinstance(evidence, (list, tuple, set, dict)):
+            return bool(evidence)
+        return True
 
     def _assert(
         self,
