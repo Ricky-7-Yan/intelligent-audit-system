@@ -14,6 +14,7 @@ from config import PATHS
 from services.evaluation_calibration import beta_posterior_mean, wilson_lower_bound
 from services.safety_gate import SafetyGate
 from services.skill_registry import SkillRegistry
+from services.security import current_tenant_id, record_visible
 
 
 class AgentRuntime:
@@ -35,6 +36,7 @@ class AgentRuntime:
         status = "blocked" if safety["status"] == "blocked" else "planned"
         task = {
             "task_id": task_id,
+            "tenant_id": current_tenant_id(),
             "protocol": "audit-agent-task-v1",
             "objective": objective,
             "context": context,
@@ -131,17 +133,19 @@ class AgentRuntime:
 
     def list_tasks(self, limit: int = 30) -> List[Dict[str, Any]]:
         files = sorted(self.runtime_dir.glob("*.json"), key=lambda path: path.stat().st_mtime, reverse=True)
-        return [self._read(path) for path in files[:limit]]
+        tasks = [self._read(path) for path in files]
+        return [task for task in tasks if record_visible(task)][:limit]
 
     def get_task(self, task_id: str) -> Optional[Dict[str, Any]]:
         path = self._path(task_id)
         if not path.exists():
             return None
-        return self._read(path)
+        task = self._read(path)
+        return task if record_visible(task) else None
 
     def delete_task(self, task_id: str) -> bool:
         path = self._path(task_id)
-        if not path.exists():
+        if not path.exists() or self.get_task(task_id) is None:
             return False
         path.unlink()
         return True
@@ -449,7 +453,15 @@ class AgentRuntime:
     def _plan(self, objective: str, context: Dict[str, Any]) -> List[Dict[str, Any]]:
         audit_item = context.get("audit_item") or objective[:80]
         risk_topics = context.get("risk_topics") or ["权限", "变更", "日志", "数据"]
-        return [
+        normalized = f"{objective} {json.dumps(context, ensure_ascii=False, default=str)}".lower()
+        include_research = any(
+            signal in normalized
+            for signal in ("标准", "法规", "iso", "sox", "cobit", "research", "研究", "外部")
+        )
+        include_sampling = bool(context.get("population")) or any(
+            signal in normalized for signal in ("抽样", "样本", "测试", "证据", "日志")
+        )
+        plan = [
             {
                 "step_id": "PLAN-01",
                 "name": "审计范围规划",
@@ -459,6 +471,8 @@ class AgentRuntime:
                 "depends_on": [],
                 "purpose": "Clarify audit scope, standard, and deliverables.",
                 "input_hint": {"audit_item": audit_item, "risk_topics": risk_topics},
+                "output_contract": ["scope", "objectives", "deliverables"],
+                "termination_condition": "审计对象、范围与交付物均已明确",
             },
             {
                 "step_id": "MAP-02",
@@ -469,6 +483,8 @@ class AgentRuntime:
                 "depends_on": ["PLAN-01"],
                 "purpose": "Map risks to executable control tests.",
                 "input_hint": {"audit_item": audit_item, "risk_topics": risk_topics},
+                "output_contract": ["control_matrix", "test_procedures"],
+                "termination_condition": "每个核心风险至少映射一个可执行控制",
             },
             {
                 "step_id": "EVD-03",
@@ -479,36 +495,54 @@ class AgentRuntime:
                 "depends_on": ["PLAN-01", "MAP-02"],
                 "purpose": "Generate evidence requests and collection methods.",
                 "input_hint": {"control_domain": "、".join(risk_topics[:3])},
+                "output_contract": ["evidence_requests", "collection_methods"],
+                "termination_condition": "证据请求具备来源、用途与缺口提示",
             },
-            {
-                "step_id": "RSH-04",
-                "name": "Deep Research 研究计划",
-                "stage": "research",
-                "skill": "audit.deep_research_brief",
-                "agent_role": "research_agent",
-                "depends_on": ["PLAN-01"],
-                "purpose": "Create query rewrites, source strategy, and review conditions.",
-                "input_hint": {"question": objective, "standard": context.get("standard") or context.get("standard_type") or "ISO27001"},
-            },
-            {
-                "step_id": "SMP-05",
-                "name": "审计抽样方案生成",
-                "stage": "evidence",
-                "skill": "audit.sample_designer",
-                "agent_role": "control_agent",
-                "depends_on": ["MAP-02", "EVD-03"],
-                "purpose": "Design sampling method without sacrificing audit confidence.",
-                "input_hint": {"population": int(context.get("population") or 120), "risk_level": context.get("risk_level", "medium"), "frequency": context.get("frequency", "daily")},
-            },
+        ]
+        if include_research:
+            plan.append(
+                {
+                    "step_id": "RSH-04",
+                    "name": "Deep Research 研究计划",
+                    "stage": "research",
+                    "skill": "audit.deep_research_brief",
+                    "agent_role": "research_agent",
+                    "depends_on": ["PLAN-01"],
+                    "purpose": "Create query rewrites, source strategy, and review conditions.",
+                    "input_hint": {"question": objective, "standard": context.get("standard") or context.get("standard_type") or "ISO27001"},
+                    "output_contract": ["query_rewrites", "source_strategy", "review_conditions"],
+                    "termination_condition": "来源策略与人工复核条件均已形成",
+                }
+            )
+        if include_sampling:
+            plan.append(
+                {
+                    "step_id": "SMP-05",
+                    "name": "审计抽样方案生成",
+                    "stage": "evidence",
+                    "skill": "audit.sample_designer",
+                    "agent_role": "sampling_agent",
+                    "depends_on": ["MAP-02", "EVD-03"],
+                    "purpose": "Design sampling method without sacrificing audit confidence.",
+                    "input_hint": {"population": int(context.get("population") or 120), "risk_level": context.get("risk_level", "medium"), "frequency": context.get("frequency", "daily")},
+                    "output_contract": ["sample_size", "selection_method", "expansion_rule"],
+                    "termination_condition": "样本规模、选择方法与例外扩样规则均已明确",
+                }
+            )
+        triage_dependencies = ["SMP-05"] if include_sampling else ["MAP-02", "EVD-03"]
+        plan.extend(
+            [
             {
                 "step_id": "TRI-06",
                 "name": "审计例外分级与处置",
                 "stage": "risk",
                 "skill": "audit.exception_triage",
                 "agent_role": "risk_agent",
-                "depends_on": ["SMP-05"],
+                "depends_on": triage_dependencies,
                 "purpose": "Prepare exception severity, root cause, and escalation actions.",
                 "input_hint": {"finding": f"{audit_item} 控制测试例外待分级", "risk_level": context.get("risk_level", "medium")},
+                "output_contract": ["severity", "root_cause", "escalation"],
+                "termination_condition": "例外已分级并给出升级处置路径",
             },
             {
                 "step_id": "REM-07",
@@ -519,13 +553,71 @@ class AgentRuntime:
                 "depends_on": ["MAP-02", "EVD-03", "TRI-06"],
                 "purpose": "Prepare remediation workflow for likely findings.",
                 "input_hint": {"finding": f"{audit_item} 控制证据或执行一致性需复核", "severity": context.get("risk_level", "中")},
+                "output_contract": ["owner", "due_date", "acceptance_criteria"],
+                "termination_condition": "整改责任、期限与验收标准均已明确",
             },
-        ]
+            ]
+        )
+        verification_dependencies = [item["step_id"] for item in plan if item["step_id"] != "PLAN-01"]
+        plan.extend(
+            [
+                {
+                    "step_id": "VER-08",
+                    "name": "独立交付验证",
+                    "stage": "verification",
+                    "skill": "audit.delivery_verifier",
+                    "agent_role": "verification_agent",
+                    "depends_on": verification_dependencies,
+                    "purpose": "Independently verify upstream artifacts, provenance and delivery completeness.",
+                    "input_hint": {"audit_item": audit_item},
+                    "output_contract": ["verdict", "checks", "next_action"],
+                    "termination_condition": "验证结论为 pass 或明确转人工复核",
+                },
+                {
+                    "step_id": "PKG-09",
+                    "name": "审计报告交付打包",
+                    "stage": "delivery",
+                    "skill": "audit.report_packager",
+                    "agent_role": "delivery_agent",
+                    "depends_on": ["VER-08"],
+                    "purpose": "Package verified artifacts into an auditable delivery structure.",
+                    "input_hint": {"audit_item": audit_item},
+                    "output_contract": ["delivery_manifest", "review_status"],
+                    "termination_condition": "交付目录与复核状态均已形成",
+                },
+            ]
+        )
+        return plan
 
     def _payload_for_step(self, step: Dict[str, Any], task: Dict[str, Any]) -> Dict[str, Any]:
         payload = dict(step.get("input_hint") or {})
         payload.update(task.get("context") or {})
         payload.setdefault("objective", task.get("objective"))
+        payload.setdefault(
+            "upstream_artifacts",
+            [
+                {
+                    "artifact_id": item.get("artifact_id"),
+                    "type": item.get("type"),
+                    "name": item.get("name"),
+                    "source_run_id": item.get("source_run_id"),
+                    "summary": item.get("summary"),
+                }
+                for item in task.get("artifacts", [])
+            ],
+        )
+        payload.setdefault(
+            "upstream_steps",
+            [
+                {
+                    "step_id": item.get("step_id"),
+                    "status": item.get("status"),
+                    "skill": item.get("skill"),
+                    "evaluation": item.get("evaluation", {}),
+                }
+                for item in task.get("steps", [])
+            ],
+        )
         return payload
 
     def _artifacts_from_run(self, step: Dict[str, Any], run: Dict[str, Any]) -> List[Dict[str, Any]]:
@@ -662,6 +754,7 @@ class AgentRuntime:
     def _append_event(self, task_id: str, event_type: str, payload: Dict[str, Any]) -> None:
         record = {
             "event_id": f"AE-{uuid.uuid4().hex[:10].upper()}",
+            "tenant_id": current_tenant_id(),
             "task_id": task_id,
             "event_type": event_type,
             "payload": payload,
@@ -682,7 +775,7 @@ class AgentRuntime:
                 event = json.loads(line)
             except json.JSONDecodeError:
                 continue
-            if event.get("task_id") == task_id:
+            if event.get("task_id") == task_id and record_visible(event):
                 events.append(event)
         return events
 

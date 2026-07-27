@@ -5,6 +5,7 @@ The module intentionally keeps secrets outside source control. Runtime values ar
 loaded from ``config.env`` when present, then from the process environment.
 """
 
+import json
 import os
 from pathlib import Path
 from typing import Any, Dict, List
@@ -42,6 +43,16 @@ def _list_env(name: str, default: str = "") -> List[str]:
     return [item.strip() for item in raw.split(",") if item.strip()]
 
 
+def _json_env(name: str, default: Any) -> Any:
+    raw = os.getenv(name)
+    if not raw:
+        return default
+    try:
+        return json.loads(raw)
+    except (TypeError, json.JSONDecodeError):
+        return default
+
+
 PATHS: Dict[str, Path] = {
     "data": PROJECT_ROOT / "data",
     "training_data": PROJECT_ROOT / "data" / "training",
@@ -54,6 +65,8 @@ PATHS: Dict[str, Path] = {
     "evaluation_runs": PROJECT_ROOT / "data" / "evaluation_runs",
     "evidence_analyses": PROJECT_ROOT / "data" / "evidence_analyses",
     "agent_runtime": PROJECT_ROOT / "data" / "agent_runtime",
+    "audit_events": PROJECT_ROOT / "data" / "audit_events",
+    "quarantine": PROJECT_ROOT / "data" / "quarantine",
 }
 
 for path in PATHS.values():
@@ -92,10 +105,29 @@ LLM_CONFIG: Dict[str, Any] = {
 LLM_CONFIG["enabled"] = bool(LLM_CONFIG["api_key"])
 
 WEB_CONFIG: Dict[str, Any] = {
-    "host": os.getenv("WEB_HOST", "0.0.0.0"),
+    # Container deployments deliberately bind all interfaces; authentication
+    # and ingress exposure remain controlled by SECURITY_MODE and the platform.
+    "host": os.getenv("WEB_HOST", "0.0.0.0"),  # nosec B104
     "port": _int_env("PORT", _int_env("WEB_PORT", 8000)),
     "debug": _bool_env("DEBUG", True),
     "cors_origins": _list_env("CORS_ORIGINS", "http://localhost:8000,http://127.0.0.1:8000"),
+}
+
+SECURITY_CONFIG: Dict[str, Any] = {
+    # local keeps the zero-config desktop experience. Set enforced in any shared deployment.
+    "mode": os.getenv("SECURITY_MODE", "local").strip().lower(),
+    "default_tenant": os.getenv("DEFAULT_TENANT_ID", "local"),
+    "default_subject": os.getenv("DEFAULT_SUBJECT", "local-admin"),
+    "api_tokens": _json_env("AUDITPILOT_API_TOKENS_JSON", {}),
+    "rate_limit_per_minute": _int_env("API_RATE_LIMIT_PER_MINUTE", 180),
+    "tenant_isolation": _bool_env("TENANT_ISOLATION", True),
+}
+
+UPLOAD_CONFIG: Dict[str, Any] = {
+    "knowledge_max_bytes": _int_env("KNOWLEDGE_UPLOAD_MAX_BYTES", 5 * 1024 * 1024),
+    "evidence_max_bytes": _int_env("EVIDENCE_UPLOAD_MAX_BYTES", 5 * 1024 * 1024),
+    "chunk_bytes": _int_env("UPLOAD_CHUNK_BYTES", 64 * 1024),
+    "reject_prompt_injection": _bool_env("REJECT_PROMPT_INJECTION", True),
 }
 
 AUDIT_CONFIG: Dict[str, Any] = {
@@ -113,6 +145,8 @@ RAG_CONFIG: Dict[str, Any] = {
         "RAG_EMBEDDING_MODEL",
         str(PATHS["models"] / "sentence-transformers" / "paraphrase-multilingual-MiniLM-L12-v2"),
     ),
+    "enable_tfidf": _bool_env("RAG_ENABLE_TFIDF", True),
+    "enable_embeddings": _bool_env("RAG_ENABLE_EMBEDDINGS", False),
 }
 
 TRAINING_CONFIG: Dict[str, Any] = {

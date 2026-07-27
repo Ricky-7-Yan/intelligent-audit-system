@@ -137,7 +137,7 @@ class EvolutionHarness:
         observability = self.agent_runtime.observability()
         skill_metrics = self.skill_registry.metrics()
         memory_stats = self.conversation_memory.stats()
-        coverage = self.jd_coverage()
+        coverage = self.jd_coverage(eval_runs, observability, skill_metrics, memory_stats)
         market = self.market_alignment(observability, skill_metrics, memory_stats)
         risks = self._regression_risks(eval_runs, observability, skill_metrics)
         backlog = self.benchmark_backlog(eval_runs, observability, skill_metrics, risks)
@@ -199,14 +199,105 @@ class EvolutionHarness:
             "top_gaps": [item["next_gap"] for item in items if item["current_level"] != "implemented"][:5],
         }
 
-    def jd_coverage(self) -> Dict[str, Any]:
-        implemented = [item for item in JD_REQUIREMENTS if item["implemented"]]
+    def jd_coverage(
+        self,
+        eval_runs: Optional[List[Dict[str, Any]]] = None,
+        observability: Optional[Dict[str, Any]] = None,
+        skill_metrics: Optional[Dict[str, Any]] = None,
+        memory_stats: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        eval_runs = eval_runs if eval_runs is not None else self.evaluation_repository.list_runs(limit=30)
+        observability = observability if observability is not None else self.agent_runtime.observability()
+        skill_metrics = skill_metrics if skill_metrics is not None else self.skill_registry.metrics()
+        memory_stats = memory_stats if memory_stats is not None else self.conversation_memory.stats()
+        tasks = self.agent_runtime.list_tasks(limit=50)
+        role_trace_count = sum(len(task.get("role_traces", [])) for task in tasks)
+        completed_tasks = sum(1 for task in tasks if task.get("status") == "completed")
+        evaluation_types = {str(run.get("run_type") or "") for run in eval_runs}
+        evidence_sets = [
+            {
+                "runtime_task": bool(tasks),
+                "tool_execution": int(observability.get("tool_calls") or 0) > 0,
+                "persisted_evaluation": len(eval_runs) >= 3,
+                "harness_governance": bool(self.harness_control and self.harness_control.summary().get("event_count")),
+            },
+            {
+                "runtime_task": bool(tasks),
+                "memory_episode": int(memory_stats.get("episodes") or 0) > 0,
+                "multi_step_trace": role_trace_count >= 3,
+                "evaluation_evidence": bool(eval_runs),
+            },
+            {
+                "multi_role_trace": role_trace_count >= 4,
+                "completed_task": completed_tasks > 0,
+                "memory_evidence": int(memory_stats.get("sessions") or 0) > 0,
+                "held_out_evaluation": any(
+                    run.get("payload_summary", {}).get("source") == "held_out" for run in eval_runs
+                ),
+            },
+            {
+                "agent_evaluation": "agent" in evaluation_types or "runtime_component" in evaluation_types,
+                "rag_evaluation": "rag" in evaluation_types,
+                "tool_execution": int(observability.get("tool_calls") or 0) > 0,
+                "independent_trials": len(eval_runs) >= 3,
+            },
+            {
+                "completed_lifecycle": completed_tasks > 0,
+                "rag_evaluation": "rag" in evaluation_types,
+                "tool_execution": int(observability.get("tool_calls") or 0) > 0,
+                "post_training": False,
+            },
+            {
+                "tool_catalog": int(skill_metrics.get("skills") or 0) >= 8,
+                "tool_execution": int(observability.get("tool_calls") or 0) > 0,
+                "tool_reliability": float(skill_metrics.get("success_rate") or 0) >= 0.8,
+                "external_mcp_server": False,
+            },
+        ]
+        items = []
+        for index, requirement in enumerate(JD_REQUIREMENTS):
+            evidence = evidence_sets[index] if index < len(evidence_sets) else {}
+            passed = sum(1 for value in evidence.values() if value)
+            ratio = passed / max(len(evidence), 1)
+            status = "verified" if ratio >= 0.75 else "partial" if passed else "unverified"
+            items.append(
+                {
+                    **requirement,
+                    "implemented": status == "verified",
+                    "verification_status": status,
+                    "verified_signals": [name for name, value in evidence.items() if value],
+                    "missing_signals": [name for name, value in evidence.items() if not value],
+                    "evidence_rate": round(ratio, 3),
+                }
+            )
+        verified = [item for item in items if item["verification_status"] == "verified"]
+        partial = [item for item in items if item["verification_status"] == "partial"]
         return {
-            "items": JD_REQUIREMENTS,
-            "covered": len(implemented),
-            "total": len(JD_REQUIREMENTS),
-            "coverage_rate": round(len(implemented) / max(len(JD_REQUIREMENTS), 1), 3),
-            "remaining_gaps": [item["gap"] for item in JD_REQUIREMENTS if item.get("gap")],
+            "items": items,
+            "covered": len(verified),
+            "partial": len(partial),
+            "total": len(items),
+            "coverage_rate": round(len(verified) / max(len(items), 1), 3),
+            "evidence_weighted_rate": round(
+                sum(float(item["evidence_rate"]) for item in items) / max(len(items), 1),
+                3,
+            ),
+            "remaining_gaps": [
+                item["gap"]
+                for item in items
+                if item["verification_status"] != "verified" and item.get("gap")
+            ],
+            "methodology": {
+                "self_attestation_allowed": False,
+                "evidence_sources": [
+                    "persisted evaluation runs",
+                    "runtime task traces",
+                    "tool execution logs",
+                    "memory episodes",
+                    "harness review events",
+                ],
+                "note": "JD 映射只表示项目证据覆盖，不代表岗位胜任度或生产发布结论。",
+            },
         }
 
     def trajectory_protocol(self, observability: Dict[str, Any]) -> Dict[str, Any]:

@@ -1,33 +1,31 @@
 # Web runtime
-fastapi>=0.104.0
-uvicorn[standard]>=0.24.0
-jinja2>=3.1.0
-python-multipart>=0.0.6
-pydantic>=2.5.0
+fastapi>=0.140.4,<1.0
+starlette>=1.3.1,<2.0
+uvicorn[standard]>=0.24.0,<1.0
+jinja2>=3.1.0,<4.0
+python-multipart>=0.0.32,<1.0
+pydantic>=2.5.0,<3.0
 
 # Agent and LLM
-langchain>=0.1.0
-langchain-core>=0.1.0
-langchain-openai>=0.1.0
-openai>=1.3.0
-python-dotenv>=1.0.0
+openai>=2.48.0,<3.0
+python-dotenv>=1.2.2,<2.0
 
 # Retrieval and evaluation
-numpy>=1.24.0
-scikit-learn>=1.3.0
-sentence-transformers>=2.2.0
+numpy>=1.24.0,<3.0
+scikit-learn>=1.3.0,<2.0
 
 # Knowledge graph and optional data sources
-networkx>=3.2.0
-neo4j>=5.15.0
-pymysql>=1.1.0
-sqlalchemy>=2.0.0
+networkx>=3.2.0,<4.0
+neo4j>=5.15.0,<6.0
+pymysql>=1.1.0,<2.0
+sqlalchemy>=2.0.0,<3.0
 
 # Utilities
-requests>=2.31.0
-beautifulsoup4>=4.12.0
-lxml>=4.9.0
-loguru>=0.7.0
+requests>=2.34.2,<3.0
+urllib3>=2.7.0,<3.0
+beautifulsoup4>=4.12.0,<5.0
+lxml>=4.9.0,<7.0
+loguru>=0.7.0,<1.0
 
 # Optional offline training dependencies:
 # torch>=2.0.0

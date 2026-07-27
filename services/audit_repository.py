@@ -10,6 +10,8 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from config import PATHS
+from services.security import current_tenant_id, record_visible
+from services.record_store import SQLiteRecordStore
 
 
 TASK_STATUSES = ["未开始", "进行中", "待验证", "已完成", "已关闭"]
@@ -20,11 +22,14 @@ class AuditRunRepository:
     def __init__(self, root: Optional[Path] = None) -> None:
         self.root = root or (PATHS["data"] / "audit_runs")
         self.root.mkdir(parents=True, exist_ok=True)
+        self.store = SQLiteRecordStore(self.root / ".records.sqlite3")
+        self._migrate_legacy_records()
 
     def create_run(self, request: Dict[str, Any], result: Dict[str, Any]) -> Dict[str, Any]:
         run_id = f"AR-{datetime.now().strftime('%Y%m%d')}-{uuid.uuid4().hex[:8].upper()}"
         record = {
             "run_id": run_id,
+            "tenant_id": current_tenant_id(),
             "created_at": datetime.now().isoformat(),
             "updated_at": datetime.now().isoformat(),
             "status": "待复核" if result.get("quality_gate", {}).get("escalation_required") else "待现场验证",
@@ -64,12 +69,11 @@ class AuditRunRepository:
         return records[:limit]
 
     def iter_records(self, limit: int = 200) -> List[Dict[str, Any]]:
-        records = []
-        for path in self.root.glob("*.json"):
-            try:
-                records.append(self._normalize_record(json.loads(path.read_text(encoding="utf-8"))))
-            except Exception:
-                continue
+        records = [
+            self._normalize_record(record)
+            for record in self.store.list("audit_run", limit=max(limit, 1))
+            if record_visible(record)
+        ]
         records.sort(key=lambda item: item.get("created_at") or "", reverse=True)
         return records[:limit]
 
@@ -91,16 +95,25 @@ class AuditRunRepository:
 
     def get_run(self, run_id: str) -> Optional[Dict[str, Any]]:
         path = self._path(run_id)
-        if not path.exists():
+        record = self.store.get("audit_run", run_id)
+        if record is None and path.exists():
+            record = json.loads(path.read_text(encoding="utf-8"))
+            if record_visible(record):
+                record.setdefault("tenant_id", current_tenant_id())
+                self.store.put("audit_run", run_id, record)
+        if record is None:
             return None
-        return self._normalize_record(json.loads(path.read_text(encoding="utf-8")))
+        record = self._normalize_record(record)
+        return record if record_visible(record) else None
 
     def delete_run(self, run_id: str) -> bool:
         path = self._path(run_id)
-        if not path.exists():
+        if self.get_run(run_id) is None:
             return False
-        path.unlink()
-        return True
+        removed = self.store.delete("audit_run", run_id)
+        if path.exists():
+            path.unlink()
+        return removed
 
     def add_review(self, run_id: str, reviewer: str, decision: str, comment: str) -> Optional[Dict[str, Any]]:
         record = self.get_run(run_id)
@@ -384,7 +397,19 @@ class AuditRunRepository:
 
     def _write(self, record: Dict[str, Any]) -> None:
         record["updated_at"] = datetime.now().isoformat()
-        self._path(record["run_id"]).write_text(json.dumps(record, ensure_ascii=False, indent=2), encoding="utf-8")
+        record.setdefault("tenant_id", current_tenant_id())
+        self.store.put("audit_run", str(record["run_id"]), record)
+
+    def _migrate_legacy_records(self) -> None:
+        for path in self.root.glob("*.json"):
+            try:
+                record = json.loads(path.read_text(encoding="utf-8"))
+                run_id = str(record.get("run_id") or path.stem)
+                if self.store.get("audit_run", run_id) is None and record_visible(record):
+                    record.setdefault("tenant_id", current_tenant_id())
+                    self.store.put("audit_run", run_id, record)
+            except (OSError, json.JSONDecodeError):
+                continue
 
     def _build_remediation_tasks(self, run_id: str, result: Dict[str, Any]) -> List[Dict[str, Any]]:
         tasks = []

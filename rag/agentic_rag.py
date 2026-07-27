@@ -13,6 +13,8 @@ from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional
 
 from config import LLM_CONFIG, RAG_CONFIG
+from services.llm_client import LLMClient
+from services.security import current_tenant_id
 
 TfidfVectorizer = None
 cosine_similarity = None
@@ -86,6 +88,7 @@ class DocumentProcessor:
     def process_text(self, text: str, metadata: Optional[Dict[str, Any]] = None) -> List[Document]:
         metadata = dict(metadata or {})
         metadata.setdefault("source", "manual")
+        metadata.setdefault("tenant_id", current_tenant_id())
         metadata["processed_at"] = datetime.now().isoformat()
         return [
             Document(page_content=chunk, metadata={**metadata, "chunk_id": index, "chunk_size": len(chunk)})
@@ -97,7 +100,12 @@ class DocumentProcessor:
         content = path.read_text(encoding="utf-8", errors="ignore")
         return self.process_text(
             content,
-            {"source": str(path), "file_name": path.name, "file_type": path.suffix.lower(), "file_size": path.stat().st_size},
+            {
+                "source": f"upload:{path.name}",
+                "file_name": path.name,
+                "file_type": path.suffix.lower(),
+                "file_size": path.stat().st_size,
+            },
         )
 
     def _split_text(self, text: str) -> List[str]:
@@ -198,7 +206,14 @@ class PersistentDocumentStore:
             documents.append(
                 Document(
                     page_content=text,
-                    metadata={"source": item.get("source", "seed"), "type": item.get("type", "seed"), "title": item.get("title", ""), "seed": True},
+                    metadata={
+                        "source": item.get("source", "seed"),
+                        "type": item.get("type", "seed"),
+                        "title": item.get("title", ""),
+                        "tenant_id": "*",
+                        "authority_level": item.get("authority_level", "reference"),
+                        "seed": True,
+                    },
                 )
             )
         added = self.add_documents(documents, persist=False)
@@ -221,8 +236,8 @@ class HybridRetriever:
         self.rebuild()
 
     def _load_embedding_model(self) -> Any:
-        if os.getenv("RAG_DISABLE_EMBEDDINGS", "1").lower() in {"1", "true", "yes"}:
-            logger.info("Embedding model disabled by RAG_DISABLE_EMBEDDINGS, fallback retrieval enabled")
+        if not RAG_CONFIG.get("enable_embeddings"):
+            logger.info("Embedding model disabled; TF-IDF + keyword hybrid retrieval enabled")
             return None
         model_name = str(RAG_CONFIG["embedding_model"])
         if "\\" in model_name or "/" in model_name:
@@ -261,29 +276,82 @@ class HybridRetriever:
                 self.tfidf_vectorizer = None
                 self.tfidf_matrix = None
 
-    def retrieve(self, queries: List[str], k: int) -> List[Document]:
+    def retrieve(self, queries: List[str], k: int, context: Optional[Dict[str, Any]] = None) -> List[Document]:
         scored: Dict[str, Dict[str, Any]] = {}
+        active_channels: set[str] = set()
         for query in queries:
-            for chunk_id, score in self._semantic_scores(query, k * 3):
-                scored.setdefault(chunk_id, {"score": 0.0})
-                scored[chunk_id]["score"] = max(scored[chunk_id]["score"], score * 0.65)
-            for chunk_id, score in self._tfidf_scores(query, k * 3):
-                scored.setdefault(chunk_id, {"score": 0.0})
-                scored[chunk_id]["score"] = max(scored[chunk_id]["score"], score)
-            for chunk_id, score in self._keyword_scores(query, k * 3):
-                scored.setdefault(chunk_id, {"score": 0.0})
-                scored[chunk_id]["score"] = max(scored[chunk_id]["score"], score * 0.72)
+            channel_results = {
+                "semantic": self._semantic_scores(query, k * 4),
+                "tfidf": self._tfidf_scores(query, k * 4),
+                "keyword": self._keyword_scores(query, k * 4),
+            }
+            for channel, results in channel_results.items():
+                if results:
+                    active_channels.add(channel)
+                for rank, (chunk_id, score) in enumerate(results, start=1):
+                    data = scored.setdefault(chunk_id, {"channel_scores": {}, "rrf": 0.0})
+                    data["channel_scores"][channel] = max(
+                        float(data["channel_scores"].get(channel, 0.0)),
+                        float(score),
+                    )
+                    data["rrf"] += 1.0 / (60 + rank)
 
         chunks_by_id = {chunk.id: chunk for chunk in self.store.chunks}
-        ranked = sorted(scored.items(), key=lambda item: item[1]["score"], reverse=True)
+        weights = {"semantic": 0.45, "tfidf": 0.35, "keyword": 0.20}
+        weight_total = sum(weights[channel] for channel in active_channels) or 1.0
+        query_text = " ".join(queries)
+        candidates = []
+        for chunk_id, data in scored.items():
+            chunk = chunks_by_id.get(chunk_id)
+            if not chunk or not self._metadata_allowed(chunk.metadata, context):
+                continue
+            channel_score = sum(
+                weights[channel] * float(data["channel_scores"].get(channel, 0.0))
+                for channel in active_channels
+            ) / weight_total
+            rerank_score = self._lexical_coverage(query_text, chunk.content)
+            channel_coverage = len(data["channel_scores"]) / max(len(active_channels), 1)
+            final_score = min(0.99, channel_score * 0.72 + rerank_score * 0.18 + channel_coverage * 0.10)
+            data["score"] = final_score
+            candidates.append((chunk_id, data))
+        ranked = sorted(candidates, key=lambda item: (item[1]["score"], item[1]["rrf"]), reverse=True)
         documents = []
         for chunk_id, data in ranked[:k]:
             chunk = chunks_by_id[chunk_id]
             metadata = dict(chunk.metadata)
             metadata["retrieval_score"] = round(float(data["score"]), 4)
+            metadata["retrieval_channels"] = {
+                key: round(float(value), 4) for key, value in data["channel_scores"].items()
+            }
+            metadata["rank_fusion_score"] = round(float(data["rrf"]), 6)
             metadata["chunk_id"] = chunk.id
             documents.append(Document(page_content=chunk.content, metadata=metadata))
         return documents
+
+    def _metadata_allowed(self, metadata: Dict[str, Any], context: Optional[Dict[str, Any]]) -> bool:
+        context = context or {}
+        tenant = str(metadata.get("tenant_id") or "*")
+        if tenant not in {"*", current_tenant_id()}:
+            return False
+        filters = dict(context.get("filters") or {})
+        for key in ("project_id", "standard", "source_type", "effective_year"):
+            if context.get(key) not in (None, ""):
+                filters.setdefault(key, context[key])
+        for key, expected in filters.items():
+            actual = metadata.get(key)
+            if actual in (None, ""):
+                continue
+            allowed = expected if isinstance(expected, (list, tuple, set)) else [expected]
+            if str(actual).lower() not in {str(item).lower() for item in allowed}:
+                return False
+        return True
+
+    def _lexical_coverage(self, query: str, content: str) -> float:
+        terms = set(re.findall(r"[a-z0-9_]+|[\u4e00-\u9fff]{2,6}", query.lower()))
+        if not terms:
+            return 0.0
+        lowered = content.lower()
+        return min(1.0, sum(1 for term in terms if term in lowered) / max(len(terms), 1))
 
     def _semantic_scores(self, query: str, limit: int) -> List[tuple[str, float]]:
         if self.embedding_model is None or self.embedding_matrix is None:
@@ -331,7 +399,7 @@ class HybridRetriever:
 
     def _ensure_tfidf_dependencies(self) -> None:
         global TfidfVectorizer, cosine_similarity
-        if TfidfVectorizer is not None or os.getenv("RAG_LIGHT_MODE", "1").lower() in {"1", "true", "yes"}:
+        if TfidfVectorizer is not None or not RAG_CONFIG.get("enable_tfidf", True):
             return
         try:
             from sklearn.feature_extraction.text import TfidfVectorizer as _TfidfVectorizer
@@ -359,7 +427,7 @@ class AgenticRetriever:
         return self._dedupe(queries)[:6]
 
     def retrieve_documents(self, query: str, context: Optional[Dict[str, Any]] = None, k: int = 5) -> List[Document]:
-        return self.retriever.retrieve(self.generate_queries(query, context), k=k)
+        return self.retriever.retrieve(self.generate_queries(query, context), k=k, context=context)
 
     def _dedupe(self, values: Iterable[str]) -> List[str]:
         seen = set()
@@ -386,9 +454,7 @@ class RAGPipeline:
         if not LLM_CONFIG.get("enabled"):
             return None
         try:
-            from langchain_openai import ChatOpenAI
-
-            return ChatOpenAI(
+            return LLMClient(
                 api_key=LLM_CONFIG["api_key"],
                 base_url=LLM_CONFIG["base_url"],
                 model=LLM_CONFIG["model"],
@@ -400,25 +466,41 @@ class RAGPipeline:
             return None
 
     def add_knowledge(self, text: str, metadata: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
-        documents = self.document_processor.process_text(text, metadata)
+        scoped_metadata = dict(metadata or {})
+        scoped_metadata["tenant_id"] = current_tenant_id()
+        documents = self.document_processor.process_text(text, scoped_metadata)
         added = self.store.add_documents(documents)
         if added:
             self.hybrid_retriever.rebuild()
         return {"added_chunks": added, "total_chunks": len(self.store.chunks)}
 
-    def add_file(self, file_path: str) -> Dict[str, Any]:
+    def add_file(self, file_path: str, metadata: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         documents = self.document_processor.process_file(file_path)
+        for document in documents:
+            document.metadata.update(metadata or {})
+            document.metadata["tenant_id"] = current_tenant_id()
         added = self.store.add_documents(documents)
         if added:
             self.hybrid_retriever.rebuild()
         return {"added_chunks": added, "total_chunks": len(self.store.chunks)}
 
     def query(self, question: str, context: Optional[Dict[str, Any]] = None, k: int = RAG_CONFIG["top_k"]) -> Dict[str, Any]:
-        documents = self.retriever.retrieve_documents(question, context, k=k)
+        scoped_context = dict(context or {})
+        scoped_context["tenant_id"] = current_tenant_id()
+        documents = self.retriever.retrieve_documents(question, scoped_context, k=k)
         if not documents:
-            return {"answer": "没有检索到足够相关的知识。建议先补充制度、流程、底稿或控制要求。", "sources": [], "confidence": 0.0, "retrieved_docs_count": 0}
+            return {
+                "answer": "没有检索到足够相关的知识。建议先补充制度、流程、底稿或控制要求。",
+                "sources": [],
+                "confidence": 0.0,
+                "retrieval_confidence": 0.0,
+                "confidence_semantics": "retrieval_support_not_answer_probability",
+                "conflicts": [],
+                "retrieved_docs_count": 0,
+            }
         answer = self._generate_answer(question, documents)
         confidence = self._calculate_confidence(documents)
+        conflicts = self._detect_conflicts(documents)
         return {
             "answer": answer,
             "sources": [
@@ -427,26 +509,63 @@ class RAGPipeline:
                     "chunk_id": doc.metadata.get("chunk_id"),
                     "content": doc.page_content[:260],
                     "score": doc.metadata.get("retrieval_score", 0.0),
+                    "channels": doc.metadata.get("retrieval_channels", {}),
+                    "page": doc.metadata.get("page"),
+                    "section": doc.metadata.get("section"),
+                    "authority_level": doc.metadata.get("authority_level"),
                 }
                 for doc in documents
             ],
             "confidence": confidence,
+            "retrieval_confidence": confidence,
+            "confidence_semantics": "retrieval_support_not_answer_probability",
+            "conflicts": conflicts,
+            "requires_human_review": bool(conflicts) or confidence < 0.55,
             "retrieved_docs_count": len(documents),
         }
+
+    def _detect_conflicts(self, documents: List[Document]) -> List[Dict[str, Any]]:
+        conflict_pairs = [
+            (("必须", "应当", "required"), ("无需", "不需要", "optional")),
+            (("允许", "可访问", "permit"), ("禁止", "不得", "deny")),
+            (("保留", "留存"), ("删除", "销毁")),
+        ]
+        conflicts = []
+        for positive, negative in conflict_pairs:
+            positive_sources = [
+                doc for doc in documents if any(term in doc.page_content.lower() for term in positive)
+            ]
+            negative_sources = [
+                doc for doc in documents if any(term in doc.page_content.lower() for term in negative)
+            ]
+            if positive_sources and negative_sources:
+                conflicts.append(
+                    {
+                        "topic": f"{positive[0]} / {negative[0]}",
+                        "sources": sorted(
+                            {
+                                str(doc.metadata.get("source") or "unknown")
+                                for doc in [*positive_sources, *negative_sources]
+                            }
+                        ),
+                        "resolution": "存在方向相反的证据表述，需要核对版本、生效日期与适用范围。",
+                    }
+                )
+        return conflicts
 
     def _generate_answer(self, question: str, documents: List[Document]) -> str:
         context_text = "\n\n".join(f"[{index + 1}] 来源：{doc.metadata.get('source', 'unknown')}\n{doc.page_content}" for index, doc in enumerate(documents))
         if self.llm:
-            from langchain_core.messages import HumanMessage
-
             prompt = (
                 "你是审计知识库问答助手。仅基于检索上下文回答；若证据不足，要说明缺口。"
                 "答案需要包含直接结论、审计依据、建议动作和引用来源编号。\n\n"
                 f"问题：{question}\n\n检索上下文：\n{context_text}"
             )
             try:
-                response = self.llm.invoke([HumanMessage(content=prompt)])
-                return response.content
+                return self.llm.complete(
+                    system="你是审计知识库问答助手，仅根据给定检索上下文回答。",
+                    user=prompt,
+                )
             except Exception as exc:
                 logger.warning("RAG LLM answer failed: %s", exc)
                 self.llm = None
@@ -479,6 +598,10 @@ class RAGPipeline:
             "semantic_retrieval": self.hybrid_retriever.embedding_model is not None,
             "tfidf_retrieval": self.hybrid_retriever.tfidf_vectorizer is not None,
             "keyword_retrieval": True,
+            "rank_fusion": True,
+            "metadata_filtering": True,
+            "conflict_detection": True,
+            "confidence_semantics": "retrieval_support_not_answer_probability",
             "chunk_size": RAG_CONFIG["chunk_size"],
             "chunk_overlap": RAG_CONFIG["chunk_overlap"],
         }

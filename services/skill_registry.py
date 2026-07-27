@@ -14,6 +14,7 @@ from datetime import datetime
 from typing import Any, Callable, Dict, List, Tuple
 
 from config import PATHS
+from services.security import current_principal, current_request_id, has_permission, record_visible
 
 
 @dataclass
@@ -72,7 +73,12 @@ class SkillRegistry:
             for skill in self.skills.values()
         ]
 
-    def execute(self, name: str, payload: Dict[str, Any]) -> Dict[str, Any]:
+    def execute(
+        self,
+        name: str,
+        payload: Dict[str, Any],
+        permission_context: List[str] | None = None,
+    ) -> Dict[str, Any]:
         if name not in self.skills:
             raise KeyError(name)
         skill = self.skills[name]
@@ -82,10 +88,26 @@ class SkillRegistry:
         error_type = ""
         cache_hit = False
         validation_errors = self._validate(payload, skill.input_schema)
+        principal = current_principal()
+        missing_permissions = [
+            permission
+            for permission in skill.permissions
+            if not self._permission_allowed(permission, permission_context)
+        ]
         circuit = self._circuits.setdefault(name, {"failures": 0, "state": "closed", "open_until": 0.0})
         cache_key = self._cache_key(name, payload)
 
-        if validation_errors:
+        if missing_permissions:
+            result = self._error_payload(
+                "PERMISSION_DENIED",
+                "当前身份没有执行该工具所需权限",
+                False,
+                "联系审计项目管理员授予最小必要权限。",
+                {"required": skill.permissions, "missing": missing_permissions},
+            )
+            status = "failed"
+            error_type = "PermissionDeniedError"
+        elif validation_errors:
             result = self._error_payload(
                 "INPUT_VALIDATION_ERROR",
                 "输入校验失败",
@@ -114,7 +136,7 @@ class SkillRegistry:
             if circuit["state"] == "open":
                 circuit["state"] = "half_open"
         try:
-            if not validation_errors and not cache_hit and error_type != "CircuitOpenError":
+            if not missing_permissions and not validation_errors and not cache_hit and error_type != "CircuitOpenError":
                 future = self._executor.submit(skill.handler, payload)
                 result = future.result(timeout=skill.timeout_seconds)
                 if not isinstance(result, dict):
@@ -149,10 +171,13 @@ class SkillRegistry:
         output_size = len(json.dumps(result, ensure_ascii=False, default=str))
         record = {
             "run_id": run_id,
+            "request_id": current_request_id(),
+            "tenant_id": principal.tenant_id,
+            "subject": principal.subject,
             "skill": name,
             "status": status,
             "input": self._redact(payload),
-            "output": result,
+            "output": self._redact(result),
             "started_at": started,
             "finished_at": finished,
             "duration_ms": duration_ms,
@@ -163,6 +188,12 @@ class SkillRegistry:
             "cache_hit": cache_hit,
             "circuit_state": circuit["state"],
             "validation_errors": validation_errors,
+            "authorization": {
+                "required_permissions": skill.permissions,
+                "missing_permissions": missing_permissions,
+                "roles": list(principal.roles),
+                "decision": "denied" if missing_permissions else "allowed",
+            },
         }
 
         with self._log_lock:
@@ -173,8 +204,9 @@ class SkillRegistry:
     def recent_runs(self, limit: int = 20) -> List[Dict[str, Any]]:
         if not self.log_file.exists():
             return []
-        lines = self.log_file.read_text(encoding="utf-8").splitlines()[-limit:]
-        return [json.loads(line) for line in lines if line.strip()][::-1]
+        records = [json.loads(line) for line in self.log_file.read_text(encoding="utf-8").splitlines() if line.strip()]
+        visible = [record for record in records if record_visible(record)]
+        return visible[-limit:][::-1]
 
     def delete_run(self, run_id: str) -> bool:
         if not self.log_file.exists():
@@ -190,7 +222,7 @@ class SkillRegistry:
             except json.JSONDecodeError:
                 retained.append(line)
                 continue
-            if record.get("run_id") == run_id:
+            if record.get("run_id") == run_id and record_visible(record):
                 removed = True
                 continue
             retained.append(json.dumps(record, ensure_ascii=False))
@@ -303,7 +335,16 @@ class SkillRegistry:
         }
 
     def _cache_key(self, name: str, payload: Dict[str, Any]) -> str:
-        return f"{name}:{json.dumps(payload, ensure_ascii=False, sort_keys=True, default=str)}"
+        return f"{current_principal().tenant_id}:{name}:{json.dumps(payload, ensure_ascii=False, sort_keys=True, default=str)}"
+
+    def _permission_allowed(self, required: str, permission_context: List[str] | None) -> bool:
+        if permission_context is None:
+            return has_permission(current_principal(), required)
+        permissions = set(permission_context)
+        if "*" in permissions or required in permissions:
+            return True
+        action, _, domain = required.partition(":")
+        return f"{action}:*" in permissions or f"*:{domain}" in permissions
 
     def _cached(self, cache_key: str) -> bool:
         cached = self._cache.get(cache_key)
@@ -517,6 +558,24 @@ class SkillRegistry:
                 cache_ttl_seconds=120,
             )
         )
+        self._register(
+            Skill(
+                name="audit.delivery_verifier",
+                title="审计交付验证",
+                description="独立检查上游角色产物、证据链、控制覆盖和整改闭环，决定是否转人工复核。",
+                input_schema={
+                    "type": "object",
+                    "properties": {
+                        "audit_item": {"type": "string"},
+                        "upstream_artifacts": {"type": "array", "items": {"type": "object"}},
+                        "upstream_steps": {"type": "array", "items": {"type": "object"}},
+                    },
+                    "required": ["audit_item", "upstream_artifacts"],
+                },
+                permissions=["read:workpaper", "read:evidence"],
+                handler=self._delivery_verifier,
+            )
+        )
 
     def _sample_designer(self, payload: Dict[str, Any]) -> Dict[str, Any]:
         population = max(1, int(payload.get("population") or 1))
@@ -587,6 +646,35 @@ class SkillRegistry:
             ],
             "source_strategy": ["内部知识库优先", "标准条款与控制库交叉验证", "历史审计案例补充", "低置信度结论触发人工复核"],
             "evidence_questions": ["需要哪些设计证据？", "需要哪些运行证据？", "哪些证据缺失会影响结论？", "哪些发现需要整改闭环？"],
+        }
+
+    def _delivery_verifier(self, payload: Dict[str, Any]) -> Dict[str, Any]:
+        artifacts = [item for item in payload.get("upstream_artifacts", []) if isinstance(item, dict)]
+        steps = [item for item in payload.get("upstream_steps", []) if isinstance(item, dict)]
+        artifact_types = {str(item.get("type") or "") for item in artifacts}
+        required_types = {"audit", "evidence", "risk"}
+        missing_types = sorted(required_types - artifact_types)
+        failed_steps = [item.get("step_id") for item in steps if item.get("status") != "success"]
+        checks = [
+            {"check": "upstream_artifacts", "passed": len(artifacts) >= 4, "evidence": len(artifacts)},
+            {"check": "required_domains", "passed": not missing_types, "evidence": sorted(artifact_types)},
+            {"check": "step_failures", "passed": not failed_steps, "evidence": failed_steps},
+            {
+                "check": "provenance",
+                "passed": all(item.get("source_run_id") for item in artifacts),
+                "evidence": [item.get("source_run_id") for item in artifacts],
+            },
+        ]
+        passed = sum(1 for item in checks if item["passed"])
+        raw_score = passed / max(len(checks), 1)
+        return {
+            "audit_item": payload.get("audit_item"),
+            "verdict": "pass" if raw_score >= 0.8 else "human_review",
+            "raw_score": round(raw_score, 3),
+            "checks": checks,
+            "missing_artifact_types": missing_types,
+            "failed_steps": failed_steps,
+            "next_action": "进入报告交付" if raw_score >= 0.8 else "补齐缺失产物并由审计经理复核",
         }
 
     def _scope_planner(self, payload: Dict[str, Any]) -> Dict[str, Any]:

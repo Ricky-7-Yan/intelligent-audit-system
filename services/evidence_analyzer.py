@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import csv
 import json
-import re
 import uuid
 from collections import Counter
 from datetime import datetime
@@ -14,6 +13,7 @@ from typing import Any, Dict, List
 
 from agents.audit_agent import CONTROL_LIBRARY
 from config import PATHS
+from services.security import current_tenant_id, record_visible
 
 
 RISK_PATTERNS = [
@@ -42,6 +42,7 @@ class EvidenceAnalyzer:
         requests = self._evidence_requests(profile, signals, mapped_controls)
         result = {
             "analysis_id": f"EA-{datetime.now().strftime('%Y%m%d-%H%M%S')}-{uuid.uuid4().hex[:6].upper()}",
+            "tenant_id": current_tenant_id(),
             "file_name": file_name,
             "created_at": datetime.now().isoformat(),
             "audit_context": audit_context,
@@ -63,6 +64,8 @@ class EvidenceAnalyzer:
                 record = json.loads(path.read_text(encoding="utf-8"))
             except (OSError, json.JSONDecodeError):
                 continue
+            if not record_visible(record):
+                continue
             items.append(
                 {
                     "analysis_id": record.get("analysis_id"),
@@ -81,13 +84,14 @@ class EvidenceAnalyzer:
         if not path.exists():
             return None
         try:
-            return json.loads(path.read_text(encoding="utf-8"))
+            record = json.loads(path.read_text(encoding="utf-8"))
+            return record if record_visible(record) else None
         except json.JSONDecodeError:
             return None
 
     def delete_analysis(self, analysis_id: str) -> bool:
         path = self._path(analysis_id)
-        if not path.exists():
+        if not path.exists() or self.get_analysis(analysis_id) is None:
             return False
         path.unlink()
         return True

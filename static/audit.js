@@ -500,9 +500,19 @@ function setDownloadLinks(runId) {
   }
 }
 
-function ensureDownloadReady(event) {
-  if (currentRunId) return true;
+async function ensureDownloadReady(event) {
   event.preventDefault();
+  if (currentRunId) {
+    const isDelivery = event.currentTarget?.id === "downloadDelivery";
+    const suffix = isDelivery ? "delivery.md" : "report.md";
+    const filename = isDelivery ? `${currentRunId}-delivery-pack.md` : `${currentRunId}-audit-report.md`;
+    try {
+      await apiDownload(`/api/audit/runs/${encodeURIComponent(currentRunId)}/${suffix}`, filename);
+    } catch (error) {
+      showToast(`下载失败：${error.message}`, "error");
+    }
+    return false;
+  }
   const message = "请先运行或选择一个审计项目，系统生成报告后即可下载。";
   setText("#reviewResult", message);
   showToast(message, "error");

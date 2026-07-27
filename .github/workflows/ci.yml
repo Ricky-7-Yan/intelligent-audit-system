@@ -1,0 +1,42 @@
+name: quality-gate
+
+on:
+  pull_request:
+  push:
+    branches: [main, codex/enterprise-agent-optimization]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - run: python -m pip install --upgrade pip
+      - run: pip install -r requirements.txt ruff bandit pip-audit
+      - run: python -m compileall -q agents services rag web tests scripts training knowledge_graph database
+      - run: python -m unittest discover -s tests -p "test_*.py" -v
+      - run: python scripts/audit_repro.py
+      - run: ruff check agents services rag web tests scripts training knowledge_graph database
+      - run: bandit -q -r agents services rag web -x tests
+      - run: pip-audit -r requirements.txt
+      - run: |
+          for file in static/*.js; do
+            node --check "$file"
+          done
+
+  container:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -t auditpilot:ci .

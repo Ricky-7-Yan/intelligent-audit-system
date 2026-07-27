@@ -108,6 +108,7 @@ class KnowledgeGraphBuilder:
     def _init_neo4j(self):
         if not GraphDatabase or not NEO4J_CONFIG.get("password"):
             return None
+        driver = None
         try:
             driver = GraphDatabase.driver(
                 NEO4J_CONFIG["uri"],
@@ -118,6 +119,8 @@ class KnowledgeGraphBuilder:
             return driver
         except Exception as exc:
             logger.info("Neo4j unavailable for graph builder: %s", exc)
+            if driver:
+                driver.close()
             return None
 
     def close(self) -> None:

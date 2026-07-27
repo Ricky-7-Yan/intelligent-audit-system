@@ -17,9 +17,9 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
-from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage
-
 from config import AUDIT_CONFIG, LLM_CONFIG, MYSQL_CONFIG, NEO4J_CONFIG
+from services.llm_client import LLMClient
+from services.security import current_tenant_id
 
 try:
     import pymysql
@@ -143,6 +143,12 @@ class ServiceStatus:
     llm: bool = False
     mysql: bool = False
     neo4j: bool = False
+
+
+@dataclass
+class AgentMessage:
+    role: str
+    content: str
     rag: bool = False
 
 
@@ -167,16 +173,20 @@ class OptionalAuditTools:
     def _connect_neo4j(self) -> None:
         if not GraphDatabase or not NEO4J_CONFIG.get("password"):
             return
+        driver = None
         try:
-            self.neo4j_driver = GraphDatabase.driver(
+            driver = GraphDatabase.driver(
                 NEO4J_CONFIG["uri"],
                 auth=(NEO4J_CONFIG["user"], NEO4J_CONFIG["password"]),
                 connection_timeout=NEO4J_CONFIG.get("timeout", 3),
             )
-            self.neo4j_driver.verify_connectivity()
+            driver.verify_connectivity()
+            self.neo4j_driver = driver
             self.status.neo4j = True
         except Exception as exc:
             logger.info("Neo4j unavailable, using local graph fallback: %s", exc)
+            if driver:
+                driver.close()
             self.neo4j_driver = None
 
     def close(self) -> None:
@@ -255,7 +265,7 @@ class AuditAgent:
     ) -> None:
         self.tools = OptionalAuditTools(connect=enable_external_tools)
         self.rag_pipeline = rag_pipeline
-        self.session_memory: Dict[str, List[BaseMessage]] = {}
+        self.session_memory: Dict[str, List[AgentMessage]] = {}
         self.llm = self._init_llm() if enable_llm is not False else None
         logger.info(
             "AuditAgent initialized. LLM=%s MySQL=%s Neo4j=%s",
@@ -270,9 +280,7 @@ class AuditAgent:
         if not LLM_CONFIG.get("enabled"):
             return None
         try:
-            from langchain_openai import ChatOpenAI
-
-            return ChatOpenAI(
+            return LLMClient(
                 api_key=LLM_CONFIG["api_key"],
                 base_url=LLM_CONFIG["base_url"],
                 model=LLM_CONFIG["model"],
@@ -291,9 +299,10 @@ class AuditAgent:
         prefer_llm: Optional[bool] = None,
     ) -> Dict[str, Any]:
         session_id = session_id or f"session_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
-        self.session_memory.setdefault(session_id, [])
-        self.session_memory[session_id].append(HumanMessage(content=user_input))
-        self._trim_session(session_id)
+        memory_key = self._session_key(session_id)
+        self.session_memory.setdefault(memory_key, [])
+        self.session_memory[memory_key].append(AgentMessage(role="human", content=user_input))
+        self._trim_session(memory_key)
 
         trace: List[Dict[str, Any]] = []
         audit_context = self._extract_context(user_input, external_context)
@@ -339,8 +348,8 @@ class AuditAgent:
         trace.append(self._trace("remediation_agent", "completed", f"生成 {len(recommendations)} 条整改建议"))
         trace.append(self._trace("quality_gate", quality_gate["status"], f"置信度 {quality_gate['confidence']}"))
 
-        self.session_memory[session_id].append(AIMessage(content=response))
-        self._trim_session(session_id)
+        self.session_memory[memory_key].append(AgentMessage(role="ai", content=response))
+        self._trim_session(memory_key)
 
         return {
             "session_id": session_id,
@@ -895,7 +904,6 @@ class AuditAgent:
         recommendations: List[Dict[str, Any]],
         quality_gate: Dict[str, Any],
     ) -> str:
-        standards = "、".join(compliance_check.get("standards", [])) or "企业内控标准"
         top_risks = risk_assessment.get("identified_risks", [])[:4]
         recs = recommendations[:4]
         risk_rows = "\n".join(
@@ -946,28 +954,28 @@ class AuditAgent:
             "recommendations": recommendations,
         }
         try:
-            response = self.llm.invoke(
-                [
-                    SystemMessage(content=system),
-                    HumanMessage(content=f"用户问题：{user_input}\n\n审计事实：{json.dumps(payload, ensure_ascii=False)}"),
-                ]
+            return self.llm.complete(
+                system=system,
+                user=f"用户问题：{user_input}\n\n审计事实：{json.dumps(payload, ensure_ascii=False)}",
             )
-            return response.content
         except Exception as exc:
             logger.warning("LLM response failed, using deterministic fallback: %s", exc)
             self.llm = None
             return None
 
     def get_session_history(self, session_id: str) -> List[Dict[str, Any]]:
-        messages = self.session_memory.get(session_id, [])
+        messages = self.session_memory.get(self._session_key(session_id), [])
         return [
             {
-                "type": "human" if isinstance(msg, HumanMessage) else "ai",
+                "type": msg.role,
                 "content": msg.content,
                 "timestamp": datetime.now().isoformat(),
             }
             for msg in messages
         ]
+
+    def _session_key(self, session_id: str) -> str:
+        return f"{current_tenant_id()}::{session_id}"
 
     def get_service_status(self) -> Dict[str, bool]:
         return {"llm": bool(self.llm), "mysql": self.tools.status.mysql, "neo4j": self.tools.status.neo4j, "rag": bool(self.rag_pipeline)}

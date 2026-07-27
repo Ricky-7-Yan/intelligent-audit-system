@@ -5,7 +5,7 @@ from __future__ import annotations
 import math
 import statistics
 from datetime import datetime
-from typing import Any, Dict, Iterable, List, Optional
+from typing import Any, Dict, Iterable, List
 
 from services.component_contracts import component_catalog
 from services.evaluation_calibration import beta_posterior_mean, wilson_lower_bound

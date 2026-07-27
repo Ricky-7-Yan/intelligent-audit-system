@@ -3,12 +3,12 @@
 from __future__ import annotations
 
 import json
+import inspect
 import logging
 import threading
 import uuid
 from contextlib import asynccontextmanager
 from datetime import datetime
-from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from fastapi import Depends, FastAPI, File, Form, HTTPException, Request, Response, UploadFile
@@ -19,7 +19,7 @@ from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel, Field
 
 from agents.audit_agent import AuditAgent, CONTROL_LIBRARY
-from config import LLM_CONFIG, PATHS, WEB_CONFIG
+from config import LLM_CONFIG, PATHS, SECURITY_CONFIG, UPLOAD_CONFIG, WEB_CONFIG
 from knowledge_graph.builder import KnowledgeGraphBuilder
 from services.agent_runtime import AgentRuntime
 from services.audit_delivery import AuditDeliveryService
@@ -32,6 +32,7 @@ from services.evidence_analyzer import EvidenceAnalyzer
 from services.experience_curator import ExperienceCurator
 from services.evolution_harness import EvolutionHarness
 from services.harness_control import HarnessControlPlane
+from services.http_middleware import SecurityAuditMiddleware
 from services.agent_quality import AgentQualityDiagnostics
 from services.intent_router import HybridIntentRouter
 from services.product_insights import ProductInsights
@@ -39,6 +40,8 @@ from services.rag_evaluator import RAGEvaluator
 from services.research_agent import AuditResearchAgent
 from services.safety_gate import SafetyGate
 from services.skill_registry import SkillRegistry
+from services.security import AuditEventStore, current_principal, current_tenant_id
+from services.upload_security import read_validated_upload
 
 
 logger = logging.getLogger(__name__)
@@ -252,6 +255,8 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+audit_event_store = AuditEventStore()
+app.add_middleware(SecurityAuditMiddleware, audit_events=audit_event_store)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=WEB_CONFIG["cors_origins"] or ["http://localhost:8000"],
@@ -264,9 +269,30 @@ app.mount("/static", StaticFiles(directory=str(PATHS["static"])), name="static")
 templates = Jinja2Templates(directory=str(PATHS["templates"]))
 
 
+def render_page(request: Request, name: str) -> Response:
+    """Render across the supported Starlette template API transition."""
+
+    parameters = inspect.signature(templates.TemplateResponse).parameters
+    if next(iter(parameters), "") == "request":
+        return templates.TemplateResponse(request=request, name=name)
+    return templates.TemplateResponse(name, {"request": request})
+
+
 @app.get("/favicon.ico", include_in_schema=False)
 async def favicon() -> Response:
     return Response(status_code=204)
+
+
+@app.get("/api/security/session")
+async def security_session_api():
+    principal = current_principal()
+    return {
+        "success": True,
+        "mode": SECURITY_CONFIG["mode"],
+        "tenant_isolation": bool(SECURITY_CONFIG["tenant_isolation"]),
+        "principal": principal.public_dict(),
+        "timestamp": datetime.now().isoformat(),
+    }
 
 
 class ChatRequest(BaseModel):
@@ -433,32 +459,32 @@ def get_evaluator():
 
 @app.get("/", response_class=HTMLResponse)
 async def index(request: Request):
-    return templates.TemplateResponse("index.html", {"request": request})
+    return render_page(request, "index.html")
 
 
 @app.get("/chat", response_class=HTMLResponse)
 async def chat_page(request: Request):
-    return templates.TemplateResponse("chat.html", {"request": request})
+    return render_page(request, "chat.html")
 
 
 @app.get("/audit", response_class=HTMLResponse)
 async def audit_page(request: Request):
-    return templates.TemplateResponse("audit.html", {"request": request})
+    return render_page(request, "audit.html")
 
 
 @app.get("/knowledge", response_class=HTMLResponse)
 async def knowledge_page(request: Request):
-    return templates.TemplateResponse("knowledge.html", {"request": request})
+    return render_page(request, "knowledge.html")
 
 
 @app.get("/training", response_class=HTMLResponse)
 async def training_page(request: Request):
-    return templates.TemplateResponse("training.html", {"request": request})
+    return render_page(request, "training.html")
 
 
 @app.get("/skills", response_class=HTMLResponse)
 async def skills_page(request: Request):
-    return templates.TemplateResponse("skills.html", {"request": request})
+    return render_page(request, "skills.html")
 
 
 @app.post("/api/chat")
@@ -1070,14 +1096,40 @@ async def add_knowledge_api(request: KnowledgeRequest, rag=Depends(get_rag_pipel
 
 @app.post("/api/knowledge/upload")
 async def upload_knowledge_file(file: UploadFile = File(...), rag=Depends(get_rag_pipeline)):
-    suffix = Path(file.filename or "").suffix.lower()
-    if suffix not in {".txt", ".md", ".csv", ".json", ".log"}:
-        raise HTTPException(status_code=400, detail="当前上传接口支持 .txt、.md、.csv、.json、.log 文本文件")
-    target = PATHS["uploads"] / f"{uuid.uuid4().hex}{suffix}"
-    content = await file.read()
-    target.write_bytes(content)
-    result = rag.add_file(str(target))
-    return {"success": True, "file": file.filename, "result": result, "timestamp": datetime.now().isoformat()}
+    try:
+        upload = await read_validated_upload(
+            file,
+            allowed_extensions={".txt", ".md", ".csv", ".json", ".log"},
+            max_bytes=int(UPLOAD_CONFIG["knowledge_max_bytes"]),
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    if upload.security["prompt_injection_detected"] and UPLOAD_CONFIG["reject_prompt_injection"]:
+        raise HTTPException(status_code=422, detail="文档包含 Prompt Injection 风险指令，已拒绝进入知识库")
+    if upload.security["credential_like_content_detected"]:
+        raise HTTPException(status_code=422, detail="文档疑似包含凭据，请脱敏后重新上传")
+    tenant_dir = PATHS["uploads"] / current_tenant_id()
+    tenant_dir.mkdir(parents=True, exist_ok=True)
+    target = tenant_dir / f"{upload.sha256[:20]}{upload.suffix}"
+    target.write_bytes(upload.content)
+    result = rag.add_file(
+        str(target),
+        {
+            "original_file_name": upload.original_name,
+            "sha256": upload.sha256,
+            "size_bytes": upload.size_bytes,
+            "upload_security": upload.security,
+        },
+    )
+    return {
+        "success": True,
+        "file": upload.original_name,
+        "sha256": upload.sha256,
+        "size_bytes": upload.size_bytes,
+        "security": upload.security,
+        "result": result,
+        "timestamp": datetime.now().isoformat(),
+    }
 
 
 @app.post("/api/evidence/analyze")
@@ -1087,16 +1139,29 @@ async def analyze_evidence_api(
     audit_type: str = Form(""),
     standard_type: str = Form(""),
 ):
-    suffix = Path(file.filename or "").suffix.lower()
-    if suffix not in {".txt", ".md", ".csv", ".tsv", ".json", ".log"}:
-        raise HTTPException(status_code=400, detail="当前证据分析支持 .txt、.md、.csv、.tsv、.json、.log 文件")
-    content = await file.read()
-    if len(content) > 5 * 1024 * 1024:
-        raise HTTPException(status_code=400, detail="证据文件超过 5MB，请先拆分或抽样上传")
+    try:
+        upload = await read_validated_upload(
+            file,
+            allowed_extensions={".txt", ".md", ".csv", ".tsv", ".json", ".log"},
+            max_bytes=int(UPLOAD_CONFIG["evidence_max_bytes"]),
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    if upload.security["prompt_injection_detected"] and UPLOAD_CONFIG["reject_prompt_injection"]:
+        raise HTTPException(status_code=422, detail="证据文档包含 Prompt Injection 风险指令，已隔离")
+    if upload.security["credential_like_content_detected"]:
+        raise HTTPException(status_code=422, detail="证据文档疑似包含有效凭据，请先完成脱敏")
     result = evidence_analyzer.analyze_file(
-        file.filename or "evidence",
-        content,
-        {"audit_item": audit_item, "audit_type": audit_type, "standard_type": standard_type},
+        upload.original_name,
+        upload.content,
+        {
+            "audit_item": audit_item,
+            "audit_type": audit_type,
+            "standard_type": standard_type,
+            "sha256": upload.sha256,
+            "size_bytes": upload.size_bytes,
+            "upload_security": upload.security,
+        },
     )
     return {"success": True, "analysis": result, "timestamp": datetime.now().isoformat()}
 
@@ -1224,8 +1289,7 @@ async def get_session_history(session_id: str, agent: AuditAgent = Depends(get_a
     }
 
 
-@app.get("/api/health")
-async def health_check():
+def _readiness_payload() -> tuple[Dict[str, Any], bool]:
     services = {
         "llm": bool(LLM_CONFIG.get("enabled")),
         "mysql": False,
@@ -1237,12 +1301,57 @@ async def health_check():
         "skills": len(skill_registry.skills),
         "intent_router": True,
         "memory": conversation_memory.stats(),
+        "security_mode": SECURITY_CONFIG["mode"],
+        "tenant_isolation": bool(SECURITY_CONFIG["tenant_isolation"]),
+        "audit_event_chain": audit_event_store.verify(),
+        "transactional_storage": {
+            "audit_runs": audit_repository.store.health(),
+            "evaluation_runs": evaluation_repository.store.health(),
+        },
     }
     if audit_agent is not None:
         services.update(audit_agent.get_service_status())
     if rag_pipeline is not None:
         services["rag_documents"] = rag_pipeline.get_statistics().get("total_documents", 0)
-    return JSONResponse(content={"status": "healthy", "timestamp": datetime.now().isoformat(), "version": "4.0.0", "services": services})
+    blockers = []
+    if SECURITY_CONFIG["mode"] == "enforced" and not SECURITY_CONFIG.get("api_tokens"):
+        blockers.append("SECURITY_MODE=enforced 但未配置 API token")
+    if not services["audit_event_chain"].get("valid"):
+        blockers.append("审计事件哈希链校验失败")
+    for name, health in services["transactional_storage"].items():
+        if not health.get("ready"):
+            blockers.append(f"事务存储不可用：{name}")
+    for name in ("data", "uploads", "evaluation_runs", "agent_runtime"):
+        path = PATHS[name]
+        if not path.exists() or not path.is_dir():
+            blockers.append(f"运行目录不可用：{name}")
+    return (
+        {
+            "status": "ready" if not blockers else "not_ready",
+            "timestamp": datetime.now().isoformat(),
+            "version": "4.1.0",
+            "services": services,
+            "blockers": blockers,
+        },
+        not blockers,
+    )
+
+
+@app.get("/api/health/live")
+async def health_live_api():
+    return {"status": "alive", "timestamp": datetime.now().isoformat(), "version": "4.1.0"}
+
+
+@app.get("/api/health/ready")
+async def health_ready_api():
+    payload, ready = _readiness_payload()
+    return JSONResponse(content=payload, status_code=200 if ready else 503)
+
+
+@app.get("/api/health")
+async def health_check():
+    payload, ready = _readiness_payload()
+    return JSONResponse(content=payload, status_code=200 if ready else 503)
 
 
 if __name__ == "__main__":

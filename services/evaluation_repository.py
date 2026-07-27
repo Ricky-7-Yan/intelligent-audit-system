@@ -10,12 +10,16 @@ from typing import Any, Dict, List, Optional
 
 from config import PATHS
 from services.evaluation_calibration import beta_posterior_mean, wilson_lower_bound
+from services.security import current_tenant_id, record_visible
+from services.record_store import SQLiteRecordStore
 
 
 class EvaluationRunRepository:
     def __init__(self, base_dir: Path | None = None) -> None:
         self.base_dir = base_dir or PATHS["evaluation_runs"]
         self.base_dir.mkdir(parents=True, exist_ok=True)
+        self.store = SQLiteRecordStore(self.base_dir / ".records.sqlite3")
+        self._migrate_legacy_records()
 
     def create_run(self, run_type: str, payload: Dict[str, Any], results: Dict[str, Any]) -> Dict[str, Any]:
         run_id = f"EV-{datetime.now().strftime('%Y%m%d-%H%M%S')}-{uuid.uuid4().hex[:6].upper()}"
@@ -23,6 +27,7 @@ class EvaluationRunRepository:
         comparison = self._compare_with_baseline(run_type, metrics)
         record = {
             "run_id": run_id,
+            "tenant_id": current_tenant_id(),
             "run_type": run_type,
             "created_at": datetime.now().isoformat(),
             "payload_summary": self._payload_summary(payload),
@@ -31,16 +36,13 @@ class EvaluationRunRepository:
             "release_gate": self._release_gate(metrics, comparison),
             "results": results,
         }
-        self._path(run_id).write_text(json.dumps(record, ensure_ascii=False, indent=2), encoding="utf-8")
+        self._write_record(record)
         return record
 
     def list_runs(self, limit: int = 20) -> List[Dict[str, Any]]:
-        files = sorted(self.base_dir.glob("*.json"), key=lambda path: path.stat().st_mtime, reverse=True)
         records = []
-        for path in files[: max(limit, 1)]:
-            try:
-                record = json.loads(path.read_text(encoding="utf-8"))
-            except (OSError, json.JSONDecodeError):
+        for record in self.store.list("evaluation_run", limit=max(limit, 1)):
+            if not record_visible(record):
                 continue
             records.append(
                 {
@@ -57,20 +59,27 @@ class EvaluationRunRepository:
         return records
 
     def get_run(self, run_id: str) -> Optional[Dict[str, Any]]:
-        path = self._path(run_id)
-        if not path.exists():
-            return None
-        try:
-            return json.loads(path.read_text(encoding="utf-8"))
-        except json.JSONDecodeError:
-            return None
+        record = self.store.get("evaluation_run", run_id)
+        if record is None:
+            path = self._path(run_id)
+            if path.exists():
+                try:
+                    record = json.loads(path.read_text(encoding="utf-8"))
+                except json.JSONDecodeError:
+                    return None
+                if record_visible(record):
+                    record.setdefault("tenant_id", current_tenant_id())
+                    self.store.put("evaluation_run", run_id, record)
+        return record if record is not None and record_visible(record) else None
 
     def delete_run(self, run_id: str) -> bool:
         path = self._path(run_id)
-        if not path.exists():
+        if self.get_run(run_id) is None:
             return False
-        path.unlink()
-        return True
+        removed = self.store.delete("evaluation_run", run_id)
+        if path.exists():
+            path.unlink()
+        return removed
 
     def _path(self, run_id: str) -> Path:
         safe_id = "".join(ch for ch in run_id if ch.isalnum() or ch in {"-", "_"})
@@ -197,15 +206,27 @@ class EvaluationRunRepository:
                 continue
             current = self.get_run(item["run_id"]) or item
             current["is_baseline"] = False
-            self._path(item["run_id"]).write_text(
-                json.dumps(current, ensure_ascii=False, indent=2),
-                encoding="utf-8",
-            )
+            self._write_record(current)
         updated = self.get_run(run_id) or record
         updated["is_baseline"] = True
         updated["updated_at"] = datetime.now().isoformat()
-        self._path(run_id).write_text(json.dumps(updated, ensure_ascii=False, indent=2), encoding="utf-8")
+        self._write_record(updated)
         return updated
+
+    def _write_record(self, record: Dict[str, Any]) -> None:
+        record.setdefault("tenant_id", current_tenant_id())
+        self.store.put("evaluation_run", str(record["run_id"]), record)
+
+    def _migrate_legacy_records(self) -> None:
+        for path in self.base_dir.glob("*.json"):
+            try:
+                record = json.loads(path.read_text(encoding="utf-8"))
+                run_id = str(record.get("run_id") or path.stem)
+                if self.store.get("evaluation_run", run_id) is None and record_visible(record):
+                    record.setdefault("tenant_id", current_tenant_id())
+                    self.store.put("evaluation_run", run_id, record)
+            except (OSError, json.JSONDecodeError):
+                continue
 
     def _release_gate(self, metrics: Dict[str, Any], comparison: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         score = float(metrics.get("overall_score") or 0)

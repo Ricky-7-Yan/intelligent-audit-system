@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from config import PATHS
+from services.security import current_tenant_id, record_visible
 
 
 class ConversationMemory:
@@ -96,7 +97,8 @@ class ConversationMemory:
         if not path.exists():
             return None
         try:
-            return json.loads(path.read_text(encoding="utf-8"))
+            session = json.loads(path.read_text(encoding="utf-8"))
+            return session if record_visible(session) else None
         except (OSError, json.JSONDecodeError):
             return None
 
@@ -105,7 +107,9 @@ class ConversationMemory:
         sessions = []
         for path in files[: max(limit, 1)]:
             try:
-                sessions.append(self._summary(json.loads(path.read_text(encoding="utf-8"))))
+                session = json.loads(path.read_text(encoding="utf-8"))
+                if record_visible(session):
+                    sessions.append(self._summary(session))
             except (OSError, json.JSONDecodeError):
                 continue
         return sessions
@@ -113,7 +117,7 @@ class ConversationMemory:
     def delete_session(self, session_id: str) -> bool:
         """Delete a user-manageable conversation record."""
         path = self._path(session_id)
-        if not path.exists():
+        if not path.exists() or self.get_session(session_id) is None:
             return False
         path.unlink()
         return True
@@ -131,6 +135,7 @@ class ConversationMemory:
         now = datetime.now().isoformat()
         return {
             "session_id": session_id,
+            "tenant_id": current_tenant_id(),
             "summary": "",
             "profile": {},
             "messages": [],

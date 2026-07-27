@@ -320,13 +320,41 @@ function apiUrl(url) {
   return `${API_BASE}${url}`;
 }
 
+function apiRequestHeaders(initial = {}) {
+  const headers = new Headers(initial);
+  const token = sessionStorage.getItem("auditpilot_api_token") || "";
+  if (token && !headers.has("Authorization")) headers.set("Authorization", `Bearer ${token}`);
+  if (!headers.has("X-Request-ID")) {
+    const randomPart = globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    headers.set("X-Request-ID", `WEB-${randomPart}`);
+  }
+  return headers;
+}
+
 async function apiFetch(url, options = {}) {
-  const response = await fetch(apiUrl(url), options);
+  const response = await fetch(apiUrl(url), { ...options, headers: apiRequestHeaders(options.headers || {}) });
   const data = await response.json().catch(() => ({}));
   if (!response.ok || data.success === false) {
     throw new Error(data.detail || data.error || `请求失败: ${response.status}`);
   }
   return data;
+}
+
+async function apiDownload(url, filename) {
+  const response = await fetch(apiUrl(url), { headers: apiRequestHeaders() });
+  if (!response.ok) {
+    const data = await response.json().catch(() => ({}));
+    throw new Error(data.detail || `下载失败: ${response.status}`);
+  }
+  const blob = await response.blob();
+  const objectUrl = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = objectUrl;
+  anchor.download = filename;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  URL.revokeObjectURL(objectUrl);
 }
 
 function riskBadge(level) {
