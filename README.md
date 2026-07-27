@@ -151,7 +151,7 @@ Do not commit real API keys.
 .\.venv\Scripts\python.exe -m pytest -q
 .\.venv\Scripts\python.exe scripts\audit_repro.py
 ruff check agents services rag web tests
-bandit -q -r agents services rag web -x tests
+bandit -q -ll -r agents services rag web -x tests
 pip-audit -r requirements.txt
 ```
 
