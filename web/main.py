@@ -19,7 +19,15 @@ from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel, Field
 
 from agents.audit_agent import AuditAgent, CONTROL_LIBRARY
-from config import LLM_CONFIG, PATHS, SECURITY_CONFIG, UPLOAD_CONFIG, WEB_CONFIG
+from config import (
+    LLM_CONFIG,
+    PATHS,
+    SECURITY_CONFIG,
+    UPLOAD_CONFIG,
+    WEB_CONFIG,
+    runtime_configuration_issues,
+    validate_runtime_configuration,
+)
 from knowledge_graph.builder import KnowledgeGraphBuilder
 from services.agent_runtime import AgentRuntime
 from services.audit_delivery import AuditDeliveryService
@@ -235,6 +243,7 @@ def prewarm_evaluation_runtime() -> None:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    validate_runtime_configuration()
     for path in PATHS.values():
         path.mkdir(parents=True, exist_ok=True)
     threading.Thread(target=prewarm_evaluation_runtime, daemon=True).start()
@@ -251,7 +260,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="审脉 AuditPilot",
     description="面向审计交付场景的 Agentic RAG、风险评估、控制测试和整改闭环系统",
-    version="4.0.0",
+    version="4.2.0",
     lifespan=lifespan,
 )
 
@@ -1307,15 +1316,15 @@ def _readiness_payload() -> tuple[Dict[str, Any], bool]:
         "transactional_storage": {
             "audit_runs": audit_repository.store.health(),
             "evaluation_runs": evaluation_repository.store.health(),
+            "agent_tasks": agent_runtime._record_store().health(),
+            "conversation_memory": conversation_memory.store.health(),
         },
     }
     if audit_agent is not None:
         services.update(audit_agent.get_service_status())
     if rag_pipeline is not None:
         services["rag_documents"] = rag_pipeline.get_statistics().get("total_documents", 0)
-    blockers = []
-    if SECURITY_CONFIG["mode"] == "enforced" and not SECURITY_CONFIG.get("api_tokens"):
-        blockers.append("SECURITY_MODE=enforced 但未配置 API token")
+    blockers = runtime_configuration_issues()
     if not services["audit_event_chain"].get("valid"):
         blockers.append("审计事件哈希链校验失败")
     for name, health in services["transactional_storage"].items():
@@ -1329,7 +1338,7 @@ def _readiness_payload() -> tuple[Dict[str, Any], bool]:
         {
             "status": "ready" if not blockers else "not_ready",
             "timestamp": datetime.now().isoformat(),
-            "version": "4.1.0",
+            "version": "4.2.0",
             "services": services,
             "blockers": blockers,
         },
@@ -1339,7 +1348,7 @@ def _readiness_payload() -> tuple[Dict[str, Any], bool]:
 
 @app.get("/api/health/live")
 async def health_live_api():
-    return {"status": "alive", "timestamp": datetime.now().isoformat(), "version": "4.1.0"}
+    return {"status": "alive", "timestamp": datetime.now().isoformat(), "version": "4.2.0"}
 
 
 @app.get("/api/health/ready")
@@ -1357,4 +1366,5 @@ async def health_check():
 if __name__ == "__main__":
     import uvicorn
 
+    validate_runtime_configuration()
     uvicorn.run(app, host=WEB_CONFIG["host"], port=WEB_CONFIG["port"])

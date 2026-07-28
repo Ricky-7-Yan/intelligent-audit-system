@@ -4,7 +4,7 @@ import unittest
 
 import httpx
 
-from config import SECURITY_CONFIG
+from config import SECURITY_CONFIG, WEB_CONFIG
 from web.main import app
 
 
@@ -12,7 +12,11 @@ class ProductionFlowIntegrationTests(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self) -> None:
         self.original_mode = SECURITY_CONFIG["mode"]
         self.original_tokens = SECURITY_CONFIG["api_tokens"]
+        self.original_signing_key = SECURITY_CONFIG["audit_log_signing_key"]
+        self.original_debug = WEB_CONFIG["debug"]
         SECURITY_CONFIG["mode"] = "enforced"
+        SECURITY_CONFIG["audit_log_signing_key"] = "integration-test-signing-key"
+        WEB_CONFIG["debug"] = False
         SECURITY_CONFIG["api_tokens"] = {
             "integration-admin-token": {
                 "subject": "integration-admin",
@@ -34,6 +38,8 @@ class ProductionFlowIntegrationTests(unittest.IsolatedAsyncioTestCase):
         await self.client.aclose()
         SECURITY_CONFIG["mode"] = self.original_mode
         SECURITY_CONFIG["api_tokens"] = self.original_tokens
+        SECURITY_CONFIG["audit_log_signing_key"] = self.original_signing_key
+        WEB_CONFIG["debug"] = self.original_debug
 
     def headers(self, token: str = "integration-admin-token") -> dict[str, str]:
         return {"Authorization": f"Bearer {token}", "X-Request-ID": "REQ-INTEGRATION"}

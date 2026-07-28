@@ -6,11 +6,13 @@ __pycache__/
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
+.coverage
 
 # Virtual environments
 .venv/
 venv/
 env/
+data/.ci-py*/
 
 # Local configuration and secrets
 config.env

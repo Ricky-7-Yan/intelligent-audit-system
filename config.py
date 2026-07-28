@@ -5,6 +5,7 @@ The module intentionally keeps secrets outside source control. Runtime values ar
 loaded from ``config.env`` when present, then from the process environment.
 """
 
+import ipaddress
 import json
 import os
 from pathlib import Path
@@ -105,11 +106,9 @@ LLM_CONFIG: Dict[str, Any] = {
 LLM_CONFIG["enabled"] = bool(LLM_CONFIG["api_key"])
 
 WEB_CONFIG: Dict[str, Any] = {
-    # Container deployments deliberately bind all interfaces; authentication
-    # and ingress exposure remain controlled by SECURITY_MODE and the platform.
-    "host": os.getenv("WEB_HOST", "0.0.0.0"),  # nosec B104
+    "host": os.getenv("WEB_HOST", "127.0.0.1"),
     "port": _int_env("PORT", _int_env("WEB_PORT", 8000)),
-    "debug": _bool_env("DEBUG", True),
+    "debug": _bool_env("DEBUG", False),
     "cors_origins": _list_env("CORS_ORIGINS", "http://localhost:8000,http://127.0.0.1:8000"),
 }
 
@@ -121,6 +120,7 @@ SECURITY_CONFIG: Dict[str, Any] = {
     "api_tokens": _json_env("AUDITPILOT_API_TOKENS_JSON", {}),
     "rate_limit_per_minute": _int_env("API_RATE_LIMIT_PER_MINUTE", 180),
     "tenant_isolation": _bool_env("TENANT_ISOLATION", True),
+    "audit_log_signing_key": os.getenv("AUDIT_LOG_SIGNING_KEY", ""),
 }
 
 UPLOAD_CONFIG: Dict[str, Any] = {
@@ -155,3 +155,33 @@ TRAINING_CONFIG: Dict[str, Any] = {
     "num_epochs": _int_env("TRAINING_EPOCHS", 3),
     "max_grad_norm": _float_env("TRAINING_MAX_GRAD_NORM", 1.0),
 }
+
+
+def runtime_configuration_issues() -> List[str]:
+    """Return unsafe runtime combinations that block readiness and startup."""
+
+    issues: List[str] = []
+    mode = str(SECURITY_CONFIG.get("mode") or "local").lower()
+    host = str(WEB_CONFIG.get("host") or "")
+    try:
+        is_loopback = ipaddress.ip_address(host).is_loopback
+    except ValueError:
+        is_loopback = host.lower() == "localhost"
+    if mode == "local" and not is_loopback:
+        issues.append("SECURITY_MODE=local 只能绑定 127.0.0.1、::1 或 localhost")
+    if mode == "enforced":
+        if not SECURITY_CONFIG.get("api_tokens"):
+            issues.append("SECURITY_MODE=enforced 必须配置至少一个 API token")
+        if WEB_CONFIG.get("debug"):
+            issues.append("SECURITY_MODE=enforced 禁止启用 DEBUG")
+        if "*" in set(WEB_CONFIG.get("cors_origins") or []):
+            issues.append("SECURITY_MODE=enforced 禁止使用通配 CORS")
+        if not SECURITY_CONFIG.get("audit_log_signing_key"):
+            issues.append("SECURITY_MODE=enforced 必须配置 AUDIT_LOG_SIGNING_KEY")
+    return issues
+
+
+def validate_runtime_configuration() -> None:
+    issues = runtime_configuration_issues()
+    if issues:
+        raise RuntimeError("；".join(issues))

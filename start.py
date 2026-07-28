@@ -64,9 +64,10 @@ def check_directories() -> None:
 def start_web_server() -> None:
     import uvicorn
 
-    from config import WEB_CONFIG
+    from config import WEB_CONFIG, validate_runtime_configuration
     from web.main import app
 
+    validate_runtime_configuration()
     logger.info("系统启动完成，监听地址: %s:%s", WEB_CONFIG["host"], WEB_CONFIG["port"])
     uvicorn.run(app, host=WEB_CONFIG["host"], port=WEB_CONFIG["port"])
 

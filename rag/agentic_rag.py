@@ -14,7 +14,7 @@ from typing import Any, Dict, Iterable, List, Optional
 
 from config import LLM_CONFIG, RAG_CONFIG
 from services.llm_client import LLMClient
-from services.security import current_tenant_id
+from services.security import current_principal, current_tenant_id
 
 TfidfVectorizer = None
 cosine_similarity = None
@@ -211,6 +211,7 @@ class PersistentDocumentStore:
                         "type": item.get("type", "seed"),
                         "title": item.get("title", ""),
                         "tenant_id": "*",
+                        "visibility": "public_seed",
                         "authority_level": item.get("authority_level", "reference"),
                         "seed": True,
                     },
@@ -221,8 +222,18 @@ class PersistentDocumentStore:
             self.persist()
 
     def _document_id(self, document: Document) -> str:
-        source = str(document.metadata.get("source", "manual"))
-        raw = f"{source}\n{document.page_content}".encode("utf-8")
+        metadata = document.metadata or {}
+        identity = {
+            "tenant_id": metadata.get("tenant_id") or current_tenant_id(),
+            "project_id": metadata.get("project_id") or "",
+            "source": metadata.get("source") or "manual",
+            "document_version": metadata.get("document_version") or metadata.get("version") or "1",
+            "page": metadata.get("page"),
+            "section": metadata.get("section"),
+            "chunk_id": metadata.get("chunk_id"),
+            "content": document.page_content,
+        }
+        raw = json.dumps(identity, ensure_ascii=False, sort_keys=True, default=str).encode("utf-8")
         return hashlib.sha256(raw).hexdigest()[:24]
 
 
@@ -330,9 +341,27 @@ class HybridRetriever:
 
     def _metadata_allowed(self, metadata: Dict[str, Any], context: Optional[Dict[str, Any]]) -> bool:
         context = context or {}
-        tenant = str(metadata.get("tenant_id") or "*")
+        tenant = str(metadata.get("tenant_id") or "")
+        visibility = str(metadata.get("visibility") or "").lower()
+        if not tenant:
+            return False
         if tenant not in {"*", current_tenant_id()}:
             return False
+        if tenant == "*" and visibility != "public_seed":
+            return False
+
+        document_project = str(metadata.get("project_id") or "")
+        requested_project = str(context.get("project_id") or "")
+        principal_projects = set(current_principal().project_ids)
+        if document_project:
+            if requested_project:
+                if document_project != requested_project:
+                    return False
+            elif "*" not in principal_projects and document_project not in principal_projects:
+                return False
+        elif requested_project and visibility not in {"public_seed", "tenant_shared"}:
+            return False
+
         filters = dict(context.get("filters") or {})
         for key in ("project_id", "standard", "source_type", "effective_year"):
             if context.get(key) not in (None, ""):
@@ -340,7 +369,9 @@ class HybridRetriever:
         for key, expected in filters.items():
             actual = metadata.get(key)
             if actual in (None, ""):
-                continue
+                if key == "project_id" and visibility in {"public_seed", "tenant_shared"}:
+                    continue
+                return False
             allowed = expected if isinstance(expected, (list, tuple, set)) else [expected]
             if str(actual).lower() not in {str(item).lower() for item in allowed}:
                 return False
@@ -468,6 +499,11 @@ class RAGPipeline:
     def add_knowledge(self, text: str, metadata: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         scoped_metadata = dict(metadata or {})
         scoped_metadata["tenant_id"] = current_tenant_id()
+        scoped_metadata.setdefault(
+            "visibility",
+            "project" if scoped_metadata.get("project_id") else "tenant_shared",
+        )
+        scoped_metadata.setdefault("document_version", "1")
         documents = self.document_processor.process_text(text, scoped_metadata)
         added = self.store.add_documents(documents)
         if added:
@@ -479,6 +515,11 @@ class RAGPipeline:
         for document in documents:
             document.metadata.update(metadata or {})
             document.metadata["tenant_id"] = current_tenant_id()
+            document.metadata.setdefault(
+                "visibility",
+                "project" if document.metadata.get("project_id") else "tenant_shared",
+            )
+            document.metadata.setdefault("document_version", "1")
         added = self.store.add_documents(documents)
         if added:
             self.hybrid_retriever.rebuild()

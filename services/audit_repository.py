@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from config import PATHS
-from services.security import current_tenant_id, record_visible
+from services.security import current_principal, current_tenant_id, project_visible, record_visible
 from services.record_store import SQLiteRecordStore
 
 
@@ -29,7 +29,9 @@ class AuditRunRepository:
         run_id = f"AR-{datetime.now().strftime('%Y%m%d')}-{uuid.uuid4().hex[:8].upper()}"
         record = {
             "run_id": run_id,
+            "project_id": run_id,
             "tenant_id": current_tenant_id(),
+            "members": {current_principal().subject: "project_manager"},
             "created_at": datetime.now().isoformat(),
             "updated_at": datetime.now().isoformat(),
             "status": "待复核" if result.get("quality_gate", {}).get("escalation_required") else "待现场验证",
@@ -72,7 +74,7 @@ class AuditRunRepository:
         records = [
             self._normalize_record(record)
             for record in self.store.list("audit_run", limit=max(limit, 1))
-            if record_visible(record)
+            if project_visible(record)
         ]
         records.sort(key=lambda item: item.get("created_at") or "", reverse=True)
         return records[:limit]
@@ -104,7 +106,7 @@ class AuditRunRepository:
         if record is None:
             return None
         record = self._normalize_record(record)
-        return record if record_visible(record) else None
+        return record if project_visible(record) else None
 
     def delete_run(self, run_id: str) -> bool:
         path = self._path(run_id)
@@ -398,7 +400,14 @@ class AuditRunRepository:
     def _write(self, record: Dict[str, Any]) -> None:
         record["updated_at"] = datetime.now().isoformat()
         record.setdefault("tenant_id", current_tenant_id())
-        self.store.put("audit_run", str(record["run_id"]), record)
+        expected = record.get("_storage_version")
+        version = self.store.put(
+            "audit_run",
+            str(record["run_id"]),
+            record,
+            expected_version=int(expected) if expected is not None else None,
+        )
+        record["_storage_version"] = version
 
     def _migrate_legacy_records(self) -> None:
         for path in self.root.glob("*.json"):

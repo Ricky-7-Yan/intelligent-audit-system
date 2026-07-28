@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 import statistics
@@ -10,7 +11,7 @@ import time
 import uuid
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeoutError
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any, Callable, Dict, List, Tuple
 
 from config import PATHS
@@ -25,6 +26,7 @@ class Skill:
     input_schema: Dict[str, Any]
     permissions: List[str]
     handler: Callable[[Dict[str, Any]], Dict[str, Any]]
+    output_schema: Dict[str, Any] | None = None
     version: str = "1.1.0"
     timeout_seconds: float = 8.0
     cache_ttl_seconds: int = 0
@@ -56,7 +58,7 @@ class SkillRegistry:
                     "type": "object",
                     "properties": {
                         "ok": {"type": "boolean"},
-                        "data": {"type": "object"},
+                        "data": skill.output_schema or {"type": "object"},
                         "error": {"type": "object"},
                         "meta": {"type": "object"},
                     },
@@ -141,10 +143,23 @@ class SkillRegistry:
                 result = future.result(timeout=skill.timeout_seconds)
                 if not isinstance(result, dict):
                     result = {"value": result}
-                status = "success"
-                circuit.update({"failures": 0, "state": "closed", "open_until": 0.0})
-                if skill.cache_ttl_seconds > 0:
-                    self._cache[cache_key] = (time.time() + skill.cache_ttl_seconds, result)
+                output_validation_errors = self._validate(result, skill.output_schema or {})
+                if output_validation_errors:
+                    result = self._error_payload(
+                        "OUTPUT_VALIDATION_ERROR",
+                        "工具输出不符合声明的 outputSchema",
+                        False,
+                        "修复工具实现或升级输出契约后再执行；禁止把不完整产物交给下游 Agent。",
+                        output_validation_errors,
+                    )
+                    status = "failed"
+                    error_type = "OutputValidationError"
+                    self._record_failure(skill, circuit)
+                else:
+                    status = "success"
+                    circuit.update({"failures": 0, "state": "closed", "open_until": 0.0})
+                    if skill.cache_ttl_seconds > 0:
+                        self._cache[cache_key] = (time.time() + skill.cache_ttl_seconds, result)
         except FutureTimeoutError:
             result = self._error_payload(
                 "TOOL_TIMEOUT",
@@ -188,6 +203,11 @@ class SkillRegistry:
             "cache_hit": cache_hit,
             "circuit_state": circuit["state"],
             "validation_errors": validation_errors,
+            "output_validation_errors": (
+                output_validation_errors
+                if "output_validation_errors" in locals()
+                else []
+            ),
             "authorization": {
                 "required_permissions": skill.permissions,
                 "missing_permissions": missing_permissions,
@@ -270,6 +290,26 @@ class SkillRegistry:
         }
 
     def _register(self, skill: Skill) -> None:
+        required = {
+            "audit.scope_planner": ["scope", "objectives", "deliverables"],
+            "audit.evidence_checklist": ["evidence_requests", "collection_methods"],
+            "audit.finding_writer": ["condition", "criteria", "cause", "effect", "recommendation"],
+            "rag.query": ["answer", "sources"],
+            "audit.control_mapper": ["control_matrix", "test_procedures"],
+            "agent.eval_case_designer": ["cases", "metrics"],
+            "audit.remediation_planner": ["owner", "due_date", "acceptance_criteria"],
+            "audit.sample_designer": ["sample_size", "selection_method", "expansion_rule"],
+            "audit.exception_triage": ["severity", "root_cause", "escalation"],
+            "audit.report_packager": ["delivery_manifest", "review_status"],
+            "audit.deep_research_brief": ["query_rewrites", "source_strategy", "review_conditions"],
+            "audit.delivery_verifier": ["verdict", "checks", "next_action"],
+        }.get(skill.name, [])
+        if required and not skill.output_schema:
+            skill.output_schema = {
+                "type": "object",
+                "properties": {field: {} for field in required},
+                "required": required,
+            }
         self.skills[skill.name] = skill
 
     def _error_payload(
@@ -325,6 +365,7 @@ class SkillRegistry:
             "title": skill.title,
             "description": skill.description,
             "input_schema": skill.input_schema,
+            "output_schema": skill.output_schema or {"type": "object"},
             "permissions": skill.permissions,
             "version": skill.version,
             "resilience": {
@@ -364,7 +405,7 @@ class SkillRegistry:
     def _validate(self, payload: Dict[str, Any], schema: Dict[str, Any]) -> List[str]:
         errors = []
         for field in schema.get("required", []):
-            if field not in payload or payload[field] in (None, ""):
+            if field not in payload or payload[field] in (None, "", [], {}):
                 errors.append(f"missing required field: {field}")
         expected_types = {
             "string": str,
@@ -590,6 +631,8 @@ class SkillRegistry:
             "frequency": frequency,
             "evidence_type": evidence_type,
             "sample_size": sample_size,
+            "selection_method": "stratified_random_plus_key_item_review",
+            "expansion_rule": "major exceptions expand the same-class sample; missing evidence pauses the conclusion",
             "method": "分层随机抽样 + 关键项全检" if risk_level in {"high", "critical", "高"} else "随机抽样 + 异常定向补样",
             "strata": ["高权限/高金额/高影响记录", "普通运行记录", "期间首末与变更窗口记录"],
             "exception_handling": "发现重大例外时扩大样本并触发复核；证据缺失时进入人工补证和整改任务。",
@@ -604,6 +647,8 @@ class SkillRegistry:
             "finding": finding,
             "severity": severity,
             "exception_count": len(exceptions),
+            "root_cause": "segregation of duties, approval flow, or log review is incomplete",
+            "escalation": "high-risk or three-plus exceptions require manager review and sample expansion",
             "root_causes": ["职责分离不足", "审批链路不完整", "日志留存或复核机制薄弱"],
             "next_actions": [
                 "补充关键证据并标记无法追溯样本",
@@ -619,6 +664,13 @@ class SkillRegistry:
         return {
             "audit_item": audit_item,
             "run_id": run_id,
+            "delivery_manifest": [
+                {"order": index + 1, "section": section, "status": "ready"}
+                for index, section in enumerate(
+                    ["scope", "control mapping", "evidence and sampling", "findings", "remediation", "appendices"]
+                )
+            ],
+            "review_status": "pending_independent_review",
             "sections": [
                 "01 项目背景与范围",
                 "02 控制矩阵与标准映射",
@@ -639,6 +691,10 @@ class SkillRegistry:
             "question": question,
             "standard": standard,
             "domain": domain,
+            "review_conditions": [
+                "conflicting sources, unknown standard versions, or fewer than two independent sources",
+                "production access, personal data, or material financial impact",
+            ],
             "query_rewrites": [
                 f"{question} {standard} audit evidence",
                 f"{domain} control testing checklist remediation",
@@ -655,15 +711,44 @@ class SkillRegistry:
         required_types = {"audit", "evidence", "risk"}
         missing_types = sorted(required_types - artifact_types)
         failed_steps = [item.get("step_id") for item in steps if item.get("status") != "success"]
+        integrity_failures = []
+        for artifact in artifacts:
+            content = artifact.get("content")
+            canonical = json.dumps(content, ensure_ascii=False, sort_keys=True, separators=(",", ":"), default=str)
+            actual = hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+            if actual != artifact.get("content_hash"):
+                integrity_failures.append(artifact.get("artifact_id"))
+        contents = [item.get("content") for item in artifacts if isinstance(item.get("content"), dict)]
+        control_rows = [
+            row
+            for content in contents
+            for row in content.get("control_matrix", [])
+            if isinstance(row, dict)
+        ]
+        evidence_requests = [
+            row
+            for content in contents
+            for row in content.get("evidence_requests", [])
+            if isinstance(row, dict)
+        ]
+        remediation_outputs = [
+            content
+            for content in contents
+            if all(content.get(field) not in (None, "", [], {}) for field in ("owner", "due_date", "acceptance_criteria"))
+        ]
         checks = [
             {"check": "upstream_artifacts", "passed": len(artifacts) >= 4, "evidence": len(artifacts)},
             {"check": "required_domains", "passed": not missing_types, "evidence": sorted(artifact_types)},
             {"check": "step_failures", "passed": not failed_steps, "evidence": failed_steps},
             {
                 "check": "provenance",
-                "passed": all(item.get("source_run_id") for item in artifacts),
-                "evidence": [item.get("source_run_id") for item in artifacts],
+                "passed": all(item.get("source_run_id") and item.get("producer") for item in artifacts),
+                "evidence": [item.get("producer") for item in artifacts],
             },
+            {"check": "artifact_integrity", "passed": not integrity_failures, "evidence": integrity_failures},
+            {"check": "control_coverage", "passed": bool(control_rows), "evidence": len(control_rows)},
+            {"check": "evidence_design", "passed": bool(evidence_requests), "evidence": len(evidence_requests)},
+            {"check": "remediation_closure", "passed": bool(remediation_outputs), "evidence": len(remediation_outputs)},
         ]
         passed = sum(1 for item in checks if item["passed"])
         raw_score = passed / max(len(checks), 1)
@@ -682,6 +767,11 @@ class SkillRegistry:
         standard = payload.get("standard") or payload.get("standard_type") or "ISO27001/COBIT"
         topics = payload.get("risk_topics") or ["权限", "变更", "日志", "数据"]
         return {
+            "objectives": [
+                "验证控制设计是否覆盖关键风险",
+                "验证运行证据是否充分且可追溯",
+                "形成可分派、可验收的整改闭环",
+            ],
             "scope": f"{item} 的关键流程、权限、变更、日志、接口和数据处理活动",
             "standard": standard,
             "risk_topics": topics,
@@ -702,6 +792,11 @@ class SkillRegistry:
             "control_domain": domain,
             "evidence": common,
             "collection_method": "系统导出 + 访谈 + 抽样核验",
+            "evidence_requests": [
+                {"evidence": item, "source": domain, "purpose": "control_design_or_operation_test"}
+                for item in common
+            ],
+            "collection_methods": ["system_export", "interview", "sample_reperformance"],
             "quality_rule": "每项关键控制至少需要一项设计证据和一项运行证据，缺失时触发人工复核。",
         }
 
@@ -739,7 +834,12 @@ class SkillRegistry:
                     "quality_rule": "每项控制至少需要一项设计证据和一项运行证据，否则进入人工复核。",
                 }
             )
-        return {"audit_item": item, "standard": standard, "control_matrix": controls}
+        return {
+            "audit_item": item,
+            "standard": standard,
+            "control_matrix": controls,
+            "test_procedures": [control["test_procedure"] for control in controls],
+        }
 
     def _eval_case_designer(self, payload: Dict[str, Any]) -> Dict[str, Any]:
         scenario = payload.get("scenario", "企业审计 Agent")
@@ -763,7 +863,9 @@ class SkillRegistry:
         return {
             "title": payload.get("finding", "审计发现整改"),
             "owner_role": payload.get("owner_role", "控制责任人"),
+            "owner": payload.get("owner_role", "控制责任人"),
             "due_days": due_days,
+            "due_date": (datetime.now() + timedelta(days=due_days)).date().isoformat(),
             "tasks": ["确认影响范围和责任人", "补齐控制设计和运行证据", "完成例外审批或权限清理", "由审计或内控团队复核关闭"],
             "acceptance_criteria": "整改证据完整、抽样无重大例外、复核意见已记录。",
             "status_flow": ["未开始", "进行中", "待验证", "已完成", "已关闭"],

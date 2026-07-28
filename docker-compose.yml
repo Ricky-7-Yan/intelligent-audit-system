@@ -5,6 +5,11 @@ services:
       - "8000:8000"
     env_file:
       - config.env
+    environment:
+      SECURITY_MODE: enforced
+      WEB_HOST: 0.0.0.0
+      AUDITPILOT_API_TOKENS_JSON: ${AUDITPILOT_API_TOKENS_JSON:?set AUDITPILOT_API_TOKENS_JSON}
+      AUDIT_LOG_SIGNING_KEY: ${AUDIT_LOG_SIGNING_KEY:?set AUDIT_LOG_SIGNING_KEY}
     volumes:
       - ./data:/app/data
       - ./logs:/app/logs

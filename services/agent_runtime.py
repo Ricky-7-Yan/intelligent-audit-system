@@ -12,6 +12,7 @@ from typing import Any, Dict, List, Optional
 
 from config import PATHS
 from services.evaluation_calibration import beta_posterior_mean, wilson_lower_bound
+from services.record_store import SQLiteRecordStore
 from services.safety_gate import SafetyGate
 from services.skill_registry import SkillRegistry
 from services.security import current_tenant_id, record_visible
@@ -26,6 +27,7 @@ class AgentRuntime:
         self.runtime_dir = PATHS["data"] / "agent_runtime"
         self.runtime_dir.mkdir(parents=True, exist_ok=True)
         self.event_log = self.runtime_dir / "events.jsonl"
+        self._record_stores: Dict[str, SQLiteRecordStore] = {}
 
     def create_task(self, objective: str, context: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         context = context or {}
@@ -132,23 +134,31 @@ class AgentRuntime:
         return task
 
     def list_tasks(self, limit: int = 30) -> List[Dict[str, Any]]:
-        files = sorted(self.runtime_dir.glob("*.json"), key=lambda path: path.stat().st_mtime, reverse=True)
-        tasks = [self._read(path) for path in files]
-        return [task for task in tasks if record_visible(task)][:limit]
+        self._migrate_legacy_tasks()
+        return self._record_store().list("agent_task", limit=max(1, limit))
 
     def get_task(self, task_id: str) -> Optional[Dict[str, Any]]:
+        task = self._record_store().get("agent_task", task_id)
+        if task is not None:
+            return task
         path = self._path(task_id)
         if not path.exists():
             return None
         task = self._read(path)
-        return task if record_visible(task) else None
+        if not record_visible(task):
+            return None
+        task.setdefault("tenant_id", current_tenant_id())
+        self._write_task(task)
+        return task
 
     def delete_task(self, task_id: str) -> bool:
         path = self._path(task_id)
-        if not path.exists() or self.get_task(task_id) is None:
+        if self.get_task(task_id) is None:
             return False
-        path.unlink()
-        return True
+        removed = self._record_store().delete("agent_task", task_id)
+        if path.exists():
+            path.unlink()
+        return removed
 
     def episode_package(self, task_id: str) -> Dict[str, Any]:
         """Build a trace-based, auditable episode without exposing raw secrets."""
@@ -383,11 +393,11 @@ class AgentRuntime:
         reflection = self._reflect(next_plan, run, len(runs))
         task.setdefault("reflections", []).append(reflection)
         if run["status"] == "success":
-            artifacts = self._artifacts_from_run(next_plan, run)
+            artifacts = self._artifacts_from_run(next_plan, run, task_id)
             task["artifacts"].extend(artifacts)
             task["role_traces"][-1]["artifact_refs"] = [item["artifact_id"] for item in artifacts]
         task["metrics"] = self._metrics(task)
-        if run["status"] != "success" or float(step_record["evaluation"].get("score") or 0) < 0.6:
+        if run["status"] != "success" or step_record["evaluation"].get("status") != "pass":
             task["status"] = "needs_review"
             task.setdefault("loop", {})["termination_reason"] = (
                 "tool_failure" if run["status"] != "success" else "step_evaluation_failed"
@@ -595,16 +605,7 @@ class AgentRuntime:
         payload.setdefault("objective", task.get("objective"))
         payload.setdefault(
             "upstream_artifacts",
-            [
-                {
-                    "artifact_id": item.get("artifact_id"),
-                    "type": item.get("type"),
-                    "name": item.get("name"),
-                    "source_run_id": item.get("source_run_id"),
-                    "summary": item.get("summary"),
-                }
-                for item in task.get("artifacts", [])
-            ],
+            json.loads(json.dumps(task.get("artifacts", []), ensure_ascii=False, default=str)),
         )
         payload.setdefault(
             "upstream_steps",
@@ -620,8 +621,14 @@ class AgentRuntime:
         )
         return payload
 
-    def _artifacts_from_run(self, step: Dict[str, Any], run: Dict[str, Any]) -> List[Dict[str, Any]]:
-        output = run.get("output") or {}
+    def _artifacts_from_run(
+        self,
+        step: Dict[str, Any],
+        run: Dict[str, Any],
+        task_id: str,
+    ) -> List[Dict[str, Any]]:
+        output = json.loads(json.dumps(run.get("output") or {}, ensure_ascii=False, default=str))
+        canonical = json.dumps(output, ensure_ascii=False, sort_keys=True, separators=(",", ":"), default=str)
         return [
             {
                 "artifact_id": f"ART-{uuid.uuid4().hex[:8].upper()}",
@@ -629,6 +636,16 @@ class AgentRuntime:
                 "name": step.get("name"),
                 "source_run_id": run.get("run_id"),
                 "summary": self._summarize_output(output),
+                "content": output,
+                "content_hash": hashlib.sha256(canonical.encode("utf-8")).hexdigest(),
+                "schema_version": f"{step.get('skill', 'runtime')}:1",
+                "producer": {
+                    "task_id": task_id,
+                    "step_id": step.get("step_id"),
+                    "skill": step.get("skill"),
+                    "agent_role": step.get("agent_role"),
+                },
+                "created_at": datetime.now().isoformat(),
             }
         ]
 
@@ -710,18 +727,58 @@ class AgentRuntime:
                 "passed": bool(step_record.get("run_id")) or step_record.get("status") == "blocked",
                 "evidence": step_record.get("run_id"),
             },
+            {
+                "key": "output_contract",
+                "label": "输出契约字段完整且非空",
+                "passed": self._contract_satisfied(
+                    step_record.get("output"),
+                    plan_step.get("output_contract", []),
+                ),
+                "evidence": plan_step.get("output_contract", []),
+            },
+            {
+                "key": "termination_condition",
+                "label": "步骤具备明确终止条件并已满足",
+                "passed": bool(plan_step.get("termination_condition"))
+                and self._contract_satisfied(
+                    step_record.get("output"),
+                    plan_step.get("output_contract", []),
+                ),
+                "evidence": plan_step.get("termination_condition"),
+            },
         ]
         passed = sum(1 for assertion in assertions if assertion["passed"])
         score = beta_posterior_mean(passed, len(assertions))
+        critical_passed = all(
+            assertion["passed"]
+            for assertion in assertions
+            if assertion["key"]
+            in {
+                "dependency_conformance",
+                "safety_gate",
+                "tool_result",
+                "output_contract",
+                "termination_condition",
+            }
+        )
         return {
             "evaluator": "online_step_contract_v2",
             "score": score,
             "raw_pass_rate": round(passed / len(assertions), 4),
             "confidence_lower_bound": wilson_lower_bound(passed, len(assertions)),
-            "status": "pass" if score >= 0.8 else "review" if score >= 0.6 else "blocked",
+            "status": "pass" if critical_passed and score >= 0.8 else "review" if score >= 0.6 else "blocked",
             "assertions": assertions,
             "evaluated_at": datetime.now().isoformat(),
         }
+
+    @staticmethod
+    def _contract_satisfied(output: Any, required_fields: List[str]) -> bool:
+        if not isinstance(output, dict) or not required_fields:
+            return False
+        return all(
+            field in output and output[field] not in (None, "", [], {})
+            for field in required_fields
+        )
 
     def _metrics(self, task: Dict[str, Any]) -> Dict[str, Any]:
         calls = task.get("tool_calls", [])
@@ -760,24 +817,16 @@ class AgentRuntime:
             "payload": payload,
             "at": datetime.now().isoformat(),
         }
-        event_log = self.runtime_dir / "events.jsonl"
-        self.event_log = event_log
-        with event_log.open("a", encoding="utf-8") as stream:
-            stream.write(json.dumps(record, ensure_ascii=False, default=str) + "\n")
+        self._record_store().put("agent_event", record["event_id"], record)
 
     def _events_for_task(self, task_id: str) -> List[Dict[str, Any]]:
-        event_log = self.runtime_dir / "events.jsonl"
-        if not event_log.exists():
-            return []
-        events: List[Dict[str, Any]] = []
-        for line in event_log.read_text(encoding="utf-8").splitlines():
-            try:
-                event = json.loads(line)
-            except json.JSONDecodeError:
-                continue
-            if event.get("task_id") == task_id and record_visible(event):
-                events.append(event)
-        return events
+        self._migrate_legacy_events()
+        events = [
+            event
+            for event in self._record_store().list("agent_event", limit=5000)
+            if event.get("task_id") == task_id
+        ]
+        return sorted(events, key=lambda item: item.get("at") or "")
 
     def _package_digest(self, package: Dict[str, Any]) -> str:
         digest_input = {key: value for key, value in package.items() if key != "integrity"}
@@ -788,4 +837,46 @@ class AgentRuntime:
         return json.loads(path.read_text(encoding="utf-8"))
 
     def _write_task(self, task: Dict[str, Any]) -> None:
-        self._path(task["task_id"]).write_text(json.dumps(task, ensure_ascii=False, indent=2), encoding="utf-8")
+        task.setdefault("tenant_id", current_tenant_id())
+        expected = task.get("_storage_version")
+        version = self._record_store().put(
+            "agent_task",
+            str(task["task_id"]),
+            task,
+            expected_version=int(expected) if expected is not None else None,
+        )
+        task["_storage_version"] = version
+
+    def _record_store(self) -> SQLiteRecordStore:
+        key = str(self.runtime_dir.resolve())
+        if key not in self._record_stores:
+            self.runtime_dir.mkdir(parents=True, exist_ok=True)
+            self._record_stores[key] = SQLiteRecordStore(self.runtime_dir / ".records.sqlite3")
+        return self._record_stores[key]
+
+    def _migrate_legacy_tasks(self) -> None:
+        store = self._record_store()
+        for path in self.runtime_dir.glob("AGT-*.json"):
+            try:
+                task = self._read(path)
+            except (OSError, json.JSONDecodeError):
+                continue
+            task_id = str(task.get("task_id") or path.stem)
+            if record_visible(task) and store.get("agent_task", task_id) is None:
+                task.setdefault("tenant_id", current_tenant_id())
+                store.put("agent_task", task_id, task)
+
+    def _migrate_legacy_events(self) -> None:
+        event_log = self.runtime_dir / "events.jsonl"
+        if not event_log.exists():
+            return
+        store = self._record_store()
+        for line in event_log.read_text(encoding="utf-8").splitlines():
+            try:
+                event = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            event_id = str(event.get("event_id") or "")
+            if event_id and record_visible(event) and store.get("agent_event", event_id) is None:
+                event.setdefault("tenant_id", current_tenant_id())
+                store.put("agent_event", event_id, event)

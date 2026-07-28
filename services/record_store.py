@@ -13,6 +13,14 @@ from typing import Any, Dict, Iterator, List, Optional
 from services.security import current_tenant_id
 
 
+class TenantBoundaryError(PermissionError):
+    """Raised when a caller attempts to write into another tenant."""
+
+
+class RecordConflictError(RuntimeError):
+    """Raised when optimistic-locking detects a stale record update."""
+
+
 class SQLiteRecordStore:
     def __init__(self, path: Path) -> None:
         self.path = path
@@ -20,25 +28,60 @@ class SQLiteRecordStore:
         self._lock = threading.RLock()
         self._initialize()
 
-    def put(self, namespace: str, record_id: str, payload: Dict[str, Any]) -> None:
-        tenant_id = str(payload.get("tenant_id") or current_tenant_id())
-        payload = {**payload, "tenant_id": tenant_id}
+    def put(
+        self,
+        namespace: str,
+        record_id: str,
+        payload: Dict[str, Any],
+        *,
+        expected_version: Optional[int] = None,
+    ) -> int:
+        tenant_id = current_tenant_id()
+        claimed_tenant = str(payload.get("tenant_id") or tenant_id)
+        if claimed_tenant != tenant_id:
+            raise TenantBoundaryError(
+                f"cross-tenant write denied: active={tenant_id!r}, claimed={claimed_tenant!r}"
+            )
         now = datetime.now(timezone.utc).isoformat()
-        serialized = json.dumps(payload, ensure_ascii=False, sort_keys=True, default=str)
         with self._lock, self._connect() as connection:
             connection.execute("BEGIN IMMEDIATE")
-            connection.execute(
-                """
-                INSERT INTO records(namespace, tenant_id, record_id, payload, created_at, updated_at, version)
-                VALUES (?, ?, ?, ?, ?, ?, 1)
-                ON CONFLICT(namespace, tenant_id, record_id) DO UPDATE SET
-                    payload = excluded.payload,
-                    updated_at = excluded.updated_at,
-                    version = records.version + 1
-                """,
-                (namespace, tenant_id, record_id, serialized, now, now),
-            )
+            row = connection.execute(
+                "SELECT version FROM records WHERE namespace = ? AND tenant_id = ? AND record_id = ?",
+                (namespace, tenant_id, record_id),
+            ).fetchone()
+            current_version = int(row[0]) if row else 0
+            if expected_version is not None and current_version != int(expected_version):
+                connection.rollback()
+                raise RecordConflictError(
+                    f"stale record {namespace}/{record_id}: expected version "
+                    f"{expected_version}, current version {current_version}"
+                )
+            next_version = current_version + 1
+            stored_payload = {
+                **payload,
+                "tenant_id": tenant_id,
+                "_storage_version": next_version,
+            }
+            serialized = json.dumps(stored_payload, ensure_ascii=False, sort_keys=True, default=str)
+            if row:
+                connection.execute(
+                    """
+                    UPDATE records
+                    SET payload = ?, updated_at = ?, version = ?
+                    WHERE namespace = ? AND tenant_id = ? AND record_id = ?
+                    """,
+                    (serialized, now, next_version, namespace, tenant_id, record_id),
+                )
+            else:
+                connection.execute(
+                    """
+                    INSERT INTO records(namespace, tenant_id, record_id, payload, created_at, updated_at, version)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (namespace, tenant_id, record_id, serialized, now, now, next_version),
+                )
             connection.commit()
+            return next_version
 
     def get(self, namespace: str, record_id: str) -> Optional[Dict[str, Any]]:
         with self._connect() as connection:
@@ -75,14 +118,24 @@ class SQLiteRecordStore:
         try:
             with self._connect() as connection:
                 mode = connection.execute("PRAGMA journal_mode").fetchone()[0]
+                quick_check = connection.execute("PRAGMA quick_check").fetchone()[0]
+                schema_version = connection.execute("PRAGMA user_version").fetchone()[0]
                 count = connection.execute("SELECT COUNT(*) FROM records").fetchone()[0]
-            return {"ready": True, "journal_mode": mode, "records": count, "path": str(self.path)}
+            return {
+                "ready": mode.lower() == "wal" and quick_check == "ok",
+                "journal_mode": mode,
+                "quick_check": quick_check,
+                "schema_version": schema_version,
+                "records": count,
+                "path": str(self.path),
+            }
         except sqlite3.Error as exc:
             return {"ready": False, "error": str(exc), "path": str(self.path)}
 
     def _initialize(self) -> None:
         with self._connect() as connection:
             connection.execute("PRAGMA journal_mode=WAL")
+            connection.execute("PRAGMA user_version=1")
             connection.execute(
                 """
                 CREATE TABLE IF NOT EXISTS records(

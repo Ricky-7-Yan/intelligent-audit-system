@@ -215,7 +215,14 @@ class EvaluationRunRepository:
 
     def _write_record(self, record: Dict[str, Any]) -> None:
         record.setdefault("tenant_id", current_tenant_id())
-        self.store.put("evaluation_run", str(record["run_id"]), record)
+        expected = record.get("_storage_version")
+        version = self.store.put(
+            "evaluation_run",
+            str(record["run_id"]),
+            record,
+            expected_version=int(expected) if expected is not None else None,
+        )
+        record["_storage_version"] = version
 
     def _migrate_legacy_records(self) -> None:
         for path in self.base_dir.glob("*.json"):

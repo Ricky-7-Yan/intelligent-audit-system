@@ -1,4 +1,4 @@
-"""File-backed working, episodic, and profile memory for audit conversations."""
+"""Transactional working, episodic, and profile memory for audit conversations."""
 
 from __future__ import annotations
 
@@ -10,11 +10,12 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from config import PATHS
+from services.record_store import SQLiteRecordStore
 from services.security import current_tenant_id, record_visible
 
 
 class ConversationMemory:
-    """Persist conversation context without requiring Redis or a vector service."""
+    """Persist conversation context with tenant-scoped transactional updates."""
 
     def __init__(
         self,
@@ -29,6 +30,7 @@ class ConversationMemory:
         self.retain_recent = retain_recent
         self.context_budget_tokens = max(600, context_budget_tokens)
         self._lock = threading.RLock()
+        self.store = SQLiteRecordStore(self.base_dir / ".records.sqlite3")
 
     def context_for(self, session_id: str, message: str) -> Dict[str, Any]:
         session = self.get_session(session_id) or self._empty(session_id)
@@ -93,34 +95,36 @@ class ConversationMemory:
             return self._summary(session)
 
     def get_session(self, session_id: str) -> Optional[Dict[str, Any]]:
+        session = self.store.get("conversation_session", session_id)
+        if session is not None:
+            return session
         path = self._path(session_id)
         if not path.exists():
             return None
         try:
             session = json.loads(path.read_text(encoding="utf-8"))
-            return session if record_visible(session) else None
+            if not record_visible(session):
+                return None
+            session.setdefault("tenant_id", current_tenant_id())
+            self._write(session)
+            return session
         except (OSError, json.JSONDecodeError):
             return None
 
     def list_sessions(self, limit: int = 20) -> List[Dict[str, Any]]:
-        files = sorted(self.base_dir.glob("*.json"), key=lambda item: item.stat().st_mtime, reverse=True)
-        sessions = []
-        for path in files[: max(limit, 1)]:
-            try:
-                session = json.loads(path.read_text(encoding="utf-8"))
-                if record_visible(session):
-                    sessions.append(self._summary(session))
-            except (OSError, json.JSONDecodeError):
-                continue
-        return sessions
+        self._migrate_legacy_sessions()
+        records = self.store.list("conversation_session", limit=max(limit, 1))
+        return [self._summary(session) for session in records]
 
     def delete_session(self, session_id: str) -> bool:
         """Delete a user-manageable conversation record."""
         path = self._path(session_id)
-        if not path.exists() or self.get_session(session_id) is None:
+        if self.get_session(session_id) is None:
             return False
-        path.unlink()
-        return True
+        removed = self.store.delete("conversation_session", session_id)
+        if path.exists():
+            path.unlink()
+        return removed
 
     def stats(self) -> Dict[str, Any]:
         sessions = self.list_sessions(limit=1000)
@@ -272,7 +276,23 @@ class ConversationMemory:
         return self.base_dir / f"{safe_id}.json"
 
     def _write(self, session: Dict[str, Any]) -> None:
-        target = self._path(str(session["session_id"]))
-        temporary = target.with_suffix(".tmp")
-        temporary.write_text(json.dumps(session, ensure_ascii=False, indent=2), encoding="utf-8")
-        temporary.replace(target)
+        session.setdefault("tenant_id", current_tenant_id())
+        expected = session.get("_storage_version")
+        version = self.store.put(
+            "conversation_session",
+            str(session["session_id"]),
+            session,
+            expected_version=int(expected) if expected is not None else None,
+        )
+        session["_storage_version"] = version
+
+    def _migrate_legacy_sessions(self) -> None:
+        for path in self.base_dir.glob("*.json"):
+            try:
+                session = json.loads(path.read_text(encoding="utf-8"))
+            except (OSError, json.JSONDecodeError):
+                continue
+            session_id = str(session.get("session_id") or path.stem)
+            if record_visible(session) and self.store.get("conversation_session", session_id) is None:
+                session.setdefault("tenant_id", current_tenant_id())
+                self.store.put("conversation_session", session_id, session)

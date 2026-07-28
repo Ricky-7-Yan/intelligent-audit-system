@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import hmac
 import json
 import re
 import threading
@@ -19,6 +20,7 @@ from config import PATHS, SECURITY_CONFIG
 
 
 ROLE_PERMISSIONS: Dict[str, set[str]] = {
+    "system": {"system:*"},
     "admin": {"*"},
     "audit_manager": {
         "read:*",
@@ -55,20 +57,23 @@ class Principal:
     roles: tuple[str, ...]
     permissions: frozenset[str]
     auth_method: str
+    project_ids: tuple[str, ...] = ()
 
     def public_dict(self) -> Dict[str, Any]:
         payload = asdict(self)
         payload["permissions"] = sorted(self.permissions)
         payload["roles"] = list(self.roles)
+        payload["project_ids"] = list(self.project_ids)
         return payload
 
 
 SYSTEM_PRINCIPAL = Principal(
     subject="system",
     tenant_id=str(SECURITY_CONFIG["default_tenant"]),
-    roles=("admin",),
-    permissions=frozenset({"*"}),
+    roles=("system", "admin"),
+    permissions=frozenset({"system:*", "*"}),
     auth_method="internal",
+    project_ids=("*",),
 )
 _principal_context: ContextVar[Principal] = ContextVar("auditpilot_principal", default=SYSTEM_PRINCIPAL)
 _request_id_context: ContextVar[str] = ContextVar("auditpilot_request_id", default="")
@@ -89,6 +94,29 @@ def current_request_id() -> str:
 def record_visible(record: Dict[str, Any]) -> bool:
     legacy_tenant = str(SECURITY_CONFIG["default_tenant"])
     return str(record.get("tenant_id") or legacy_tenant) == current_tenant_id()
+
+
+def project_visible(record: Dict[str, Any], project_id: str = "") -> bool:
+    """Apply tenant and project membership checks to a persisted record."""
+
+    if not record_visible(record):
+        return False
+    principal = current_principal()
+    if principal.auth_method in {"local", "internal"}:
+        return True
+    target = str(project_id or record.get("project_id") or record.get("run_id") or "")
+    if not target:
+        return True
+    if "*" in principal.project_ids or target in principal.project_ids:
+        return True
+    members = record.get("members") or {}
+    if isinstance(members, dict) and principal.subject in members:
+        return True
+    if isinstance(members, list):
+        return principal.subject in {
+            str(item.get("subject") if isinstance(item, dict) else item) for item in members
+        }
+    return False
 
 
 def bind_request_context(principal: Principal, request_id: str) -> tuple[Token[Principal], Token[str]]:
@@ -129,6 +157,7 @@ def authenticate(authorization: str = "", *, allow_anonymous: bool = False) -> P
             roles=roles,
             permissions=frozenset(_permissions_for_roles(roles) | explicit),
             auth_method="bearer",
+            project_ids=tuple(str(item) for item in record.get("project_ids", [])),
         )
     if mode == "local":
         return Principal(
@@ -137,6 +166,7 @@ def authenticate(authorization: str = "", *, allow_anonymous: bool = False) -> P
             roles=("admin",),
             permissions=frozenset({"*"}),
             auth_method="local",
+            project_ids=("*",),
         )
     if allow_anonymous:
         return Principal(
@@ -150,6 +180,8 @@ def authenticate(authorization: str = "", *, allow_anonymous: bool = False) -> P
 
 
 def has_permission(principal: Principal, required: str) -> bool:
+    if required.startswith("system:") and "system" not in principal.roles:
+        return False
     if "*" in principal.permissions or required in principal.permissions:
         return True
     domain = required.split(":", 1)[-1]
@@ -213,10 +245,14 @@ class SlidingWindowRateLimiter:
 
 
 class AuditEventStore:
-    """Append-only JSONL events linked by SHA-256 for tamper evidence."""
+    """Append-only hash chain with an optional HMAC-signed head checkpoint."""
 
-    def __init__(self, path: Optional[Path] = None) -> None:
+    def __init__(self, path: Optional[Path] = None, signing_key: Optional[str] = None) -> None:
         self.path = path or (PATHS["audit_events"] / "events.jsonl")
+        self.checkpoint_path = self.path.with_suffix(".checkpoint.json")
+        configured_key = SECURITY_CONFIG.get("audit_log_signing_key", "")
+        self._signing_key = str(configured_key if signing_key is None else signing_key).encode("utf-8")
+        self._event_count: Optional[int] = None
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self._lock = threading.RLock()
 
@@ -240,13 +276,26 @@ class AuditEventStore:
             event["event_hash"] = self._digest(event)
             with self.path.open("a", encoding="utf-8") as stream:
                 stream.write(json.dumps(event, ensure_ascii=False, sort_keys=True) + "\n")
+            if self._signing_key:
+                if self._event_count is None:
+                    self._event_count = sum(
+                        1 for line in self.path.read_text(encoding="utf-8").splitlines() if line.strip()
+                    )
+                else:
+                    self._event_count += 1
+                self._write_checkpoint(event["event_hash"], self._event_count)
             return event
 
     def verify(self) -> Dict[str, Any]:
         previous = ""
         checked = 0
         if not self.path.exists():
-            return {"valid": True, "events": 0, "head_hash": ""}
+            return {
+                "valid": True,
+                "events": 0,
+                "head_hash": "",
+                "checkpoint": "disabled" if not self._signing_key else "missing",
+            }
         for line in self.path.read_text(encoding="utf-8").splitlines():
             if not line.strip():
                 continue
@@ -256,7 +305,14 @@ class AuditEventStore:
                 return {"valid": False, "events": checked, "head_hash": previous}
             previous = expected
             checked += 1
-        return {"valid": True, "events": checked, "head_hash": previous}
+        checkpoint_status = self._verify_checkpoint(previous, checked)
+        self._event_count = checked
+        return {
+            "valid": checkpoint_status in {"valid", "disabled"},
+            "events": checked,
+            "head_hash": previous,
+            "checkpoint": checkpoint_status,
+        }
 
     def _last_hash(self) -> str:
         if not self.path.exists():
@@ -273,3 +329,36 @@ class AuditEventStore:
     def _digest(event: Dict[str, Any]) -> str:
         raw = json.dumps(event, ensure_ascii=False, sort_keys=True, separators=(",", ":"), default=str)
         return hashlib.sha256(raw.encode("utf-8")).hexdigest()
+
+    def _write_checkpoint(self, head_hash: str, event_count: int) -> None:
+        checkpoint = {
+            "head_hash": head_hash,
+            "event_count": event_count,
+            "signed_at": datetime.now(timezone.utc).isoformat(),
+            "algorithm": "HMAC-SHA256",
+        }
+        checkpoint["signature"] = self._checkpoint_signature(checkpoint)
+        temporary = self.checkpoint_path.with_suffix(".checkpoint.tmp")
+        temporary.write_text(json.dumps(checkpoint, ensure_ascii=False, sort_keys=True), encoding="utf-8")
+        temporary.replace(self.checkpoint_path)
+
+    def _verify_checkpoint(self, head_hash: str, event_count: int) -> str:
+        if not self._signing_key:
+            return "disabled"
+        if not self.checkpoint_path.exists():
+            return "missing"
+        try:
+            checkpoint = json.loads(self.checkpoint_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            return "invalid"
+        expected = str(checkpoint.pop("signature", ""))
+        actual = self._checkpoint_signature(checkpoint)
+        if not hmac.compare_digest(expected, actual):
+            return "invalid"
+        if checkpoint.get("head_hash") != head_hash or int(checkpoint.get("event_count") or -1) != event_count:
+            return "stale"
+        return "valid"
+
+    def _checkpoint_signature(self, checkpoint: Dict[str, Any]) -> str:
+        raw = json.dumps(checkpoint, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+        return hmac.new(self._signing_key, raw.encode("utf-8"), hashlib.sha256).hexdigest()
