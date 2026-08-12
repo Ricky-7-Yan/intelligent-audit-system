@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>审脉 AuditPilot · 审计交付总览</title>
   <link rel="stylesheet" href="../static/app.css?v=4.6.0">
-  <link rel="stylesheet" href="../static/workspace.css?v=7.0.1">
+  <link rel="stylesheet" href="../static/workspace.css?v=7.1.0">
 </head>
 <body>
   <div class="app-shell">
@@ -31,8 +31,8 @@
     <main class="main">
       <header class="workspace-header">
         <div class="page-title">
-          <h1>审计交付总览</h1>
-          <p>从立项、取证、控制测试到整改复核，一条链路完成审计交付。</p>
+          <h1>审计价值与交付总览</h1>
+          <p>先看解决了什么问题、覆盖哪些场景，再进入每个项目的证据与整改链路。</p>
         </div>
         <div class="workspace-actions">
           <label class="global-search">
@@ -48,77 +48,102 @@
         <div class="hero-orb orb-a"></div>
         <div class="hero-orb orb-b"></div>
         <div class="home-hero-copy">
-          <span class="section-kicker">Enterprise Audit Agent</span>
-          <h2>让审计项目从“问答辅助”升级为可追溯、可评测、可交付的 Agent 工作流</h2>
-          <p>审脉 AuditPilot 将审计立项、RAG 取证、控制映射、风险评估、整改闭环、Human Review 和交付包沉淀在同一条证据链里，面向企业内审、ITGC 与合规团队的真实交付场景。</p>
+          <span class="section-kicker">面向企业内审、ITGC 与合规团队</span>
+          <h2>把散落证据、人工口径和整改追踪，收束为一条可复核的审计交付链</h2>
+          <p>审脉 AuditPilot 不替代审计判断。它负责把范围、证据请求、控制测试、发现、整改和复核组织起来，让审计员少做重复整理，让复核人能追到每条结论的依据。</p>
           <div class="hero-tags">
-            <span>Plan / Execute / Reflect</span>
-            <span>RAG Evidence Grounding</span>
-            <span>Skills / MCP Governance</span>
-            <span>Eval Harness</span>
+            <span>证据不再散落</span>
+            <span>测试口径可复用</span>
+            <span>结论可追溯</span>
+            <span>整改能闭环</span>
           </div>
           <div class="hero-actions">
             <a class="btn primary" href="/audit">进入审计工作台</a>
-            <a class="btn" href="/skills">查看 Agent 运行时</a>
-            <a class="btn ghost" href="/training">评测与发布门禁</a>
+            <a class="btn" href="#scenarioCoverage">查看适用场景</a>
+            <a class="btn ghost" href="#businessValue">了解解决的痛点</a>
           </div>
         </div>
         <div class="home-hero-system" aria-label="系统状态卡片">
           <div class="system-card-main">
             <div class="system-card-head">
               <span class="status-dot"></span>
-              <strong>Audit Agent Control Plane</strong>
-              <small>Live</small>
+              <strong>一次审计交付包含</strong>
+              <small>可追溯</small>
             </div>
             <div class="system-flow">
-              <span>Scope</span>
+              <span>范围</span>
               <i></i>
-              <span>Evidence</span>
+              <span>证据</span>
               <i></i>
-              <span>Control</span>
+              <span>测试</span>
               <i></i>
-              <span>Review</span>
+              <span>复核</span>
             </div>
             <div class="system-layers">
-              <div><strong>Memory</strong><small>Working / Episodic / Profile</small></div>
-              <div><strong>Tool Use</strong><small>Schema / Permission / Circuit</small></div>
-              <div><strong>Quality Gate</strong><small>Badcase / Regression / Release</small></div>
+              <div><strong>证据底稿</strong><small>来源、缺口与版本</small></div>
+              <div><strong>控制测试</strong><small>程序、样本与例外</small></div>
+              <div><strong>整改任务</strong><small>责任、到期与复核</small></div>
             </div>
           </div>
           <div class="system-mini-card">
-            <span>Agent 质量诊断</span>
-            <strong>9 层</strong>
-            <small>任务、循环、工具、证据、图谱、安全、记忆、交付、改进</small>
+            <span>开箱审计场景</span>
+            <strong id="heroScenarioCount">6 个</strong>
+            <small>覆盖 4 类标准，并支持接入企业自有控制库继续扩展</small>
           </div>
         </div>
       </section>
 
       <section class="metric-strip" aria-label="核心指标">
         <article class="metric-cell">
-          <span class="metric-label">审计项目</span>
-          <strong class="metric-value" id="runCount">0</strong>
-          <small>已归档与进行中</small>
+          <span class="metric-label">开箱场景</span>
+          <strong class="metric-value" id="scenarioCount">0</strong>
+          <small>高频数字化审计模板</small>
         </article>
         <article class="metric-cell">
-          <span class="metric-label">开放整改</span>
-          <strong class="metric-value" id="openTasks">0</strong>
-          <small id="overdueHint">持续跟踪中</small>
+          <span class="metric-label">适配标准</span>
+          <strong class="metric-value" id="standardCount">0</strong>
+          <small id="standardHint">可继续扩展</small>
         </article>
         <article class="metric-cell">
-          <span class="metric-label">平均合规</span>
-          <strong class="metric-value" id="avgCompliance">0</strong>
-          <small>基于已完成控制</small>
+          <span class="metric-label">控制主题</span>
+          <strong class="metric-value" id="controlThemeCount">0</strong>
+          <small>模板范围去重统计</small>
         </article>
         <article class="metric-cell">
-          <span class="metric-label">知识切片</span>
-          <strong class="metric-value" id="knowledgeChunks">0</strong>
-          <small>可检索并引用</small>
+          <span class="metric-label">证据类型</span>
+          <strong class="metric-value" id="evidenceTypeCount">0</strong>
+          <small>清单、日志、审批与报告</small>
         </article>
         <article class="metric-cell">
-          <span class="metric-label">Agent Skills</span>
-          <strong class="metric-value" id="skillCount">0</strong>
-          <small>受治理的工具能力</small>
+          <span class="metric-label">交付物类型</span>
+          <strong class="metric-value" id="deliverableTypeCount">0</strong>
+          <small>底稿、清单、评估与计划</small>
         </article>
+      </section>
+
+      <section class="business-value-section" id="businessValue" aria-labelledby="businessValueTitle">
+        <div class="section-heading-row">
+          <div>
+            <span class="section-kicker">Business Value</span>
+            <h2 id="businessValueTitle">不是多一个聊天框，而是少四段交付断点</h2>
+            <p>每个痛点都对应系统动作和可检查的审计产物，价值是否成立可以在项目记录里验证。</p>
+          </div>
+          <a class="text-link" href="/audit">在真实项目中验证</a>
+        </div>
+        <div class="value-map" id="valueMap"></div>
+      </section>
+
+      <section class="scenario-section" id="scenarioCoverage" aria-labelledby="scenarioCoverageTitle">
+        <div class="section-heading-row">
+          <div>
+            <span class="section-kicker">Scenario Coverage</span>
+            <h2 id="scenarioCoverageTitle">6 个高频场景可直接立项，企业场景可继续扩展</h2>
+            <p id="coverageMethodology">覆盖口径来自版本化模板，不将模板数量等同于全部审计业务覆盖率。</p>
+          </div>
+          <a class="btn" href="/audit">选择模板立项</a>
+        </div>
+        <div class="scenario-value-grid" id="scenarioCards"></div>
+        <div class="coverage-footnote" id="coverageFootnote"></div>
       </section>
 
       <section class="evolution-command panel" aria-label="Self-evolution harness">
@@ -316,18 +341,53 @@ async function loadOverview() {
   const overview = (await apiFetch("/api/product/overview")).overview;
   const evolution = (await apiFetch("/api/agent/evolution")).evolution;
   const summary = overview.summary || {};
-  setText("#runCount", summary.audit_runs || 0);
-  setText("#openTasks", summary.open_tasks || 0);
-  setText("#avgCompliance", summary.avg_compliance || 0);
-  setText("#knowledgeChunks", summary.knowledge_chunks || 0);
-  setText("#skillCount", summary.skills || 0);
-  setText("#overdueHint", summary.overdue_tasks ? `${summary.overdue_tasks} 项已逾期` : "无逾期任务");
+  setText("#scenarioCount", summary.scenario_templates || 0);
+  setText("#heroScenarioCount", `${summary.scenario_templates || 0} 个`);
+  setText("#standardCount", summary.standards || 0);
+  setText("#controlThemeCount", summary.control_themes || 0);
+  setText("#evidenceTypeCount", summary.evidence_types || 0);
+  setText("#deliverableTypeCount", summary.deliverable_types || 0);
+  setText("#standardHint", (overview.scenario_coverage?.standards || []).join(" · ") || "可继续扩展");
+  renderBusinessValue(overview.customer_value || []);
+  renderScenarioCoverage(overview.scenario_coverage || {});
   renderProjects(overview.recent_runs || []);
   renderTrace(overview.recent_skill_runs || []);
   renderControls(overview.control_health || []);
   renderEvidence(overview.evidence_requests || []);
   renderSignals(summary);
   renderEvolution(evolution);
+}
+
+function renderBusinessValue(items) {
+  const node = qs("#valueMap");
+  clearNode(node);
+  items.forEach((item, index) => node.appendChild(el("article", { class: "value-map-row" }, [
+    el("span", { class: "value-index", text: String(index + 1).padStart(2, "0") }),
+    el("div", { class: "value-pain" }, [el("small", { text: "客户痛点" }), el("strong", { text: item.pain })]),
+    el("div", { class: "value-solution" }, [el("small", { text: "AuditPilot 如何解决" }), el("p", { text: item.solution })]),
+    el("div", { class: "value-proof" }, [el("small", { text: "可验证交付物" }), el("p", { text: item.proof }), el("span", { text: item.audience })])
+  ])));
+}
+
+function renderScenarioCoverage(coverage) {
+  const node = qs("#scenarioCards");
+  clearNode(node);
+  (coverage.scenarios || []).forEach((item) => node.appendChild(el("article", { class: "scenario-value-card" }, [
+    el("div", { class: "scenario-card-head" }, [
+      el("span", { class: "scenario-standard", text: item.standard }),
+      statusBadge(item.risk_level || "中", item.risk_level === "高" ? "high" : "review")
+    ]),
+    el("h3", { text: item.name }),
+    el("p", { text: item.pain }),
+    el("div", { class: "scenario-card-metrics" }, [
+      el("span", { text: `${item.scope_count} 控制主题` }),
+      el("span", { text: `${item.evidence_count} 证据项` }),
+      el("span", { text: `${item.deliverable_count} 交付物` })
+    ]),
+    el("small", { class: "scenario-output", text: `输出示例：${(item.example_deliverables || []).join("、")}` })
+  ])));
+  setText("#coverageMethodology", coverage.coverage_statement || "支持高频数字化审计场景");
+  setText("#coverageFootnote", `口径说明：${coverage.methodology || "模板覆盖可按企业控制库扩展。"}`);
 }
 
 function renderEvolution(evolution) {

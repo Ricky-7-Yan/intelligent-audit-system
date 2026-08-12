@@ -148,6 +148,23 @@ class ProductionFlowIntegrationTests(unittest.IsolatedAsyncioTestCase):
             response = await self.client.get(path, headers=self.headers())
             self.assertEqual(response.status_code, 200, f"{path}: {response.text}")
 
+        overview_response = await self.client.get("/api/product/overview", headers=self.headers())
+        overview = overview_response.json()["overview"]
+        coverage = overview["scenario_coverage"]
+        self.assertEqual(coverage["built_in_templates"], 6)
+        self.assertEqual(coverage["standards_count"], 4)
+        self.assertEqual(coverage["control_themes_count"], 34)
+        self.assertEqual(coverage["evidence_types_count"], 36)
+        self.assertEqual(coverage["deliverable_types_count"], 25)
+        self.assertEqual(len(coverage["scenarios"]), coverage["built_in_templates"])
+        self.assertTrue(coverage["custom_scenarios_supported"])
+        self.assertIn("不代表覆盖全部", coverage["methodology"])
+        self.assertEqual(len(overview["customer_value"]), 4)
+        for item in overview["customer_value"]:
+            self.assertTrue(item["pain"])
+            self.assertTrue(item["solution"])
+            self.assertTrue(item["proof"])
+
         research = await self.client.post(
             "/api/research/answer",
             headers=self.headers(),

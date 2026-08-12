@@ -9,6 +9,7 @@ from typing import Any, Dict, List
 
 from config import RAG_CONFIG
 from services.audit_repository import AuditRunRepository
+from services.audit_templates import list_audit_templates
 from services.skill_registry import SkillRegistry
 
 
@@ -23,6 +24,7 @@ class ProductInsights:
         risk_counter = Counter(run.get("risk_level") or "未评估" for run in runs)
         status_counter = Counter(run.get("status") or "未知" for run in runs)
         task_summary = self.audit_repository.task_summary()
+        scenario_coverage = self._scenario_coverage()
         summary = {
             "audit_runs": len(runs),
             "open_tasks": task_summary["open_tasks"],
@@ -31,6 +33,11 @@ class ProductInsights:
             "avg_compliance": self._avg([run.get("compliance_score") for run in runs]),
             "knowledge_chunks": rag_stats.get("total_documents", 0),
             "skills": len(self.skill_registry.list_skills()),
+            "scenario_templates": scenario_coverage["built_in_templates"],
+            "standards": scenario_coverage["standards_count"],
+            "control_themes": scenario_coverage["control_themes_count"],
+            "evidence_types": scenario_coverage["evidence_types_count"],
+            "deliverable_types": scenario_coverage["deliverable_types_count"],
         }
         return {
             "generated_at": datetime.now().isoformat(),
@@ -46,6 +53,8 @@ class ProductInsights:
             "connectors": self._connectors(rag_stats),
             "pipeline": self._pipeline(),
             "customer_value": self._customer_value(),
+            "scenario_coverage": scenario_coverage,
+            "value_measurement": self._value_measurement(),
         }
 
     def risk_register(self, runs: List[Dict[str, Any]] | None = None) -> List[Dict[str, Any]]:
@@ -111,7 +120,7 @@ class ProductInsights:
     def _connectors(self, rag_stats: Dict[str, Any]) -> List[Dict[str, Any]]:
         return [
             {"name": "Knowledge Base", "status": "online", "detail": f"{rag_stats.get('total_documents', 0)} chunks"},
-            {"name": "Audit Archive", "status": "online", "detail": "local JSON repository"},
+            {"name": "Audit Archive", "status": "online", "detail": "tenant-scoped SQLite WAL"},
             {"name": "Skill Registry", "status": "online", "detail": f"{len(self.skill_registry.list_skills())} tools"},
             {"name": "LLM Gateway", "status": "configured", "detail": "DeepSeek/OpenAI compatible"},
             {"name": "MySQL Standards", "status": "optional", "detail": "falls back to built-in controls"},
@@ -130,10 +139,81 @@ class ProductInsights:
 
     def _customer_value(self) -> List[Dict[str, str]]:
         return [
-            {"title": "审计自动化", "detail": "从审计对象直接生成范围、控制矩阵、证据包、程序和报告。"},
-            {"title": "证据可追溯", "detail": "RAG 答案返回来源，质量门输出置信度和缺失证据。"},
-            {"title": "整改闭环", "detail": "发现、建议、责任人、状态和复核意见保存在审计档案中。"},
-            {"title": "平台化扩展", "detail": "Skill/MCP 风格工具可注册、可描述、可审计。"},
+            {
+                "pain": "资料散落，取证反复追问",
+                "solution": "按审计范围生成证据请求，统一检索、来源定位和缺口提示。",
+                "proof": "证据请求单、页段级引用、缺失证据清单",
+                "audience": "审计员 / 业务责任人",
+            },
+            {
+                "pain": "控制测试依赖个人经验，口径不一致",
+                "solution": "用版本化场景模板把风险、控制、证据和测试程序映射到同一工作底稿。",
+                "proof": "控制矩阵、抽样计划、测试程序、例外清单",
+                "audience": "项目经理 / 审计员",
+            },
+            {
+                "pain": "AI 结论难复核，无法直接进入底稿",
+                "solution": "保存执行轨迹、工具调用和证据链，低置信或缺证结果自动进入人工复核。",
+                "proof": "质量门、来源引用、复核记录、不可变交付物",
+                "audience": "复核人 / 审计经理",
+            },
+            {
+                "pain": "发现和整改脱节，复核容易失去上下文",
+                "solution": "把发现、建议、责任人、到期日、状态流转和复核意见保存在同一审计档案。",
+                "proof": "整改任务、逾期提示、复核意见、交付报告",
+                "audience": "整改责任人 / 管理层",
+            },
+        ]
+
+    def _scenario_coverage(self) -> Dict[str, Any]:
+        templates = list_audit_templates()
+        standards = sorted({item["standard"] for item in templates})
+        control_themes = sorted({value for item in templates for value in item.get("scope", [])})
+        evidence_types = sorted({value for item in templates for value in item.get("evidence", [])})
+        deliverable_types = sorted({value for item in templates for value in item.get("deliverables", [])})
+        pain_by_template = {
+            "tpl-itgc-sox": "财务系统关键控制多、样本与证据难统一",
+            "tpl-erp-access": "越权与职责冲突难以从账号、角色和审批中快速定位",
+            "tpl-data-security": "数据目录、访问、共享和日志分散，合规缺口难串联",
+            "tpl-change-release": "变更证据跨需求、测试、审批与上线环节，例外易漏检",
+            "tpl-backup-recovery": "有备份不等于可恢复，RPO/RTO 与演练结果难闭环",
+            "tpl-third-party": "供应商准入、合同、访问和退出责任分散",
+        }
+        scenarios = []
+        for item in templates:
+            scenarios.append(
+                {
+                    "template_id": item["template_id"],
+                    "name": item["name"],
+                    "audit_type": item["audit_type"],
+                    "standard": item["standard"],
+                    "risk_level": item["risk_level"],
+                    "pain": pain_by_template[item["template_id"]],
+                    "scope_count": len(item.get("scope", [])),
+                    "evidence_count": len(item.get("evidence", [])),
+                    "deliverable_count": len(item.get("deliverables", [])),
+                    "example_deliverables": item.get("deliverables", [])[:2],
+                }
+            )
+        return {
+            "built_in_templates": len(templates),
+            "custom_scenarios_supported": True,
+            "standards": standards,
+            "standards_count": len(standards),
+            "control_themes_count": len(control_themes),
+            "evidence_types_count": len(evidence_types),
+            "deliverable_types_count": len(deliverable_types),
+            "scenarios": scenarios,
+            "coverage_statement": "内置 6 个高频数字化审计模板，并支持按企业控制库扩展自定义场景。",
+            "methodology": "数量来自版本化审计模板的去重统计，不代表覆盖全部行业和全部审计业务。",
+        }
+
+    def _value_measurement(self) -> List[Dict[str, str]]:
+        return [
+            {"metric": "取证周期", "definition": "证据请求创建至满足质量门的中位时长", "direction": "越低越好"},
+            {"metric": "底稿一次复核通过率", "definition": "无需退回补证即可通过复核的交付物比例", "direction": "越高越好"},
+            {"metric": "证据充分率", "definition": "已满足必要证据项占全部必要证据项的比例", "direction": "越高越好"},
+            {"metric": "整改按期关闭率", "definition": "到期日前完成并通过复核的整改任务比例", "direction": "越高越好"},
         ]
 
     def _next_action(self, run: Dict[str, Any]) -> str:
