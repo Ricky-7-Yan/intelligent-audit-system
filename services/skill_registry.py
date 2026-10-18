@@ -15,6 +15,7 @@ from datetime import datetime, timedelta
 from typing import Any, Callable, Dict, List, Tuple
 
 from config import PATHS
+from services.public_research import public_research
 from services.security import current_principal, current_request_id, has_permission, record_visible
 
 
@@ -584,11 +585,13 @@ class SkillRegistry:
             Skill(
                 name="audit.deep_research_brief",
                 title="Deep Research 研究计划",
-                description="为复杂审计问题生成查询改写、来源策略、证据问题和人工复核条件。",
+                description="生成审计研究计划；仅在提供 public_research_query 时检索公开网页，禁止填写私密审计信息。",
                 input_schema={
                     "type": "object",
                     "properties": {
                         "question": {"type": "string"},
+                        "public_research_query": {"type": "string"},
+                        "search_provider": {"type": "string", "enum": ["parallel", "disabled"]},
                         "standard": {"type": "string"},
                         "domain": {"type": "string"},
                     },
@@ -596,7 +599,7 @@ class SkillRegistry:
                 },
                 permissions=["read:knowledge", "read:standards"],
                 handler=self._deep_research_brief,
-                cache_ttl_seconds=120,
+                cache_ttl_seconds=0,
             )
         )
         self._register(
@@ -691,6 +694,7 @@ class SkillRegistry:
             "question": question,
             "standard": standard,
             "domain": domain,
+            "public_research": public_research(payload),
             "review_conditions": [
                 "conflicting sources, unknown standard versions, or fewer than two independent sources",
                 "production access, personal data, or material financial impact",

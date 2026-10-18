@@ -150,6 +150,30 @@ python start.py
 
 默认安装不包含 Torch / Transformers。只有在确实需要本地语义向量时，才安装 `requirements-embeddings.txt` 并启用 `RAG_ENABLE_EMBEDDINGS=1`；默认混合检索不依赖本地大模型。
 
+### 公开来源研究
+
+Agent Runtime 的 `audit.deep_research_brief` 可通过 [Parallel Search MCP](https://docs.parallel.ai/integrations/mcp/search-mcp)
+检索公开参考资料。公开搜索默认使用 Parallel Fast 模式，无需账号或 API 密钥；免费服务有调用限额。
+只有明确提供 `public_research_query` 时才发起网络请求，内部 RAG 与原有研究计划仍可离线运行。
+在本地模式下，可向任务 API 提交：
+
+```bash
+curl http://127.0.0.1:8000/api/agent/tasks \
+  -H 'Content-Type: application/json' \
+  -d '{"objective":"准备访问控制审计计划","context":{"public_research_query":"NIST access control guidance"}}'
+```
+
+创建任务后，使用现有任务执行 API 推进到研究步骤：`POST /api/agent/tasks/{task_id}/run`，请求体为
+`{"max_steps":10}`。共享部署需按现有鉴权要求提供 Bearer Token。
+研究产物中的 `public_research.sources` 保存标题、URL 和摘录，供后续步骤与人工复核使用。
+公开网页属于不可信的补充参考，不能替代企业运行证据，也不会自动写入内部知识库。
+
+只在 `public_research_query` 中填写可以公开的信息。发送内容仅限该查询与不含业务信息的关联标识，
+不会自动发送审计目标、上下文或上游产物。`SEARCH_PROVIDER=disabled` 可在部署级禁止公开搜索，
+任务上下文的 `search_provider=disabled` 可禁用本次搜索；部署级禁用优先。未配置提供商时默认使用
+`parallel`，未知的提供商会报错，不会静默回退。`SEARCH_TIMEOUT_SECONDS` 默认 6 秒，最大 6 秒，
+覆盖连接、工具发现及搜索全程。服务错误或超时会记为失败工具调用，并沿用现有重试与人工复核流程。
+
 ## Security
 
 Do not commit real API keys.
