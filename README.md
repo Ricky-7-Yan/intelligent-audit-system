@@ -153,11 +153,34 @@ python start.py
 ### 公开来源研究
 
 Agent Runtime 的 `audit.deep_research_brief` 可通过 [Parallel Search MCP](https://docs.parallel.ai/integrations/mcp/search-mcp)
-检索公开参考资料。公开搜索默认使用 Parallel Fast 模式，无需账号或 API 密钥；免费服务有调用限额。
-只有明确提供 `public_research_query` 时才发起网络请求，内部 RAG 与原有研究计划仍可离线运行。
-在本地模式下，可向任务 API 提交：
+检索公开参考资料，默认关闭。内部 RAG 与原有研究计划在关闭状态下照常离线运行。
+公开搜索使用 Parallel Fast 模式，无需账号或 API 密钥；免费服务有调用限额。
+
+**外发请求必须同时满足三个运行时条件，缺一不可，文档提示不构成授权：**
+
+1. **部署级开关**：`SEARCH_PROVIDER` 默认 `disabled`，必须由部署管理员显式改为 `parallel`。
+   调用方填写 `public_research_query` 只是请求，不是授权；任务上下文的 `search_provider=disabled`
+   可再禁用本次搜索，部署级禁用始终优先。未知提供商会报错，不会静默回退。
+2. **独立权限**：外发需要 `execute:external_research`。该权限不属于任何内置角色，
+   `read:knowledge`、`read:*` 等现有角色不会自动获得第三方数据传输能力；
+   需在 `AUDITPILOT_API_TOKENS_JSON` 的 `permissions` 中按令牌单独授予。
+3. **敏感信息检查**：查询在外发前复用上传链路的检查词表（`services/upload_security.py` 的凭据、
+   个人信息、内部商业信息规则）与 `SafetyGate`。命中任一类即拒绝，不会发出请求。
+
+每次外发尝试都会写入既有审计事件哈希链（`external_research_denied` / `external_research_blocked` /
+`external_research_dispatched` / `external_research_completed` / `external_research_failed`）。
+事件只记录查询的 SHA-256 指纹、字符数、会话标识与结果，不保存原始查询文本。
+
+MCP 客户端 SDK 不在默认安装内。启用公开搜索时安装 `requirements-search.txt`；
+未安装而启用会在外发前报错。这样默认镜像与默认依赖审计面不包含该 SDK 及其传递依赖。
+取舍：相比自行实现一个窄适配器，保留官方 SDK 可以继续由上游维护协议协商与传输层，
+代价是启用方需要多装一个可选依赖；CI 对 `requirements.txt` 与 `requirements-search.txt` 分别执行
+`pip-audit`，使默认安装面与可选安装面各自可见。
 
 ```bash
+pip install -r requirements-search.txt
+export SEARCH_PROVIDER=parallel
+
 curl http://127.0.0.1:8000/api/agent/tasks \
   -H 'Content-Type: application/json' \
   -d '{"objective":"准备访问控制审计计划","context":{"public_research_query":"NIST access control guidance"}}'
@@ -167,12 +190,9 @@ curl http://127.0.0.1:8000/api/agent/tasks \
 `{"max_steps":10}`。共享部署需按现有鉴权要求提供 Bearer Token。
 研究产物中的 `public_research.sources` 保存标题、URL 和摘录，供后续步骤与人工复核使用。
 公开网页属于不可信的补充参考，不能替代企业运行证据，也不会自动写入内部知识库。
-
-只在 `public_research_query` 中填写可以公开的信息。发送内容仅限该查询与不含业务信息的关联标识，
-不会自动发送审计目标、上下文或上游产物。`SEARCH_PROVIDER=disabled` 可在部署级禁止公开搜索，
-任务上下文的 `search_provider=disabled` 可禁用本次搜索；部署级禁用优先。未配置提供商时默认使用
-`parallel`，未知的提供商会报错，不会静默回退。`SEARCH_TIMEOUT_SECONDS` 默认 6 秒，最大 6 秒，
-覆盖连接、工具发现及搜索全程。服务错误或超时会记为失败工具调用，并沿用现有重试与人工复核流程。
+发送内容仅限该查询与不含业务信息的关联标识，不会自动发送审计目标、上下文或上游产物。
+`SEARCH_TIMEOUT_SECONDS` 默认 6 秒，最大 6 秒，覆盖连接、工具发现及搜索全程。
+服务错误或超时会记为失败工具调用，并沿用现有重试与人工复核流程。
 
 ## Security
 

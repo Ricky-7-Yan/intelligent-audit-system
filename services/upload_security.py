@@ -30,6 +30,40 @@ SECRET_PATTERNS = [
     re.compile(r"AKIA[0-9A-Z]{16}"),
     re.compile(r"Bearer\s+[A-Za-z0-9._-]{16,}", re.IGNORECASE),
 ]
+PERSONAL_DATA_PATTERNS = [
+    re.compile(r"(?<!\d)[1-9]\d{5}(?:19|20)\d{2}(?:0[1-9]|1[0-2])(?:0[1-9]|[12]\d|3[01])\d{3}[\dXx](?!\d)"),
+    re.compile(r"(?<!\d)1[3-9]\d{9}(?!\d)"),
+    re.compile(r"(?<!\d)\d{16,19}(?!\d)"),
+    re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}"),
+]
+BUSINESS_CONFIDENTIAL_PATTERNS = [
+    re.compile(r"(内部资料|仅限内部|商业机密|商业秘密|保密协议|未公开|涉密)"),
+    re.compile(
+        r"(?:confidential|internal\s+only|internal[-_]use|proprietary|trade\s+secret|do\s+not\s+distribute)",
+        re.IGNORECASE,
+    ),
+    # Four octets only, so a standard clause such as "ISO 27001 10.1.2" is not a hit.
+    re.compile(
+        r"(?<![\d.])(?:10\.\d{1,3}|192\.168|172\.(?:1[6-9]|2\d|3[01]))\.\d{1,3}\.\d{1,3}(?![\d.])"
+    ),
+    re.compile(r"[A-Za-z0-9-]+\.(?:internal|intranet|corp|lan)(?![A-Za-z0-9-])", re.IGNORECASE),
+]
+# One screening vocabulary shared by file uploads and outbound research queries.
+SENSITIVE_PATTERN_GROUPS: Dict[str, list[re.Pattern[str]]] = {
+    "credential": SECRET_PATTERNS,
+    "personal_data": PERSONAL_DATA_PATTERNS,
+    "business_confidential": BUSINESS_CONFIDENTIAL_PATTERNS,
+    "prompt_injection": PROMPT_INJECTION_PATTERNS,
+}
+
+
+def scan_sensitive_text(text: str) -> Dict[str, list[str]]:
+    """Group the matching pattern sources by category without echoing the input."""
+
+    return {
+        category: [pattern.pattern for pattern in patterns if pattern.search(text)]
+        for category, patterns in SENSITIVE_PATTERN_GROUPS.items()
+    }
 
 
 @dataclass
@@ -74,8 +108,9 @@ async def read_validated_upload(
     if content.startswith((b"PK\x03\x04", b"%PDF", b"\x89PNG", b"\xff\xd8\xff")):
         raise ValueError("文件内容与文本扩展名不一致")
     text = content.decode("utf-8", errors="replace")
-    injection_hits = [pattern.pattern for pattern in PROMPT_INJECTION_PATTERNS if pattern.search(text)]
-    secret_hits = [pattern.pattern for pattern in SECRET_PATTERNS if pattern.search(text)]
+    findings = scan_sensitive_text(text)
+    injection_hits = findings["prompt_injection"]
+    secret_hits = findings["credential"]
     return ValidatedUpload(
         content=content,
         original_name=original_name,

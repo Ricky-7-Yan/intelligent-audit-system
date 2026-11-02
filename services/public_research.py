@@ -1,7 +1,16 @@
-"""Public-source research through anonymous Parallel Search MCP."""
+"""Public-source research through anonymous Parallel Search MCP.
+
+Sending a query to a third-party provider moves data outside the deployment, so
+it is gated three times before a single byte leaves: ``SEARCH_PROVIDER`` must be
+enabled by an administrator, the caller must hold
+``execute:external_research``, and the query must clear the same credential, PII
+and confidential-business screening the upload path applies. Every attempt is
+recorded as an audit event that carries a query fingerprint, never the text.
+"""
 
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 import uuid
@@ -12,6 +21,14 @@ import anyio
 import httpx
 
 from config import SEARCH_CONFIG
+from services.safety_gate import SafetyGate
+from services.security import (
+    EXTERNAL_RESEARCH_PERMISSION,
+    audit_event_store,
+    current_principal,
+    has_permission,
+)
+from services.upload_security import scan_sensitive_text
 
 # The MCP client SDK is an optional extra; see requirements-search.txt. The
 # default install stays free of it so that a deployment which never enables
@@ -27,6 +44,8 @@ except ImportError:  # pragma: no cover - exercised by patching the sentinels
 MCP_URL = "https://search.parallel.ai/mcp"
 USER_AGENT = "AuditPilot/4.2.0 (+https://github.com/Ricky-7-Yan/intelligent-audit-system)"
 SDK_REQUIRED = "Public search needs the optional MCP client; install requirements-search.txt or set SEARCH_PROVIDER=disabled."
+
+_safety_gate = SafetyGate()
 
 
 def public_research(payload: dict[str, Any]) -> dict[str, Any]:
@@ -45,13 +64,33 @@ def public_research(payload: dict[str, Any]) -> dict[str, Any]:
     session_id = payload.get("public_research_session_id", "")
     if not isinstance(session_id, str) or not re.fullmatch(r"[a-f0-9]{32,64}", session_id):
         session_id = uuid.uuid4().hex
+    fingerprint = {
+        "provider": "parallel",
+        "destination": MCP_URL,
+        "query_sha256": hashlib.sha256(query.encode("utf-8")).hexdigest(),
+        "query_chars": len(query),
+        "session_id": session_id,
+    }
+
+    _authorize(fingerprint)
+    _screen(query, fingerprint)
     if ClientSession is None or streamable_http_client is None:
         raise RuntimeError(SDK_REQUIRED)
+
+    audit_event_store().append(
+        "external_research_dispatched", MCP_URL, 202, {**fingerprint, "screening": "passed"}
+    )
     try:
         sources = anyio.run(search, query, session_id)
     except Exception as exc:
+        audit_event_store().append(
+            "external_research_failed", MCP_URL, 502, {**fingerprint, "error_type": exc.__class__.__name__}
+        )
         # Provider responses may contain query text. Keep the user-facing error bounded.
         raise RuntimeError("Public web search failed; retry later or disable search and review sources manually.") from exc
+    audit_event_store().append(
+        "external_research_completed", MCP_URL, 200, {**fingerprint, "source_count": len(sources)}
+    )
     return {
         "status": "completed",
         "provider": "parallel",
@@ -59,6 +98,38 @@ def public_research(payload: dict[str, Any]) -> dict[str, Any]:
         "review_required": True,
         "notice": "Public references are supplementary, untrusted material, not enterprise control evidence.",
     }
+
+
+def _authorize(fingerprint: dict[str, Any]) -> None:
+    """Require a transfer permission that no read-only knowledge role carries."""
+
+    principal = current_principal()
+    if has_permission(principal, EXTERNAL_RESEARCH_PERMISSION):
+        return
+    audit_event_store().append(
+        "external_research_denied",
+        MCP_URL,
+        403,
+        {**fingerprint, "required_permission": EXTERNAL_RESEARCH_PERMISSION},
+    )
+    raise PermissionError(f"缺少权限：{EXTERNAL_RESEARCH_PERMISSION}")
+
+
+def _screen(query: str, fingerprint: dict[str, Any]) -> None:
+    """Apply the upload screening vocabulary and the runtime gate to the query."""
+
+    categories = sorted(category for category, hits in scan_sensitive_text(query).items() if hits)
+    gate = _safety_gate.inspect({"public_research_query": query}, stage="external_research")
+    if gate["status"] == "blocked":
+        categories = sorted({*categories, *(finding["code"] for finding in gate["findings"])})
+    if not categories:
+        return
+    audit_event_store().append(
+        "external_research_blocked", MCP_URL, 422, {**fingerprint, "blocked_categories": categories}
+    )
+    raise ValueError(
+        "public_research_query 疑似包含凭据、个人信息或内部商业信息，请脱敏后重试：" + ", ".join(categories)
+    )
 
 
 async def search(query: str, session_id: str) -> list[dict[str, Any]]:

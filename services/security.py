@@ -19,6 +19,11 @@ from typing import Any, Deque, Dict, Iterable, Optional
 from config import PATHS, SECURITY_CONFIG
 
 
+# Transferring a query to a third-party search provider is a separate decision
+# from reading internal knowledge, so no built-in role below grants it. Issue it
+# per token through the ``permissions`` list in AUDITPILOT_API_TOKENS_JSON.
+EXTERNAL_RESEARCH_PERMISSION = "execute:external_research"
+
 ROLE_PERMISSIONS: Dict[str, set[str]] = {
     "system": {"system:*"},
     "admin": {"*"},
@@ -362,3 +367,17 @@ class AuditEventStore:
     def _checkpoint_signature(self, checkpoint: Dict[str, Any]) -> str:
         raw = json.dumps(checkpoint, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
         return hmac.new(self._signing_key, raw.encode("utf-8"), hashlib.sha256).hexdigest()
+
+
+_audit_event_store: Optional[AuditEventStore] = None
+_audit_event_store_lock = threading.Lock()
+
+
+def audit_event_store() -> AuditEventStore:
+    """Return the process-wide store so every writer shares one hash chain."""
+
+    global _audit_event_store
+    with _audit_event_store_lock:
+        if _audit_event_store is None:
+            _audit_event_store = AuditEventStore()
+        return _audit_event_store
