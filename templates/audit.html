@@ -56,10 +56,11 @@
             <div class="field"><label>&#19994;&#21153;&#32972;&#26223;</label><textarea id="businessContext" rows="3" placeholder="&#20363;&#22914;&#65306;&#35813; ERP &#25903;&#25745;&#37319;&#36141;&#12289;&#20184;&#27454;&#12289;&#24635;&#36134;&#21644;&#25253;&#34920;&#27969;&#31243;&#65292;&#36817;&#26399;&#36827;&#34892;&#20102;&#32452;&#32455;&#26550;&#26500;&#35843;&#25972;&#12290;"></textarea></div>
             <div class="field"><label>&#23457;&#35745;&#33539;&#22260;</label><textarea id="auditScope" rows="3" placeholder="&#20363;&#22914;&#65306;&#36134;&#21495;&#29983;&#21629;&#21608;&#26399;&#12289;&#35282;&#33394;&#25480;&#26435;&#12289;&#32844;&#36131;&#20998;&#31163;&#12289;&#29305;&#26435;&#36134;&#21495;&#12289;&#23450;&#26399;&#22797;&#26680;&#12290;"></textarea></div>
           </div>
-          <div class="grid grid-3 mt-16">
+          <div class="grid grid-4 mt-16">
             <div class="field"><label>&#23457;&#35745;&#26399;&#38388;</label><input id="auditPeriod" value="2026 Q2"></div>
             <div class="field"><label>&#37325;&#28857;&#38382;&#39064;</label><input id="keyQuestions" placeholder="&#20363;&#22914;&#65306;&#26159;&#21542;&#23384;&#22312;&#31163;&#32844;&#26410;&#31105;&#29992;&#12289;SoD &#20914;&#31361;&#12289;&#29305;&#26435;&#36134;&#21495;&#26080;&#22797;&#26680;&#12290;"></div>
             <div class="field"><label>&#24050;&#26377;&#35777;&#25454;</label><input id="existingEvidence" placeholder="&#20363;&#22914;&#65306;&#29992;&#25143;&#28165;&#21333;&#12289;&#35282;&#33394;&#30697;&#38453;&#12289;&#26368;&#36817;&#19968;&#27425;&#26435;&#38480;&#22797;&#26680;&#35760;&#24405;&#12290;"></div>
+            <div class="field"><label>价值度量口径</label><select id="measurementCohort"><option value="operational">日常项目，不进入试点基线</option><option value="pilot">正式试点，纳入价值基线</option><option value="demo">演示数据，不进入基线</option></select></div>
           </div>
           <div class="toolbar mt-16">
             <button class="btn primary" id="runAudit">&#36816;&#34892; Agent &#23457;&#35745;</button>
@@ -115,6 +116,17 @@
             <div class="field"><label>&#25191;&#34892;</label><button class="btn primary" id="analyzeEvidence">&#20998;&#26512;&#35777;&#25454;</button></div>
           </div>
           <div id="evidenceAnalysisResult" class="list mt-16"><p class="muted">&#23578;&#26410;&#19978;&#20256;&#35777;&#25454;&#25991;&#20214;&#12290;</p></div>
+          <details class="connector-import mt-16">
+            <summary>从只读证据快照导入</summary>
+            <p class="muted">适用于 IAM / ERP 权限、变更工单和通用审计日志导出。系统不会写回来源系统，并保留来源名称、文件哈希、字段契约和导入轨迹。</p>
+            <div class="grid grid-4 mt-12">
+              <div class="field"><label>快照类型</label><select id="connectorType"><option value="iam_access_snapshot">IAM / ERP 权限快照</option><option value="change_ticket_snapshot">变更工单快照</option><option value="generic_audit_snapshot">通用审计日志快照</option></select></div>
+              <div class="field"><label>来源系统</label><input id="connectorSource" placeholder="例如：ERP-PROD 月度导出"></div>
+              <div class="field"><label>快照文件</label><input id="connectorFile" type="file" accept=".csv,.tsv,.json,.log,.txt"></div>
+              <div class="field"><label>执行</label><button class="btn" id="ingestConnector">导入并分析</button></div>
+            </div>
+            <div id="connectorResult" class="list mt-12"><p class="muted">尚未导入证据快照。</p></div>
+          </details>
         </div>
         <aside class="panel">
           <h2 class="panel-title">&#35777;&#25454;&#20998;&#26512;&#21382;&#21490;</h2>

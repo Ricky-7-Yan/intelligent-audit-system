@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+from datetime import datetime, timedelta
 from io import BytesIO
 import tempfile
 import unittest
@@ -16,10 +17,12 @@ from services.conversation_memory import ConversationMemory
 from services.evaluation_repository import EvaluationRunRepository
 from services.evaluation_orchestrator import ComponentEvaluationOrchestrator
 from services.evidence_analyzer import EvidenceAnalyzer
+from services.evidence_connector import EvidenceConnectorService
 from services.experience_curator import ExperienceCurator
 from services.evolution_harness import EvolutionHarness
 from services.harness_control import HarnessControlPlane
 from services.intent_router import HybridIntentRouter
+from services.product_insights import ProductInsights
 from services.safety_gate import SafetyGate
 from services.skill_registry import Skill, SkillRegistry
 from services.security import Principal, bind_request_context, reset_request_context
@@ -362,6 +365,48 @@ class UploadSecurityTests(unittest.TestCase):
         self.assertEqual(len(result.sha256), 64)
 
 
+class EvidenceConnectorTests(unittest.TestCase):
+    def test_ingests_readonly_snapshot_with_schema_and_idempotency(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            analyzer = EvidenceAnalyzer(Path(tmp) / "analyses")
+            connectors = EvidenceConnectorService(analyzer, Path(tmp) / "connectors")
+            content = b"user,role,status\nalice,admin,active\nbob,viewer,inactive\n"
+            kwargs = {
+                "connector_id": "iam_access_snapshot",
+                "source_system": "ERP-PROD export",
+                "file_name": "access.csv",
+                "content": content,
+                "sha256": "a" * 64,
+                "audit_context": {"audit_item": "ERP"},
+            }
+            first = connectors.ingest(**kwargs)
+            second = connectors.ingest(**kwargs)
+            self.assertEqual(first["mode"], "read_only_snapshot")
+            self.assertTrue(first["schema_validation"]["passed"])
+            self.assertEqual(first["row_count"], 2)
+            self.assertFalse(first["duplicate"])
+            self.assertTrue(second["duplicate"])
+            self.assertEqual(second["connector_run_id"], first["connector_run_id"])
+            self.assertEqual(len(connectors.list_runs()), 1)
+            self.assertTrue(connectors.health()["ready"])
+            self.assertTrue(connectors.delete_run(first["connector_run_id"]))
+            self.assertEqual(connectors.list_runs(), [])
+            self.assertFalse(connectors.delete_run(first["connector_run_id"]))
+
+    def test_flags_snapshot_when_required_fields_are_missing(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            service = EvidenceConnectorService(EvidenceAnalyzer(Path(tmp) / "analyses"), Path(tmp) / "connectors")
+            result = service.ingest(
+                connector_id="change_ticket_snapshot",
+                source_system="ITSM",
+                file_name="changes.csv",
+                content=b"id,status\nCHG-1,open\n",
+                sha256="b" * 64,
+            )
+            self.assertEqual(result["status"], "review")
+            self.assertFalse(result["schema_validation"]["passed"])
+
+
 class HybridRAGTests(unittest.TestCase):
     def test_enables_tfidf_rank_fusion_and_tenant_filtering(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -467,6 +512,72 @@ class GlobalSearchTests(unittest.TestCase):
         self.assertTrue(results)
         self.assertTrue(any(item["href"] == "/training" for item in results))
         self.assertTrue(all({"type", "title", "subtitle", "href"}.issubset(item) for item in results))
+
+
+class ProductValueBaselineTests(unittest.TestCase):
+    def test_calculates_real_kpis_and_gates_small_samples(self) -> None:
+        now = datetime.now()
+
+        class RepositoryStub:
+            def iter_records(self, limit: int = 1000):
+                return [
+                    {
+                        "created_at": (now - timedelta(days=8)).isoformat(),
+                        "updated_at": now.isoformat(),
+                        "request": {"measurement_cohort": "pilot"},
+                        "reviews": [
+                            {"decision": "need_evidence", "created_at": (now - timedelta(days=7)).isoformat()},
+                            {"decision": "approve", "created_at": (now - timedelta(days=6)).isoformat()},
+                        ],
+                        "evidence_requests": [
+                            {
+                                "status": "已验证",
+                                "created_at": (now - timedelta(hours=30)).isoformat(),
+                                "updated_at": now.isoformat(),
+                            },
+                            {"status": "待收集", "created_at": now.isoformat(), "updated_at": now.isoformat()},
+                            {"status": "不适用", "created_at": now.isoformat(), "updated_at": now.isoformat()},
+                        ],
+                        "remediation_tasks": [
+                            {
+                                "status": "已完成",
+                                "due_days": 5,
+                                "created_at": (now - timedelta(days=2)).isoformat(),
+                                "updated_at": now.isoformat(),
+                            },
+                            {
+                                "status": "已关闭",
+                                "due_days": 1,
+                                "created_at": (now - timedelta(days=3)).isoformat(),
+                                "updated_at": now.isoformat(),
+                            },
+                            {
+                                "status": "已完成",
+                                "created_at": (now - timedelta(days=1)).isoformat(),
+                                "updated_at": now.isoformat(),
+                            },
+                        ],
+                    },
+                    {
+                        "created_at": (now - timedelta(days=2)).isoformat(),
+                        "updated_at": now.isoformat(),
+                        "request": {"measurement_cohort": "pilot"},
+                        "reviews": [{"decision": "approve", "created_at": now.isoformat()}],
+                        "evidence_requests": [],
+                        "remediation_tasks": [],
+                    },
+                ]
+
+        insights = ProductInsights(RepositoryStub(), SkillRegistry())
+        baseline = insights.value_baseline()
+        metrics = {item["metric_id"]: item for item in baseline["metrics"]}
+        self.assertEqual(metrics["evidence_cycle_time"]["observed_value"], 30.0)
+        self.assertEqual(metrics["first_pass_review_rate"]["observed_value"], 50.0)
+        self.assertEqual(metrics["evidence_sufficiency_rate"]["observed_value"], 50.0)
+        self.assertEqual(metrics["on_time_remediation_rate"]["observed_value"], 50.0)
+        self.assertTrue(all(item["display_value"] == "待积累" for item in metrics.values()))
+        self.assertTrue(all(item["status"] == "insufficient_sample" for item in metrics.values()))
+        self.assertIn("evidence_cycle_time", insights.value_baseline_csv())
 
 
 if __name__ == "__main__":

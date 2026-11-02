@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections import Counter
 from datetime import datetime
 import json
+import statistics
 from typing import Any, Dict, List
 
 from config import RAG_CONFIG
@@ -54,7 +55,122 @@ class ProductInsights:
             "pipeline": self._pipeline(),
             "customer_value": self._customer_value(),
             "scenario_coverage": scenario_coverage,
-            "value_measurement": self._value_measurement(),
+            "value_measurement": self.value_baseline(),
+        }
+
+    def value_baseline(self) -> Dict[str, Any]:
+        """Calculate evidence-backed pilot KPIs without inventing missing values."""
+        all_records = self.audit_repository.iter_records(limit=1000)
+        records = [
+            record
+            for record in all_records
+            if str(record.get("request", {}).get("measurement_cohort") or "").lower() == "pilot"
+        ]
+        evidence_cycles: List[float] = []
+        evidence_total = 0
+        evidence_verified = 0
+        reviewed_projects = 0
+        first_pass_projects = 0
+        completed_tasks = 0
+        on_time_tasks = 0
+        observed_dates: List[datetime] = []
+
+        for record in records:
+            created_at = self._parse_datetime(record.get("created_at"))
+            updated_at = self._parse_datetime(record.get("updated_at"))
+            observed_dates.extend(value for value in (created_at, updated_at) if value is not None)
+
+            reviews = sorted(
+                record.get("reviews", []),
+                key=lambda item: str(item.get("created_at") or ""),
+            )
+            if reviews:
+                reviewed_projects += 1
+                if reviews[0].get("decision") == "approve":
+                    first_pass_projects += 1
+
+            for item in record.get("evidence_requests", []):
+                status = self._clean_status(item.get("status"))
+                if status == "不适用":
+                    continue
+                evidence_total += 1
+                if status == "已验证":
+                    evidence_verified += 1
+                    started = self._parse_datetime(item.get("created_at")) or created_at
+                    finished = self._parse_datetime(item.get("updated_at"))
+                    if started and finished and finished >= started:
+                        evidence_cycles.append((finished - started).total_seconds() / 3600)
+
+            for task in record.get("remediation_tasks", []):
+                status = self._clean_status(task.get("status"))
+                if status not in {"已完成", "已关闭"}:
+                    continue
+                started = self._parse_datetime(task.get("created_at")) or created_at
+                finished = self._parse_datetime(task.get("updated_at"))
+                due_days = self._safe_int(task.get("due_days"), default=-1)
+                if not started or not finished or due_days < 0:
+                    continue
+                completed_tasks += 1
+                if (finished - started).total_seconds() <= due_days * 86400:
+                    on_time_tasks += 1
+
+        metrics = [
+            self._duration_metric(
+                "evidence_cycle_time",
+                "证据满足周期",
+                evidence_cycles,
+                minimum_sample=10,
+                definition="证据请求创建至状态更新为“已验证”的中位时长",
+                direction="越低越好",
+            ),
+            self._ratio_metric(
+                "first_pass_review_rate",
+                "底稿首次复核通过率",
+                first_pass_projects,
+                reviewed_projects,
+                minimum_sample=5,
+                definition="首次人工复核结论为通过的项目占已复核项目比例",
+                direction="越高越好",
+            ),
+            self._ratio_metric(
+                "evidence_sufficiency_rate",
+                "证据充分率",
+                evidence_verified,
+                evidence_total,
+                minimum_sample=20,
+                definition="状态为“已验证”的适用证据请求占全部适用证据请求比例",
+                direction="越高越好",
+            ),
+            self._ratio_metric(
+                "on_time_remediation_rate",
+                "整改按期关闭率",
+                on_time_tasks,
+                completed_tasks,
+                minimum_sample=10,
+                definition="在任务创建时间加整改期限之前完成或关闭的任务比例",
+                direction="越高越好",
+            ),
+        ]
+        ready_count = sum(1 for metric in metrics if metric["status"] == "ready")
+        return {
+            "status": "ready" if ready_count == len(metrics) else "collecting",
+            "ready_metrics": ready_count,
+            "total_metrics": len(metrics),
+            "projects_observed": len(records),
+            "projects_available": len(all_records),
+            "projects_excluded": len(all_records) - len(records),
+            "measurement_scope": "pilot_only",
+            "period_start": min(observed_dates).isoformat() if observed_dates else None,
+            "period_end": max(observed_dates).isoformat() if observed_dates else None,
+            "metrics": metrics,
+            "methodology": [
+                "只统计当前租户和当前用户有权访问的审计项目。",
+                "只有立项时显式选择“正式试点”的项目进入价值基线；历史演示与日常项目不进入客户价值声明。",
+                "未达到最小样本量时显示“待积累”，同时保留观察值和分子分母供审计。",
+                "证据完成以“已验证”为准；不适用请求不进入分母。",
+                "整改完成时间使用任务最后更新时间，生产连接器接入后应改用独立 completed_at。",
+            ],
+            "claim_policy": "这些指标是当前工作区运行基线，不等于客户节省工时或投资回报。",
         }
 
     def risk_register(self, runs: List[Dict[str, Any]] | None = None) -> List[Dict[str, Any]]:
@@ -208,13 +324,98 @@ class ProductInsights:
             "methodology": "数量来自版本化审计模板的去重统计，不代表覆盖全部行业和全部审计业务。",
         }
 
-    def _value_measurement(self) -> List[Dict[str, str]]:
-        return [
-            {"metric": "取证周期", "definition": "证据请求创建至满足质量门的中位时长", "direction": "越低越好"},
-            {"metric": "底稿一次复核通过率", "definition": "无需退回补证即可通过复核的交付物比例", "direction": "越高越好"},
-            {"metric": "证据充分率", "definition": "已满足必要证据项占全部必要证据项的比例", "direction": "越高越好"},
-            {"metric": "整改按期关闭率", "definition": "到期日前完成并通过复核的整改任务比例", "direction": "越高越好"},
-        ]
+    def value_baseline_csv(self) -> str:
+        baseline = self.value_baseline()
+        lines = ["metric_id,metric,display_value,observed_value,numerator,denominator,sample_size,minimum_sample,status,direction,definition"]
+        for item in baseline["metrics"]:
+            values = [
+                item.get("metric_id"), item.get("metric"), item.get("display_value"), item.get("observed_value"),
+                item.get("numerator"), item.get("denominator"), item.get("sample_size"), item.get("minimum_sample"),
+                item.get("status"), item.get("direction"), item.get("definition"),
+            ]
+            lines.append(",".join(self._csv_cell(value) for value in values))
+        return "\ufeff" + "\n".join(lines) + "\n"
+
+    def _ratio_metric(
+        self,
+        metric_id: str,
+        metric: str,
+        numerator: int,
+        denominator: int,
+        minimum_sample: int,
+        definition: str,
+        direction: str,
+    ) -> Dict[str, Any]:
+        observed = round(numerator / denominator * 100, 1) if denominator else None
+        ready = denominator >= minimum_sample
+        return {
+            "metric_id": metric_id,
+            "metric": metric,
+            "display_value": f"{observed:.1f}%" if ready and observed is not None else "待积累",
+            "observed_value": observed,
+            "unit": "%",
+            "numerator": numerator,
+            "denominator": denominator,
+            "sample_size": denominator,
+            "minimum_sample": minimum_sample,
+            "status": "ready" if ready else "insufficient_sample",
+            "definition": definition,
+            "direction": direction,
+        }
+
+    def _duration_metric(
+        self,
+        metric_id: str,
+        metric: str,
+        values_hours: List[float],
+        minimum_sample: int,
+        definition: str,
+        direction: str,
+    ) -> Dict[str, Any]:
+        observed = round(statistics.median(values_hours), 1) if values_hours else None
+        ready = len(values_hours) >= minimum_sample
+        return {
+            "metric_id": metric_id,
+            "metric": metric,
+            "display_value": self._format_hours(observed) if ready and observed is not None else "待积累",
+            "observed_value": observed,
+            "unit": "hours",
+            "numerator": None,
+            "denominator": None,
+            "sample_size": len(values_hours),
+            "minimum_sample": minimum_sample,
+            "status": "ready" if ready else "insufficient_sample",
+            "definition": definition,
+            "direction": direction,
+        }
+
+    def _format_hours(self, hours: float) -> str:
+        if hours >= 48:
+            return f"{hours / 24:.1f} 天"
+        return f"{hours:.1f} 小时"
+
+    def _parse_datetime(self, value: Any) -> datetime | None:
+        if not value:
+            return None
+        try:
+            return datetime.fromisoformat(str(value).replace("Z", "+00:00")).replace(tzinfo=None)
+        except ValueError:
+            return None
+
+    def _safe_int(self, value: Any, default: int = 0) -> int:
+        try:
+            return int(value)
+        except (TypeError, ValueError):
+            return default
+
+    def _clean_status(self, value: Any) -> str:
+        mapping = {"done": "已完成", "closed": "已关闭", "verified": "已验证"}
+        text = str(value or "").strip()
+        return mapping.get(text.lower(), text)
+
+    def _csv_cell(self, value: Any) -> str:
+        text = "" if value is None else str(value)
+        return '"' + text.replace('"', '""') + '"'
 
     def _next_action(self, run: Dict[str, Any]) -> str:
         if (run.get("quality_confidence") or 0) < 0.7:

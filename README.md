@@ -13,6 +13,7 @@
   <img alt="FastAPI" src="https://img.shields.io/badge/FastAPI-Agentic%20Backend-009688?style=flat-square&logo=fastapi&logoColor=white" />
   <img alt="RAG" src="https://img.shields.io/badge/Agentic_RAG-Evidence_Grounded-0F766E?style=flat-square" />
   <img alt="Evaluation" src="https://img.shields.io/badge/Eval_Harness-Release_Gate-2563EB?style=flat-square" />
+  <img alt="License" src="https://img.shields.io/badge/License-MIT-7C3AED?style=flat-square" />
   <img alt="Secrets" src="https://img.shields.io/badge/Secrets-Not_Committed-10B981?style=flat-square" />
 </p>
 
@@ -33,7 +34,7 @@ AuditPilot 的目标不是替代审计师，而是把审计师反复执行的取
 | AI 结论难复核，无法直接进入底稿 | 保存执行轨迹和证据链，低置信或缺证结果进入人工复核 | 质量门、来源引用、复核记录、不可变交付物 |
 | 发现与整改脱节，复核时上下文丢失 | 在同一档案管理发现、责任人、到期日、状态和复核意见 | 整改任务、逾期提示、复核意见、交付报告 |
 
-项目不在没有客户实测的情况下宣称固定的“节省工时”或“准确率”。业务价值应通过取证周期、底稿一次复核通过率、证据充分率和整改按期关闭率在试点项目中持续度量。
+项目不在没有客户实测的情况下宣称固定的“节省工时”或“准确率”。首页的 Pilot Value Baseline 只统计显式标记的试点项目，并为取证周期、底稿一次复核通过率、证据充分率和整改按期关闭率设置最小样本门槛；样本不足时展示“待积累”，也可导出 CSV 留档。
 
 ## 审计场景覆盖
 
@@ -64,6 +65,7 @@ AuditPilot 的目标不是替代审计师，而是把审计师反复执行的取
 | Governed Improvement | 失败只沉淀为经验候选，通过回归评测和人工批准后才允许复用。 |
 | Episode & Observability | 隐私友好的任务轨迹包、标准语义字段、工具证据、安全门、失败归因、干预记录和完整性摘要。 |
 | Security & Storage | Bearer 身份基线、RBAC + 项目 ABAC、请求限流、HMAC 签名检查点、上传治理，以及审计/评测/任务/记忆的 SQLite WAL 事务存储。 |
+| Evidence Connectors | IAM/ERP 权限、ITSM 变更和通用日志的只读快照导入，提供来源哈希、租户隔离、幂等去重、字段质量门和项目挂接。 |
 
 ## Screenshots
 

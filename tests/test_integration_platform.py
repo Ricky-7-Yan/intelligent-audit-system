@@ -137,6 +137,9 @@ class ProductionFlowIntegrationTests(unittest.IsolatedAsyncioTestCase):
             "/api/audit/templates",
             "/api/agent/capabilities",
             "/api/product/overview",
+            "/api/product/value-baseline",
+            "/api/evidence/connectors",
+            "/api/evidence/connector-runs",
             "/api/skills",
             "/api/mcp/tools",
             "/api/evaluation/components",
@@ -164,6 +167,37 @@ class ProductionFlowIntegrationTests(unittest.IsolatedAsyncioTestCase):
             self.assertTrue(item["pain"])
             self.assertTrue(item["solution"])
             self.assertTrue(item["proof"])
+        baseline = overview["value_measurement"]
+        self.assertEqual(baseline["total_metrics"], 4)
+        self.assertEqual(
+            {item["metric_id"] for item in baseline["metrics"]},
+            {
+                "evidence_cycle_time",
+                "first_pass_review_rate",
+                "evidence_sufficiency_rate",
+                "on_time_remediation_rate",
+            },
+        )
+        csv_response = await self.client.get("/api/product/value-baseline.csv", headers=self.headers())
+        self.assertEqual(csv_response.status_code, 200)
+        self.assertIn("text/csv", csv_response.headers["content-type"])
+        self.assertIn("evidence_cycle_time", csv_response.text)
+
+        connector_ingest = await self.client.post(
+            "/api/evidence/connectors/iam_access_snapshot/ingest",
+            headers=self.headers(),
+            data={"source_system": "ERP integration export", "audit_item": "ERP"},
+            files={"file": ("access.csv", "user,role,status\nalice,admin,active\n", "text/csv")},
+        )
+        self.assertEqual(connector_ingest.status_code, 200, connector_ingest.text)
+        connector_run = connector_ingest.json()["connector_run"]
+        self.assertEqual(connector_run["mode"], "read_only_snapshot")
+        self.assertTrue(connector_run["schema_validation"]["passed"])
+        connector_delete = await self.client.delete(
+            f"/api/evidence/connector-runs/{connector_run['connector_run_id']}",
+            headers=self.headers(),
+        )
+        self.assertEqual(connector_delete.status_code, 200, connector_delete.text)
 
         research = await self.client.post(
             "/api/research/answer",

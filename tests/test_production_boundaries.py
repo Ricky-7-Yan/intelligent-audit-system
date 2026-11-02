@@ -7,7 +7,7 @@ import unittest
 from pathlib import Path
 
 from config import SECURITY_CONFIG, WEB_CONFIG, runtime_configuration_issues
-from rag.agentic_rag import HybridRetriever
+from rag.agentic_rag import Document, HybridRetriever, PersistentDocumentStore
 from services.agent_runtime import AgentRuntime
 from services.audit_repository import AuditRunRepository
 from services.record_store import (
@@ -86,6 +86,26 @@ class ProductionBoundaryTests(unittest.TestCase):
             )
             self.assertFalse(
                 retriever._metadata_allowed(
+                    {
+                        "tenant_id": "tenant-a",
+                        "project_id": "project-b",
+                        "visibility": "project",
+                    },
+                    {"project_id": "project-b"},
+                )
+            )
+            self.assertTrue(
+                retriever._metadata_allowed(
+                    {
+                        "tenant_id": "tenant-a",
+                        "project_id": "project-a",
+                        "visibility": "project",
+                    },
+                    {"project_id": "project-a"},
+                )
+            )
+            self.assertFalse(
+                retriever._metadata_allowed(
                     {"tenant_id": "tenant-a", "visibility": "project"},
                     {"project_id": "project-a"},
                 )
@@ -95,6 +115,38 @@ class ProductionBoundaryTests(unittest.TestCase):
                     {"tenant_id": "tenant-a", "visibility": "tenant_shared"},
                     {"project_id": "project-a"},
                 )
+            )
+        finally:
+            reset_request_context(tokens)
+
+    def test_rag_retrieval_cannot_use_requested_project_as_authorization(self) -> None:
+        tokens = bind_request_context(_principal("alice", "tenant-a", ("project-a",)), "REQ-RAG-IDOR")
+        try:
+            store = PersistentDocumentStore(self.root / "rag" / "documents.json")
+            store.add_documents(
+                [
+                    Document(
+                        page_content="ultraviolet-control-secret belongs only to project-b",
+                        metadata={
+                            "source": "project-b-private",
+                            "tenant_id": "tenant-a",
+                            "project_id": "project-b",
+                            "visibility": "project",
+                        },
+                    )
+                ]
+            )
+            retriever = HybridRetriever(store)
+            documents = retriever.retrieve(
+                ["ultraviolet-control-secret"],
+                k=5,
+                context={"project_id": "project-b"},
+            )
+            self.assertFalse(
+                any(document.metadata.get("project_id") == "project-b" for document in documents)
+            )
+            self.assertFalse(
+                any("ultraviolet-control-secret" in document.page_content for document in documents)
             )
         finally:
             reset_request_context(tokens)

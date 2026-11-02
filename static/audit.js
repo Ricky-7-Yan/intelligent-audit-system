@@ -523,76 +523,6 @@ async function runAudit() {
   const button = qs("#runAudit");
   button.disabled = true;
   button.textContent = "运行中...";
-  setText("#auditResult", "正在运行 Agent 工作流...");
-  renderTrace([{ stage: "planner", status: "running", detail: "正在生成审计任务计划" }]);
-  try {
-    const data = await apiFetch("/api/audit", {
-      method: "POST",
-      headers: { "Content-Type": "application/json; charset=utf-8" },
-      body: JSON.stringify({
-        audit_item: qs("#auditItem").value,
-        audit_type: qs("#auditType").value,
-        standard_type: qs("#standardType").value,
-        risk_level: qs("#riskLevel").value,
-        business_context: qs("#businessContext").value,
-        audit_scope: qs("#auditScope").value,
-        audit_period: qs("#auditPeriod").value,
-        key_questions: qs("#keyQuestions").value,
-        existing_evidence: qs("#existingEvidence").value,
-      }),
-    });
-    currentRunId = data.run_id;
-    qs("#downloadReport").href = serviceUrl(`/api/audit/runs/${encodeURIComponent(currentRunId)}/report.md`);
-    qs("#downloadDelivery").href = serviceUrl(`/api/audit/runs/${encodeURIComponent(currentRunId)}/delivery.md`);
-    renderRunRecord(data.run);
-    loadRuns();
-    loadDelivery(currentRunId);
-  } catch (error) {
-    setText("#auditResult", `分析失败：${error.message}`);
-  } finally {
-    button.disabled = false;
-    button.textContent = "运行 Agent 审计";
-  }
-}
-
-async function runResearch() {
-  const node = qs("#researchPanel");
-  clearNode(node);
-  node.appendChild(el("div", { class: "item compact muted", text: "正在执行多路查询、来源融合和推理验证..." }));
-  try {
-    const question = `${qs("#auditItem").value} 如何开展 ${qs("#auditType").value}，需要哪些证据、控制测试和复核条件？`;
-    const data = await apiFetch("/api/research/answer", {
-      method: "POST",
-      headers: { "Content-Type": "application/json; charset=utf-8" },
-      body: JSON.stringify({ question, context: { standard_type: qs("#standardType").value } }),
-    });
-    const result = data.result;
-    clearNode(node);
-    node.appendChild(el("div", { class: "item" }, [
-      el("strong", { text: "研究结论" }),
-      el("p", { class: "prewrap muted", text: result.answer }),
-    ]));
-    node.appendChild(el("div", { class: "grid grid-3" }, [
-      el("div", { class: "card metric" }, [el("div", { class: "metric-value small", text: String(result.query_rewrites.length) }), el("div", { class: "metric-label", text: "查询改写" })]),
-      el("div", { class: "card metric" }, [el("div", { class: "metric-value small", text: String(result.sources.length) }), el("div", { class: "metric-label", text: "融合来源" })]),
-      el("div", { class: "card metric" }, [el("div", { class: "metric-value small", text: String(result.evaluation.faithfulness) }), el("div", { class: "metric-label", text: "真实性评分" })]),
-    ]));
-    (result.reasoning_trace || []).forEach((step) => {
-      node.appendChild(el("div", { class: "item compact" }, [
-        el("strong", { text: `${step.stage} · ${step.action}` }),
-        el("div", { class: "muted", text: step.output }),
-      ]));
-    });
-  } catch (error) {
-    clearNode(node);
-    node.appendChild(el("div", { class: "item muted", text: `Deep Research 失败：${error.message}` }));
-  }
-}
-
-async function runAudit() {
-  const button = qs("#runAudit");
-  button.disabled = true;
-  button.textContent = "运行中...";
   setMarkdown("#auditResult", "### 正在运行企业级审计 Agent\n\n- 规划审计范围与任务\n- 检索控制库、证据线索和标准要求\n- 执行风险评估、质量门和整改计划\n\n请稍候，结果生成后会自动刷新。");
   showToast("审计任务已启动，正在协同分析。");
   renderTrace([
@@ -614,6 +544,7 @@ async function runAudit() {
         audit_period: qs("#auditPeriod").value,
         key_questions: qs("#keyQuestions").value,
         existing_evidence: qs("#existingEvidence").value,
+        measurement_cohort: qs("#measurementCohort")?.value || "operational",
       }),
     });
     currentRunId = data.run_id;
@@ -724,6 +655,53 @@ async function updateControlTest(controlId, result, tester, exception) {
   }
 }
 
+async function ingestConnectorSnapshot() {
+  const button = qs("#ingestConnector");
+  const file = qs("#connectorFile")?.files?.[0];
+  const sourceSystem = qs("#connectorSource")?.value?.trim();
+  const connectorId = qs("#connectorType")?.value;
+  if (!file || !sourceSystem) {
+    showToast("请选择快照文件并填写来源系统。", "error");
+    return;
+  }
+  button.disabled = true;
+  button.textContent = "导入中...";
+  try {
+    const form = new FormData();
+    form.append("file", file);
+    form.append("source_system", sourceSystem);
+    form.append("audit_item", qs("#auditItem")?.value || "");
+    form.append("audit_type", qs("#auditType")?.value || "");
+    form.append("standard_type", qs("#standardType")?.value || "");
+    if (currentRunId) form.append("run_id", currentRunId);
+    const data = await apiFetch(`/api/evidence/connectors/${encodeURIComponent(connectorId)}/ingest`, {
+      method: "POST",
+      body: form,
+    });
+    const run = data.connector_run || {};
+    const result = qs("#connectorResult");
+    clearNode(result);
+    result.appendChild(el("div", { class: "item compact" }, [
+      el("div", {}, [
+        el("strong", { text: run.duplicate ? "已识别重复快照" : `${run.connector_name || "证据快照"}已导入` }),
+        el("small", { text: `${run.source_system || sourceSystem} · ${run.row_count || 0} 行 · ${run.source_sha256?.slice(0, 12) || "-"}` })
+      ]),
+      statusBadge(run.schema_validation?.passed ? "字段契约通过" : "字段需复核", run.schema_validation?.passed ? "pass" : "review")
+    ]));
+    if (data.attached_run_id) {
+      result.appendChild(el("p", { class: "muted", text: `已归档到当前审计项目 ${data.attached_run_id}。` }));
+      await loadRunDetail(data.attached_run_id);
+    }
+    showToast(run.duplicate ? "相同来源与哈希的快照已存在，未重复分析。" : "只读证据快照已完成分析。", "success");
+  } catch (error) {
+    setText("#connectorResult", `导入失败：${error.message}`);
+    showToast(`导入失败：${error.message}`, "error");
+  } finally {
+    button.disabled = false;
+    button.textContent = "导入并分析";
+  }
+}
+
 function bindScenarios() {
   qsa(".scenario").forEach((node) => node.addEventListener("click", () => {
     qs("#auditItem").value = node.dataset.item;
@@ -792,6 +770,7 @@ document.addEventListener("DOMContentLoaded", () => {
   qs("#runResearch").addEventListener("click", runResearch);
   qs("#refreshRuns").addEventListener("click", loadRuns);
   qs("#analyzeEvidence").addEventListener("click", analyzeEvidenceFile);
+  qs("#ingestConnector")?.addEventListener("click", ingestConnectorSnapshot);
   qs("#refreshEvidenceAnalyses").addEventListener("click", loadEvidenceAnalyses);
   qs("#submitReview").addEventListener("click", async () => {
     if (!currentRunId) {

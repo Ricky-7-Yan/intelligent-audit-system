@@ -146,6 +146,22 @@
         <div class="coverage-footnote" id="coverageFootnote"></div>
       </section>
 
+      <section class="value-baseline-section" id="valueBaseline" aria-labelledby="valueBaselineTitle">
+        <div class="section-heading-row">
+          <div>
+            <span class="section-kicker">Pilot Value Baseline</span>
+            <h2 id="valueBaselineTitle">业务价值用项目数据证明，不用演示数字代替</h2>
+            <p id="valueBaselineSummary">正在读取当前工作区的取证、复核与整改记录。</p>
+          </div>
+          <button class="btn" id="downloadValueBaseline" type="button">导出价值基线 CSV</button>
+        </div>
+        <div class="value-baseline-grid" id="valueBaselineMetrics"></div>
+        <details class="baseline-methodology">
+          <summary>查看计算口径与声明边界</summary>
+          <div id="baselineMethodology"></div>
+        </details>
+      </section>
+
       <section class="evolution-command panel" aria-label="Self-evolution harness">
         <div class="evolution-copy">
           <span class="section-kicker">Self-Evolution Harness</span>
@@ -350,12 +366,48 @@ async function loadOverview() {
   setText("#standardHint", (overview.scenario_coverage?.standards || []).join(" · ") || "可继续扩展");
   renderBusinessValue(overview.customer_value || []);
   renderScenarioCoverage(overview.scenario_coverage || {});
+  renderValueBaseline(overview.value_measurement || {});
   renderProjects(overview.recent_runs || []);
   renderTrace(overview.recent_skill_runs || []);
   renderControls(overview.control_health || []);
   renderEvidence(overview.evidence_requests || []);
   renderSignals(summary);
   renderEvolution(evolution);
+}
+
+function renderValueBaseline(baseline) {
+  const node = qs("#valueBaselineMetrics");
+  clearNode(node);
+  const metrics = baseline.metrics || [];
+  setText(
+    "#valueBaselineSummary",
+    baseline.status === "ready"
+      ? `${baseline.ready_metrics}/${baseline.total_metrics} 项指标达到最小样本，可作为当前工作区基线。`
+      : `${baseline.ready_metrics || 0}/${baseline.total_metrics || metrics.length} 项达到最小样本；${baseline.projects_observed || 0} 个正式试点纳入统计，${baseline.projects_excluded || 0} 个非试点项目已排除。`
+  );
+  metrics.forEach((item) => {
+    const ready = item.status === "ready";
+    const sampleDetail = item.denominator !== null && item.denominator !== undefined
+      ? `${item.numerator}/${item.denominator}`
+      : `${item.sample_size} 条周期记录`;
+    node.appendChild(el("article", { class: `baseline-metric-card ${ready ? "ready" : "collecting"}` }, [
+      el("div", { class: "baseline-card-head" }, [
+        el("span", { text: item.metric }),
+        statusBadge(ready ? "可作为基线" : "样本不足", ready ? "pass" : "review")
+      ]),
+      el("strong", { text: item.display_value || "待积累" }),
+      el("p", { text: item.definition }),
+      el("div", { class: "baseline-sample" }, [
+        el("span", { text: `当前观察：${item.observed_value === null || item.observed_value === undefined ? "暂无" : `${item.observed_value}${item.unit === "%" ? "%" : " 小时"}`}` }),
+        el("span", { text: `样本：${sampleDetail}` }),
+        el("span", { text: `门槛：${item.minimum_sample}` })
+      ])
+    ]));
+  });
+  const methodology = qs("#baselineMethodology");
+  clearNode(methodology);
+  (baseline.methodology || []).forEach((item) => methodology.appendChild(el("p", { text: item })));
+  if (baseline.claim_policy) methodology.appendChild(el("strong", { text: baseline.claim_policy }));
 }
 
 function renderBusinessValue(items) {
@@ -417,6 +469,19 @@ document.addEventListener("DOMContentLoaded", () => {
     qsa("[data-search]").forEach((node) => {
       node.classList.toggle("hidden", query && !node.getAttribute("data-search").includes(query));
     });
+  });
+  qs("#downloadValueBaseline")?.addEventListener("click", async () => {
+    const button = qs("#downloadValueBaseline");
+    button.disabled = true;
+    button.textContent = "正在导出";
+    try {
+      await apiDownload("/api/product/value-baseline.csv", "auditpilot-value-baseline.csv");
+    } catch (error) {
+      showToast(`导出失败：${error.message}`, "error");
+    } finally {
+      button.disabled = false;
+      button.textContent = "导出价值基线 CSV";
+    }
   });
 });
   </script>

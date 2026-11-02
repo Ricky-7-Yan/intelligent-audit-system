@@ -553,7 +553,8 @@ textarea:focus {
 }
 
 .business-value-section,
-.scenario-section {
+.scenario-section,
+.value-baseline-section {
   margin-bottom: 14px;
   padding: clamp(20px, 2.5vw, 30px);
   border: 1px solid var(--line);
@@ -751,6 +752,118 @@ textarea:focus {
   color: var(--ink-subtle);
   font-size: 11px;
   line-height: 1.6;
+}
+
+.value-baseline-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.baseline-metric-card {
+  min-height: 215px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface-muted);
+}
+
+.baseline-metric-card.ready {
+  border-color: color-mix(in srgb, var(--success) 36%, var(--line));
+}
+
+.baseline-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  color: var(--ink-muted);
+  font-size: 11px;
+}
+
+.baseline-metric-card > strong {
+  display: block;
+  margin: 20px 0 11px;
+  color: var(--text);
+  font-size: clamp(25px, 2.8vw, 36px);
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: -.04em;
+}
+
+.baseline-metric-card.collecting > strong {
+  color: var(--ink-muted);
+  font-size: 26px;
+}
+
+.baseline-metric-card > p {
+  min-height: 58px;
+  margin: 0;
+  color: var(--ink-muted);
+  font-size: 11px;
+  line-height: 1.65;
+}
+
+.baseline-sample {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: 14px;
+}
+
+.baseline-sample span {
+  padding: 3px 6px;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  color: var(--ink-subtle);
+  background: var(--surface);
+  font-size: 9px;
+}
+
+.baseline-methodology {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+  color: var(--ink-muted);
+  font-size: 11px;
+}
+
+.baseline-methodology summary {
+  width: fit-content;
+  cursor: pointer;
+  color: var(--primary);
+  font-weight: 500;
+}
+
+.baseline-methodology div {
+  margin-top: 10px;
+  padding: 12px;
+  border-radius: 8px;
+  background: var(--surface-muted);
+}
+
+.baseline-methodology p {
+  margin: 0 0 5px;
+  line-height: 1.65;
+}
+
+.connector-import {
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface-muted);
+}
+
+.connector-import summary {
+  cursor: pointer;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.connector-import > p {
+  margin: 9px 0 0;
+  line-height: 1.65;
 }
 
 .evolution-command {
@@ -1293,6 +1406,10 @@ section.section-collapsed::after {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .value-baseline-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .metric-cell {
     border-bottom: 1px solid var(--line);
   }
@@ -1371,6 +1488,10 @@ section.section-collapsed::after {
     flex: 0 0 min(82vw, 330px);
     min-height: 210px;
     scroll-snap-align: start;
+  }
+
+  .value-baseline-grid {
+    grid-template-columns: 1fr;
   }
 
   .panel {

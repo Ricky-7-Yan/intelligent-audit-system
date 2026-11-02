@@ -354,10 +354,12 @@ class HybridRetriever:
         requested_project = str(context.get("project_id") or "")
         principal_projects = set(current_principal().project_ids)
         if document_project:
-            if requested_project:
-                if document_project != requested_project:
-                    return False
-            elif "*" not in principal_projects and document_project not in principal_projects:
+            # A caller-supplied project id may only narrow the result set.  It
+            # must never grant access to a project outside the principal's
+            # memberships.
+            if "*" not in principal_projects and document_project not in principal_projects:
+                return False
+            if requested_project and document_project != requested_project:
                 return False
         elif requested_project and visibility not in {"public_seed", "tenant_shared"}:
             return False

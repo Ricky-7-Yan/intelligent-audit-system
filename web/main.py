@@ -37,6 +37,7 @@ from services.conversation_memory import ConversationMemory
 from services.evaluation_orchestrator import ComponentEvaluationOrchestrator
 from services.evaluation_repository import EvaluationRunRepository
 from services.evidence_analyzer import EvidenceAnalyzer
+from services.evidence_connector import CONNECTOR_PROFILES, EvidenceConnectorService
 from services.experience_curator import ExperienceCurator
 from services.evolution_harness import EvolutionHarness
 from services.harness_control import HarnessControlPlane
@@ -53,6 +54,7 @@ from services.upload_security import read_validated_upload
 
 
 logger = logging.getLogger(__name__)
+APP_VERSION = "4.3.0"
 
 audit_agent: Optional[AuditAgent] = None
 rag_pipeline = None
@@ -67,6 +69,7 @@ audit_delivery = AuditDeliveryService(audit_repository)
 evaluation_repository = EvaluationRunRepository()
 experience_curator = ExperienceCurator()
 evidence_analyzer = EvidenceAnalyzer()
+evidence_connectors = EvidenceConnectorService(evidence_analyzer)
 conversation_memory = ConversationMemory()
 intent_router = HybridIntentRouter()
 harness_control = HarnessControlPlane()
@@ -260,7 +263,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="审脉 AuditPilot",
     description="面向审计交付场景的 Agentic RAG、风险评估、控制测试和整改闭环系统",
-    version="4.2.0",
+    version=APP_VERSION,
     lifespan=lifespan,
 )
 
@@ -325,6 +328,7 @@ class AuditRequest(BaseModel):
     audit_period: Optional[str] = Field(None, max_length=500)
     key_questions: Optional[str] = Field(None, max_length=4000)
     existing_evidence: Optional[str] = Field(None, max_length=4000)
+    measurement_cohort: Optional[str] = Field("operational", pattern="^(pilot|operational|demo)$")
 
 
 class KnowledgeRequest(BaseModel):
@@ -629,6 +633,20 @@ async def research_evaluation_plan_api(research: AuditResearchAgent = Depends(ge
 async def product_overview_api():
     rag_stats = rag_pipeline.get_statistics() if rag_pipeline is not None else {"total_documents": 0}
     return {"success": True, "overview": product_insights.overview(rag_stats), "timestamp": datetime.now().isoformat()}
+
+
+@app.get("/api/product/value-baseline")
+async def product_value_baseline_api():
+    return {"success": True, "baseline": product_insights.value_baseline(), "timestamp": datetime.now().isoformat()}
+
+
+@app.get("/api/product/value-baseline.csv")
+async def product_value_baseline_csv_api():
+    return PlainTextResponse(
+        product_insights.value_baseline_csv(),
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": 'attachment; filename="auditpilot-value-baseline.csv"'},
+    )
 
 
 @app.get("/api/product/risk-register")
@@ -1195,6 +1213,88 @@ async def evidence_analysis_delete_api(analysis_id: str):
     return {"success": True, "deleted": analysis_id, "timestamp": datetime.now().isoformat()}
 
 
+@app.get("/api/evidence/connectors")
+async def evidence_connectors_api():
+    return {
+        "success": True,
+        "connectors": evidence_connectors.catalog(),
+        "health": evidence_connectors.health(),
+        "timestamp": datetime.now().isoformat(),
+    }
+
+
+@app.post("/api/evidence/connectors/{connector_id}/ingest")
+async def evidence_connector_ingest_api(
+    connector_id: str,
+    file: UploadFile = File(...),
+    source_system: str = Form(...),
+    audit_item: str = Form(""),
+    audit_type: str = Form(""),
+    standard_type: str = Form(""),
+    run_id: str = Form(""),
+):
+    profile = CONNECTOR_PROFILES.get(connector_id)
+    if not profile:
+        raise HTTPException(status_code=404, detail="证据连接器不存在")
+    if run_id and audit_repository.get_run(run_id) is None:
+        raise HTTPException(status_code=404, detail="目标审计项目不存在或当前用户无权访问")
+    allowed_extensions = set(profile["accepted_extensions"])
+    try:
+        upload = await read_validated_upload(
+            file,
+            allowed_extensions=allowed_extensions,
+            max_bytes=int(UPLOAD_CONFIG["evidence_max_bytes"]),
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    if upload.security["prompt_injection_detected"] and UPLOAD_CONFIG["reject_prompt_injection"]:
+        raise HTTPException(status_code=422, detail="连接器快照包含 Prompt Injection 风险指令，已隔离")
+    if upload.security["credential_like_content_detected"]:
+        raise HTTPException(status_code=422, detail="连接器快照疑似包含有效凭据，请先完成脱敏")
+    try:
+        connector_run = evidence_connectors.ingest(
+            connector_id=connector_id,
+            source_system=source_system,
+            file_name=upload.original_name,
+            content=upload.content,
+            sha256=upload.sha256,
+            audit_context={
+                "audit_item": audit_item,
+                "audit_type": audit_type,
+                "standard_type": standard_type,
+                "run_id": run_id,
+                "size_bytes": upload.size_bytes,
+                "upload_security": upload.security,
+            },
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    attached = None
+    if run_id:
+        analysis = evidence_analyzer.get_analysis(str(connector_run.get("analysis_id") or ""))
+        if not analysis:
+            raise HTTPException(status_code=409, detail="连接器运行记录与证据分析已脱节，请删除记录后重新导入")
+        attached = audit_repository.attach_evidence_analysis(run_id, analysis)
+    return {
+        "success": True,
+        "connector_run": connector_run,
+        "attached_run_id": attached.get("run_id") if attached else None,
+        "timestamp": datetime.now().isoformat(),
+    }
+
+
+@app.get("/api/evidence/connector-runs")
+async def evidence_connector_runs_api(limit: int = 50):
+    return {"success": True, "runs": evidence_connectors.list_runs(limit), "timestamp": datetime.now().isoformat()}
+
+
+@app.delete("/api/evidence/connector-runs/{connector_run_id}")
+async def evidence_connector_run_delete_api(connector_run_id: str):
+    if not evidence_connectors.delete_run(connector_run_id):
+        raise HTTPException(status_code=404, detail="证据连接器运行记录不存在")
+    return {"success": True, "deleted": connector_run_id, "timestamp": datetime.now().isoformat()}
+
+
 @app.get("/api/knowledge/query")
 async def query_knowledge_api(question: str, context: Optional[str] = None, rag=Depends(get_rag_pipeline)):
     context_dict = None
@@ -1318,6 +1418,7 @@ def _readiness_payload() -> tuple[Dict[str, Any], bool]:
             "evaluation_runs": evaluation_repository.store.health(),
             "agent_tasks": agent_runtime._record_store().health(),
             "conversation_memory": conversation_memory.store.health(),
+            "evidence_connector_runs": evidence_connectors.health(),
         },
     }
     if audit_agent is not None:
@@ -1338,7 +1439,7 @@ def _readiness_payload() -> tuple[Dict[str, Any], bool]:
         {
             "status": "ready" if not blockers else "not_ready",
             "timestamp": datetime.now().isoformat(),
-            "version": "4.2.0",
+            "version": APP_VERSION,
             "services": services,
             "blockers": blockers,
         },
@@ -1348,7 +1449,7 @@ def _readiness_payload() -> tuple[Dict[str, Any], bool]:
 
 @app.get("/api/health/live")
 async def health_live_api():
-    return {"status": "alive", "timestamp": datetime.now().isoformat(), "version": "4.2.0"}
+    return {"status": "alive", "timestamp": datetime.now().isoformat(), "version": APP_VERSION}
 
 
 @app.get("/api/health/ready")
