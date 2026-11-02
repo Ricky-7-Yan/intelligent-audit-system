@@ -10,14 +10,23 @@ from urllib.parse import urlsplit
 
 import anyio
 import httpx
-from mcp import ClientSession
-from mcp.client.streamable_http import streamable_http_client
 
 from config import SEARCH_CONFIG
+
+# The MCP client SDK is an optional extra; see requirements-search.txt. The
+# default install stays free of it so that a deployment which never enables
+# public search does not carry the SDK or its transitive dependencies.
+try:
+    from mcp import ClientSession
+    from mcp.client.streamable_http import streamable_http_client
+except ImportError:  # pragma: no cover - exercised by patching the sentinels
+    ClientSession = None
+    streamable_http_client = None
 
 
 MCP_URL = "https://search.parallel.ai/mcp"
 USER_AGENT = "AuditPilot/4.2.0 (+https://github.com/Ricky-7-Yan/intelligent-audit-system)"
+SDK_REQUIRED = "Public search needs the optional MCP client; install requirements-search.txt or set SEARCH_PROVIDER=disabled."
 
 
 def public_research(payload: dict[str, Any]) -> dict[str, Any]:
@@ -36,6 +45,8 @@ def public_research(payload: dict[str, Any]) -> dict[str, Any]:
     session_id = payload.get("public_research_session_id", "")
     if not isinstance(session_id, str) or not re.fullmatch(r"[a-f0-9]{32,64}", session_id):
         session_id = uuid.uuid4().hex
+    if ClientSession is None or streamable_http_client is None:
+        raise RuntimeError(SDK_REQUIRED)
     try:
         sources = anyio.run(search, query, session_id)
     except Exception as exc:

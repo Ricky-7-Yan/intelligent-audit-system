@@ -1,0 +1,6 @@
+# Optional public-source research runtime.
+# Install only when SEARCH_PROVIDER=parallel is required. Keeping this separate
+# keeps the MCP client SDK and its transitive dependencies out of the default
+# web service image, which ships with public search disabled.
+-r requirements.txt
+mcp>=1.30.0,<2.0

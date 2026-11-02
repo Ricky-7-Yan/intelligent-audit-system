@@ -9,7 +9,10 @@ pydantic>=2.5.0,<3.0
 # Agent and LLM
 openai>=2.48.0,<3.0
 python-dotenv>=1.2.2,<2.0
-mcp>=1.30.0,<2.0
+# Already pulled in by openai and starlette; declared because services and tests
+# import them directly. Adds no package to the default install.
+httpx>=0.28.1,<1.0
+anyio>=4.6.0,<5.0
 
 # Retrieval and evaluation
 numpy>=1.24.0,<3.0
