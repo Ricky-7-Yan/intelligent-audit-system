@@ -51,10 +51,10 @@ from services.safety_gate import SafetyGate
 from services.skill_registry import SkillRegistry
 from services.security import audit_event_store, current_principal, current_tenant_id
 from services.upload_security import read_validated_upload
+from version import APP_VERSION
 
 
 logger = logging.getLogger(__name__)
-APP_VERSION = "4.3.0"
 
 audit_agent: Optional[AuditAgent] = None
 rag_pipeline = None

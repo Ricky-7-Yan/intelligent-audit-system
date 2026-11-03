@@ -161,9 +161,9 @@ Agent Runtime 的 `audit.deep_research_brief` 可通过 [Parallel Search MCP](ht
 1. **部署级开关**：`SEARCH_PROVIDER` 默认 `disabled`，必须由部署管理员显式改为 `parallel`。
    调用方填写 `public_research_query` 只是请求，不是授权；任务上下文的 `search_provider=disabled`
    可再禁用本次搜索，部署级禁用始终优先。未知提供商会报错，不会静默回退。
-2. **独立权限**：外发需要 `execute:external_research`。该权限不属于任何内置角色，
-   `read:knowledge`、`read:*` 等现有角色不会自动获得第三方数据传输能力；
-   需在 `AUDITPILOT_API_TOKENS_JSON` 的 `permissions` 中按令牌单独授予。
+2. **独立权限**：外发需要 `execute:external_research`。该权限不授予任何非管理员内置角色
+   （仅 `admin` 的通配权限 `*` 覆盖它），`read:knowledge`、`read:*` 等现有角色不会自动获得
+   第三方数据传输能力；令牌仍需在 `AUDITPILOT_API_TOKENS_JSON` 的 `permissions` 中单独授予。
 3. **敏感信息检查**：查询在外发前复用上传链路的检查词表（`services/upload_security.py` 的凭据、
    个人信息、内部商业信息规则）与 `SafetyGate`。命中任一类即拒绝，不会发出请求。
 

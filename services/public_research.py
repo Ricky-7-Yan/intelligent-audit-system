@@ -29,6 +29,7 @@ from services.security import (
     has_permission,
 )
 from services.upload_security import scan_sensitive_text
+from version import APP_VERSION
 
 # The MCP client SDK is an optional extra; see requirements-search.txt. The
 # default install stays free of it so that a deployment which never enables
@@ -42,7 +43,7 @@ except ImportError:  # pragma: no cover - exercised by patching the sentinels
 
 
 MCP_URL = "https://search.parallel.ai/mcp"
-USER_AGENT = "AuditPilot/4.2.0 (+https://github.com/Ricky-7-Yan/intelligent-audit-system)"
+USER_AGENT = f"AuditPilot/{APP_VERSION} (+https://github.com/Ricky-7-Yan/intelligent-audit-system)"
 SDK_REQUIRED = "Public search needs the optional MCP client; install requirements-search.txt or set SEARCH_PROVIDER=disabled."
 
 _safety_gate = SafetyGate()

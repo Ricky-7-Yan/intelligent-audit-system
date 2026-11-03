@@ -20,8 +20,9 @@ from config import PATHS, SECURITY_CONFIG
 
 
 # Transferring a query to a third-party search provider is a separate decision
-# from reading internal knowledge, so no built-in role below grants it. Issue it
-# per token through the ``permissions`` list in AUDITPILOT_API_TOKENS_JSON.
+# from reading internal knowledge, so no non-admin built-in role below grants it;
+# only the admin wildcard covers it. Issue it per token through the
+# ``permissions`` list in AUDITPILOT_API_TOKENS_JSON.
 EXTERNAL_RESEARCH_PERMISSION = "execute:external_research"
 
 ROLE_PERMISSIONS: Dict[str, set[str]] = {

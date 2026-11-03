@@ -23,6 +23,7 @@ from services.security import (
     reset_request_context,
 )
 from services.skill_registry import SkillRegistry
+from web.main import APP_VERSION
 
 
 REAL_CLIENT = httpx.AsyncClient
@@ -350,6 +351,12 @@ class ExternalResearchPolicyTests(unittest.TestCase):
                 principal = _principal(frozenset(permissions))
                 granted = has_permission(principal, EXTERNAL_RESEARCH_PERMISSION)
                 self.assertEqual(granted, role == "admin")
+
+    def test_the_outbound_user_agent_reports_the_live_application_version(self):
+        self.assertEqual(
+            USER_AGENT,
+            f"AuditPilot/{APP_VERSION} (+https://github.com/Ricky-7-Yan/intelligent-audit-system)",
+        )
 
     def test_optional_dependency_is_excluded_from_the_default_install(self):
         base = (PROJECT_ROOT / "requirements.txt").read_text(encoding="utf-8")
