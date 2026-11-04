@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import json
+import re
 import tempfile
 import unittest
 from pathlib import Path
@@ -357,6 +358,13 @@ class ExternalResearchPolicyTests(unittest.TestCase):
             USER_AGENT,
             f"AuditPilot/{APP_VERSION} (+https://github.com/Ricky-7-Yan/intelligent-audit-system)",
         )
+
+    def test_the_packaging_metadata_reports_the_live_application_version(self):
+        pyproject = (PROJECT_ROOT / "pyproject.toml").read_text(encoding="utf-8")
+        # tomllib only ships with 3.11+, and the project still supports 3.10.
+        declared = re.search(r'^\[project\][^\[]*?^version = "([^"]+)"$', pyproject, re.MULTILINE)
+        self.assertIsNotNone(declared, "pyproject.toml [project] has no static version")
+        self.assertEqual(declared.group(1), APP_VERSION)
 
     def test_optional_dependency_is_excluded_from_the_default_install(self):
         base = (PROJECT_ROOT / "requirements.txt").read_text(encoding="utf-8")
