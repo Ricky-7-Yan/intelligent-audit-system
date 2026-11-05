@@ -10,12 +10,20 @@ import threading
 import time
 import uuid
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeoutError
+from contextvars import copy_context
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Any, Callable, Dict, List, Tuple
 
 from config import PATHS
-from services.security import current_principal, current_request_id, has_permission, record_visible
+from services.public_research import public_research
+from services.security import (
+    EXTERNAL_RESEARCH_PERMISSION,
+    current_principal,
+    current_request_id,
+    has_permission,
+    record_visible,
+)
 
 
 @dataclass
@@ -139,7 +147,9 @@ class SkillRegistry:
                 circuit["state"] = "half_open"
         try:
             if not missing_permissions and not validation_errors and not cache_hit and error_type != "CircuitOpenError":
-                future = self._executor.submit(skill.handler, payload)
+                # Handlers enforce tenant and transfer permissions, so the
+                # worker thread must observe the caller's request context.
+                future = self._executor.submit(copy_context().run, skill.handler, payload)
                 result = future.result(timeout=skill.timeout_seconds)
                 if not isinstance(result, dict):
                     result = {"value": result}
@@ -584,11 +594,19 @@ class SkillRegistry:
             Skill(
                 name="audit.deep_research_brief",
                 title="Deep Research 研究计划",
-                description="为复杂审计问题生成查询改写、来源策略、证据问题和人工复核条件。",
+                description=(
+                    "生成审计研究计划；默认离线。检索公开网页需要部署启用 SEARCH_PROVIDER、"
+                    f"调用方具备 {EXTERNAL_RESEARCH_PERMISSION} 权限，且查询通过敏感信息检查。"
+                ),
                 input_schema={
                     "type": "object",
                     "properties": {
                         "question": {"type": "string"},
+                        "public_research_query": {
+                            "type": "string",
+                            "description": f"公开可见的检索词；外发需要 {EXTERNAL_RESEARCH_PERMISSION} 权限。",
+                        },
+                        "search_provider": {"type": "string", "enum": ["parallel", "disabled"]},
                         "standard": {"type": "string"},
                         "domain": {"type": "string"},
                     },
@@ -596,7 +614,7 @@ class SkillRegistry:
                 },
                 permissions=["read:knowledge", "read:standards"],
                 handler=self._deep_research_brief,
-                cache_ttl_seconds=120,
+                cache_ttl_seconds=0,
             )
         )
         self._register(
@@ -691,6 +709,7 @@ class SkillRegistry:
             "question": question,
             "standard": standard,
             "domain": domain,
+            "public_research": public_research(payload),
             "review_conditions": [
                 "conflicting sources, unknown standard versions, or fewer than two independent sources",
                 "production access, personal data, or material financial impact",

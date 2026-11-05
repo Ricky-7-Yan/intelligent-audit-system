@@ -149,6 +149,16 @@ RAG_CONFIG: Dict[str, Any] = {
     "enable_embeddings": _bool_env("RAG_ENABLE_EMBEDDINGS", False),
 }
 
+# Outbound public search stays off until a deployment administrator opts in.
+# A caller-supplied query is a request, not deployment-level authorization.
+SEARCH_PROVIDER_DEFAULT = "disabled"
+
+SEARCH_CONFIG: Dict[str, Any] = {
+    "provider": os.getenv("SEARCH_PROVIDER", SEARCH_PROVIDER_DEFAULT).strip().lower(),
+    # The entire exchange stays below the research Skill's eight-second budget.
+    "timeout_seconds": _float_env("SEARCH_TIMEOUT_SECONDS", 6.0),
+}
+
 TRAINING_CONFIG: Dict[str, Any] = {
     "batch_size": _int_env("TRAINING_BATCH_SIZE", 8),
     "learning_rate": _float_env("TRAINING_LEARNING_RATE", 2e-5),

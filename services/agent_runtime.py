@@ -464,7 +464,7 @@ class AgentRuntime:
         audit_item = context.get("audit_item") or objective[:80]
         risk_topics = context.get("risk_topics") or ["权限", "变更", "日志", "数据"]
         normalized = f"{objective} {json.dumps(context, ensure_ascii=False, default=str)}".lower()
-        include_research = any(
+        include_research = bool(context.get("public_research_query")) or any(
             signal in normalized
             for signal in ("标准", "法规", "iso", "sox", "cobit", "research", "研究", "外部")
         )
@@ -602,6 +602,8 @@ class AgentRuntime:
     def _payload_for_step(self, step: Dict[str, Any], task: Dict[str, Any]) -> Dict[str, Any]:
         payload = dict(step.get("input_hint") or {})
         payload.update(task.get("context") or {})
+        if step.get("stage") == "research":
+            payload["public_research_session_id"] = hashlib.sha256(task["task_id"].encode()).hexdigest()
         payload.setdefault("objective", task.get("objective"))
         payload.setdefault(
             "upstream_artifacts",

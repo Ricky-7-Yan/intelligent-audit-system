@@ -49,12 +49,12 @@ from services.rag_evaluator import RAGEvaluator
 from services.research_agent import AuditResearchAgent
 from services.safety_gate import SafetyGate
 from services.skill_registry import SkillRegistry
-from services.security import AuditEventStore, current_principal, current_tenant_id
+from services.security import audit_event_store, current_principal, current_tenant_id
 from services.upload_security import read_validated_upload
+from version import APP_VERSION
 
 
 logger = logging.getLogger(__name__)
-APP_VERSION = "4.3.0"
 
 audit_agent: Optional[AuditAgent] = None
 rag_pipeline = None
@@ -267,8 +267,8 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-audit_event_store = AuditEventStore()
-app.add_middleware(SecurityAuditMiddleware, audit_events=audit_event_store)
+audit_events = audit_event_store()
+app.add_middleware(SecurityAuditMiddleware, audit_events=audit_events)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=WEB_CONFIG["cors_origins"] or ["http://localhost:8000"],
@@ -1412,7 +1412,7 @@ def _readiness_payload() -> tuple[Dict[str, Any], bool]:
         "memory": conversation_memory.stats(),
         "security_mode": SECURITY_CONFIG["mode"],
         "tenant_isolation": bool(SECURITY_CONFIG["tenant_isolation"]),
-        "audit_event_chain": audit_event_store.verify(),
+        "audit_event_chain": audit_events.verify(),
         "transactional_storage": {
             "audit_runs": audit_repository.store.health(),
             "evaluation_runs": evaluation_repository.store.health(),
